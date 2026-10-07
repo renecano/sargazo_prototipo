@@ -1,0 +1,15 @@
+# Entorno
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Datos generados (se recrean con scripts/generar_datos_demo.py)
+data/demo/*.txt
+data/demo/corrientes/
+data/demo_errores/
+data/simulations/*.json
+
+# Documentos de referencia locales del equipo (no forman parte del código)
+/*.pdf
+/ejemplo.jpeg

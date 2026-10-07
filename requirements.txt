@@ -1,0 +1,4 @@
+# Dependencias de ejecución (versiones fijadas)
+fastapi==0.142.4
+uvicorn==0.54.0
+numpy==2.5.3
