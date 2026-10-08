@@ -58,6 +58,7 @@ class Resultado:
     hora_varada: np.ndarray    # [N] hora en que vara (−1 si no)
     hora_fuera: np.ndarray     # [N] hora en que sale del dominio (−1 si no)
     reubicadas_inicio: int
+    dominio: tuple = (LON_MIN, LON_MAX, LAT_MIN, LAT_MAX)
     bitacora: list[str] = field(default_factory=list)
     duracion_s: float = 0.0
     version_modelo: str = VERSION_MODELO
@@ -203,4 +204,4 @@ def simular(campos, p: Parametros, en_tierra: FuncionTierra = costa.en_tierra,
 
     duracion = time.perf_counter() - t0
     bitacora.append(f"Cálculo terminado en {duracion:.2f} s.")
-    return Resultado(p, lon, lat, estado, hora_varada, hora_fuera, reubicadas, bitacora, duracion)
+    return Resultado(p, lon, lat, estado, hora_varada, hora_fuera, reubicadas, tuple(dominio), bitacora, duracion)

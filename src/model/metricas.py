@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import numpy as np
 
-from src.config import LAT_MAX, LAT_MIN, LON_MAX, LON_MIN
 from src.model import costa
 from src.model.conversiones import distancia_km, nombre_rumbo
 from src.model.simulacion import A_FLOTE, FUERA, VARADA, Resultado
@@ -80,7 +79,7 @@ def resumir(r: Resultado) -> dict:
     bordes = {}
     if fuera.any():
         x, y = r.lon[-1, fuera], r.lat[-1, fuera]
-        lon_min, lon_max, lat_min, lat_max = LON_MIN, LON_MAX, LAT_MIN, LAT_MAX
+        lon_min, lon_max, lat_min, lat_max = r.dominio
         for nombre, sel in (("norte", np.isclose(y, lat_max)), ("sur", np.isclose(y, lat_min)),
                             ("este", np.isclose(x, lon_max)), ("oeste", np.isclose(x, lon_min))):
             if sel.any():

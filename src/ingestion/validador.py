@@ -220,7 +220,8 @@ def validar_conjunto(directorio: Path, progreso: Progreso | None = None,
         if fuerte.any():
             errores_angulo.append(diferencia_angular(dir_uv[fuerte], dirr[fuerte]))
         velocidades.append(vel)
-        if np.nanmax(np.abs(vel_uv - vel)) > 0.05 * max(1.0, float(np.nanmax(vel))):
+        diferencia = np.abs(vel_uv - vel)
+        if np.isfinite(diferencia).any() and np.nanmax(diferencia) > 0.05 * max(1.0, float(np.nanmax(vel))):
             v_unid.agregar("advertencia", "WindsfcSp no coincide con √(U²+V²).", ruta.name,
                            "Confirma con SEMAR si U, V y WindsfcSp están en las mismas unidades.")
         tablas.append((fecha, ruta, tabla, orden))

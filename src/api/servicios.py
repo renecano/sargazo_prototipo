@@ -127,7 +127,8 @@ def ejecutar_simulacion(datos: ServicioDatos, almacen: Almacen, conjunto_id: str
     if p.horizonte_h > conjunto.horas:
         raise ErrorConAccion(f"El horizonte ({p.horizonte_h} h) excede las {conjunto.horas} h del conjunto.",
                              "Reduce el horizonte.", codigo=422)
-    resultado = simular(CamposMalla(conjunto), p, progreso=progreso)
+    dominio = (float(conjunto.lons[0]), float(conjunto.lons[-1]), float(conjunto.lats[0]), float(conjunto.lats[-1]))
+    resultado = simular(CamposMalla(conjunto), p, dominio=dominio, progreso=progreso)
     registro = armar_registro(resultado, resumir(resultado), conjunto.resumen())
     almacen.guardar(registro)
     return registro
