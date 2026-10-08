@@ -51,23 +51,24 @@ POLIGONOS = {
     "cuba": CUBA,
 }
 
-# Tramos de costa para resumir arribos. "ancla" es donde la interfaz coloca la etiqueta.
+# Tramos de costa para resumir arribos. "ancla" es donde la interfaz coloca la etiqueta
+# (tierra adentro, para no tapar las partículas).
 ZONAS = [
-    {"id": "campeche", "nombre": "Campeche", "ancla": (-90.62, 19.75)},
-    {"id": "norte_yucatan", "nombre": "Costa norte de Yucatán", "ancla": (-89.30, 21.42)},
-    {"id": "holbox", "nombre": "Holbox – Cabo Catoche", "ancla": (-87.30, 21.66)},
-    {"id": "costa_mujeres", "nombre": "Costa Mujeres – Isla Blanca", "ancla": (-86.70, 21.36)},
-    {"id": "cancun", "nombre": "Cancún – Isla Mujeres", "ancla": (-86.68, 21.12)},
-    {"id": "puerto_morelos", "nombre": "Puerto Morelos", "ancla": (-86.78, 20.86)},
-    {"id": "playa_del_carmen", "nombre": "Playa del Carmen", "ancla": (-87.10, 20.68)},
-    {"id": "cozumel", "nombre": "Cozumel", "ancla": (-86.68, 20.42)},
-    {"id": "akumal", "nombre": "Puerto Aventuras – Akumal", "ancla": (-87.20, 20.40)},
-    {"id": "tulum", "nombre": "Tulum", "ancla": (-87.32, 20.18)},
-    {"id": "sian_kaan", "nombre": "Sian Ka'an", "ancla": (-87.35, 19.65)},
-    {"id": "mahahual", "nombre": "Mahahual (Costa Maya)", "ancla": (-87.60, 18.85)},
-    {"id": "xcalak", "nombre": "Xcalak", "ancla": (-87.72, 18.30)},
-    {"id": "belice", "nombre": "Belice", "ancla": (-87.95, 17.60)},
-    {"id": "cuba", "nombre": "Cuba (occidente)", "ancla": (-84.80, 22.10)},
+    {"id": "campeche", "nombre": "Campeche", "ancla": (-90.20, 19.60)},
+    {"id": "norte_yucatan", "nombre": "Costa norte de Yucatán", "ancla": (-89.30, 21.12)},
+    {"id": "holbox", "nombre": "Holbox – Cabo Catoche", "ancla": (-87.35, 21.33)},
+    {"id": "costa_mujeres", "nombre": "Costa Mujeres – Isla Blanca", "ancla": (-87.00, 21.34)},
+    {"id": "cancun", "nombre": "Cancún – Isla Mujeres", "ancla": (-87.00, 21.10)},
+    {"id": "puerto_morelos", "nombre": "Puerto Morelos", "ancla": (-87.10, 20.86)},
+    {"id": "playa_del_carmen", "nombre": "Playa del Carmen", "ancla": (-87.32, 20.66)},
+    {"id": "cozumel", "nombre": "Cozumel", "ancla": (-86.89, 20.43)},
+    {"id": "akumal", "nombre": "Puerto Aventuras – Akumal", "ancla": (-87.52, 20.42)},
+    {"id": "tulum", "nombre": "Tulum", "ancla": (-87.66, 20.20)},
+    {"id": "sian_kaan", "nombre": "Sian Ka'an", "ancla": (-87.76, 19.65)},
+    {"id": "mahahual", "nombre": "Mahahual (Costa Maya)", "ancla": (-87.96, 18.85)},
+    {"id": "xcalak", "nombre": "Xcalak", "ancla": (-88.06, 18.36)},
+    {"id": "belice", "nombre": "Belice", "ancla": (-88.48, 17.70)},
+    {"id": "cuba", "nombre": "Cuba (occidente)", "ancla": (-84.15, 22.35)},
 ]
 NOMBRE_ZONA = {z["id"]: z["nombre"] for z in ZONAS}
 

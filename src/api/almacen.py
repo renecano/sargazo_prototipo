@@ -18,7 +18,8 @@ from pathlib import Path
 import numpy as np
 
 from src.config import LAT_MIN, LON_MIN, VERSION_APP
-from src.model.simulacion import Resultado
+from src.model import costa
+from src.model.simulacion import VARADA, Resultado
 
 PATRON_ID = re.compile(r"^sim-\d{8}-\d{6}-[0-9a-f]{4}$")
 ESCALA_POSICION = 5000.0  # unidades por grado → 0.0002°
@@ -56,6 +57,17 @@ def nuevo_id(ahora: datetime) -> str:
     return f"sim-{ahora:%Y%m%d-%H%M%S}-{secrets.token_hex(2)}"
 
 
+def zonas_por_particula(resultado: Resultado) -> np.ndarray:
+    """Índice en costa.ZONAS del tramo donde varó cada partícula (255 = no varó)."""
+    codigos = np.full(resultado.estado.shape, 255, dtype=np.uint8)
+    varadas = resultado.estado == VARADA
+    if varadas.any():
+        indice = {z["id"]: k for k, z in enumerate(costa.ZONAS)}
+        zonas = costa.zona_costera(resultado.lon[-1, varadas], resultado.lat[-1, varadas])
+        codigos[varadas] = [indice[z] for z in zonas]
+    return codigos
+
+
 def armar_registro(resultado: Resultado, resumen: dict, conjunto: dict) -> dict:
     ahora = datetime.now(timezone.utc)
     series = resumen.pop("series")
@@ -72,6 +84,8 @@ def armar_registro(resultado: Resultado, resumen: dict, conjunto: dict) -> dict:
             "particulas": codificar_posiciones(resultado.lon, resultado.lat),
             "hora_varada": b64(resultado.hora_varada.astype("<i2")),
             "hora_fuera": b64(resultado.hora_fuera.astype("<i2")),
+            "zona_varada": b64(zonas_por_particula(resultado)),
+            "zonas": [{"id": z["id"], "nombre": z["nombre"], "ancla": list(z["ancla"])} for z in costa.ZONAS],
             "series": series,
         },
         "bitacora": resultado.bitacora,
