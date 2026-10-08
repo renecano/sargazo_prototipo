@@ -202,7 +202,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .leaflet-bar { border: 1px solid var(--borde) !important; box-shadow: var(--sombra) !important; }
 .leaflet-control-scale-line { background: rgba(6, 20, 32, 0.78); color: var(--texto-2); border-color: var(--texto-2); }
 .leaflet-bottom { bottom: 84px; }
-.leaflet-top.leaflet-left { top: 96px; }
+.leaflet-top.leaflet-left { top: 56px; }
 .leaflet-container.seleccionando { cursor: crosshair; }
 .capa-canvas { position: absolute; pointer-events: none; }
 
@@ -226,14 +226,10 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   display: flex; flex-wrap: wrap; gap: 8px; align-items: center; pointer-events: none;
 }
 .barra-capas > * { pointer-events: auto; }
-.segmentado, .interruptores {
+.interruptores {
   display: flex; align-items: center; gap: 2px; background: rgba(10, 28, 43, 0.92); border: 1px solid var(--borde);
   border-radius: 9px; padding: 3px; box-shadow: var(--sombra); backdrop-filter: blur(6px);
 }
-.seg-titulo { font-size: 11px; color: var(--texto-3); padding: 0 8px 0 6px; text-transform: uppercase; letter-spacing: 0.05em; }
-.segmentado button { background: none; border: 0; border-radius: 6px; padding: 5px 10px; font-size: 12.5px; color: var(--texto-2); }
-.segmentado button:hover { color: var(--texto); }
-.segmentado button[aria-checked="true"] { background: var(--acento-suave); color: #8fe8f0; box-shadow: inset 0 0 0 1px rgba(43,179,192,0.45); }
 .interruptores { padding: 3px 8px; gap: 10px; }
 .interruptores label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--texto-2); cursor: pointer; white-space: nowrap; }
 .interruptores input { accent-color: var(--acento); margin: 0; }

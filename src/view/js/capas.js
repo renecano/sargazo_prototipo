@@ -1,5 +1,4 @@
-// Capas canvas sobre Leaflet: flujo animado (viento/corriente/deriva) y sargazo
-// (densidad por celda de 0.16°, zona P90 y partículas).
+// Capas canvas sobre Leaflet: sargazo (densidad por celda de 0.16°, zona P90 y partículas) y malla.
 /* global L */
 import { A_FLOTE, VARADA } from './datos.js';
 
@@ -51,115 +50,12 @@ export const CapaCanvas = L.Layer.extend({
     const s = Math.sin((lat * Math.PI) / 180);
     return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * this.escala + this.dy;
   },
-  // Grados de longitud por píxel a este zoom.
-  gradosPorPixel() { return 360 / this.escala; },
   redibujar() {
     if (!this.ctx) return;
     this.ctx.clearRect(0, 0, this.ancho, this.alto);
     this.dibujar(this.ctx, this);
   },
 });
-
-// ---------------------------------------------------------------------------
-// Flujo animado: trazadores que siguen el campo de la capa seleccionada.
-// ---------------------------------------------------------------------------
-export const ESCALAS_FLUJO = {
-  viento: { cortes: [2, 4, 6, 8, 10], unidad: 'm/s', pxPorMs: 0.32, titulo: 'Viento a 10 m' },
-  corriente: { cortes: [0.1, 0.25, 0.5, 0.8, 1.2], unidad: 'm/s', pxPorMs: 1.5, titulo: 'Corriente superficial' },
-  deriva: { cortes: [0.1, 0.25, 0.5, 0.8, 1.2], unidad: 'm/s', pxPorMs: 1.5, titulo: 'Deriva combinada (u_c + α·u_w)' },
-};
-// Rampa secuencial de un solo tono (azul), de tenue a brillante sobre fondo oscuro.
-export const RAMPA_FLUJO = ['#1c5cab', '#2a78d6', '#5598e7', '#86b6ef', '#b7d3f6', '#dceafb'];
-
-export class Flujo {
-  constructor(mapa, estado) {
-    this.estado = estado; // { campos, capa, hora, alpha }
-    this.capa = new CapaCanvas({ pane: 'flujo', nombre: 'flujo' });
-    this.capa.addTo(mapa);
-    mapa.on('moveend zoomend resize', () => this.sembrar(), this);
-    this.activo = true;
-    this.ultimo = 0;
-    this.sembrar();
-    requestAnimationFrame((t) => this.cuadro(t));
-  }
-
-  sembrar() {
-    const c = this.capa;
-    if (!c.ancho) return;
-    const n = Math.min(1500, Math.max(300, Math.round((c.ancho * c.alto) / 1100)));
-    this.n = n;
-    this.px = new Float32Array(n);
-    this.py = new Float32Array(n);
-    this.edad = new Float32Array(n);
-    this.vida = new Float32Array(n);
-    for (let k = 0; k < n; k++) this.renacer(k, true);
-    c.ctx.clearRect(0, 0, c.ancho, c.alto);
-  }
-
-  renacer(k, inicial = false) {
-    const c = this.capa, m = c._mapa, campos = this.estado.campos;
-    const b = m.getBounds();
-    const oeste = Math.max(b.getWest(), campos ? campos.lon0 : -92), este = Math.min(b.getEast(), campos ? campos.lonMax : -84);
-    const sur = Math.max(b.getSouth(), campos ? campos.lat0 : 17), norte = Math.min(b.getNorth(), campos ? campos.latMax : 23);
-    this.px[k] = oeste + Math.random() * Math.max(0, este - oeste);
-    this.py[k] = sur + Math.random() * Math.max(0, norte - sur);
-    this.vida[k] = 40 + Math.random() * 70;
-    this.edad[k] = inicial ? Math.random() * this.vida[k] : 0;
-  }
-
-  // Corriente y deriva solo existen en el mar: los trazadores sobre tierra se reciclan.
-  enMar(lon, lat) {
-    const nodo = this.estado.campos.nodoCercano(lon, lat);
-    return Boolean(nodo && this.estado.campos.mar[nodo.k]);
-  }
-
-  cuadro(t) {
-    requestAnimationFrame((tt) => this.cuadro(tt));
-    if (t - this.ultimo < 33) return; // ~30 cuadros por segundo: ligero en equipos de 8 GB
-    this.ultimo = t;
-    const e = this.estado, c = this.capa, ctx = c.ctx;
-    if (!ctx || !c.ancho) return;
-    // Desvanecer los rastros previos.
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalCompositeOperation = 'destination-in';
-    ctx.fillStyle = 'rgba(0,0,0,0.88)';
-    ctx.fillRect(0, 0, c.canvas.width, c.canvas.height);
-    ctx.restore();
-    if (!e.campos || e.capa === 'ninguna' || !this.n) return;
-
-    const esc = ESCALAS_FLUJO[e.capa];
-    const gpp = c.gradosPorPixel();
-    const lotes = RAMPA_FLUJO.map(() => []);
-    for (let k = 0; k < this.n; k++) {
-      this.edad[k] += 1;
-      const lon = this.px[k], lat = this.py[k];
-      const uv = e.campos.muestra(e.capa, lon, lat, e.hora, e.alpha);
-      const vel = uv ? Math.hypot(uv[0], uv[1]) : 0;
-      if (!uv || vel < 0.004 || this.edad[k] > this.vida[k] || (e.capa !== 'viento' && !this.enMar(lon, lat))) { this.renacer(k); continue; }
-      const cosLat = Math.cos((lat * Math.PI) / 180);
-      const nlon = lon + uv[0] * esc.pxPorMs * gpp;
-      const nlat = lat + uv[1] * esc.pxPorMs * gpp * cosLat;
-      let b = 0;
-      while (b < esc.cortes.length && vel >= esc.cortes[b]) b++;
-      lotes[b].push(c.x(lon), c.y(lat), c.x(nlon), c.y(nlat));
-      this.px[k] = nlon;
-      this.py[k] = nlat;
-    }
-    ctx.lineWidth = 1.1;
-    ctx.lineCap = 'round';
-    const tenue = e.sim ? 0.55 : 1; // con resultado, el flujo pasa a segundo plano
-    lotes.forEach((seg, b) => {
-      if (!seg.length) return;
-      ctx.strokeStyle = RAMPA_FLUJO[b];
-      ctx.globalAlpha = (0.38 + 0.08 * b) * tenue;
-      ctx.beginPath();
-      for (let s = 0; s < seg.length; s += 4) { ctx.moveTo(seg[s], seg[s + 1]); ctx.lineTo(seg[s + 2], seg[s + 3]); }
-      ctx.stroke();
-    });
-    ctx.globalAlpha = 1;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Sargazo: densidad por celda, zona P90 y partículas.

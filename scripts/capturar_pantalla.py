@@ -86,7 +86,7 @@ def principal() -> int:
             pg = nav.new_page(viewport={"width": 1600, "height": 900}, device_scale_factor=1)
             pg.goto(url, wait_until="domcontentloaded")
             _esperar(pg, "listo")
-            pg.wait_for_timeout(2500)  # deja que el flujo animado dibuje sus trazos
+            pg.wait_for_timeout(1500)  # deja que carguen las teselas del mapa base
             _captura(pg, DOCS / "captura_listo.png")
 
             _simular(pg, 18.75, -87.56, horizonte=72, alpha=2.0, semilla=11)

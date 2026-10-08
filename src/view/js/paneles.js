@@ -1,6 +1,6 @@
 // Render de paneles: validación, resultado, historial y leyenda.
 import { el, fmtCoord, fmtFechaCorta, fmtNum, fmtPct } from './util.js';
-import { CORTES_DENSIDAD, COLOR_SARGAZO, COLOR_VARADA, ESCALAS_FLUJO, RAMPA_DENSIDAD, RAMPA_FLUJO } from './capas.js';
+import { CORTES_DENSIDAD, COLOR_SARGAZO, COLOR_VARADA, RAMPA_DENSIDAD } from './capas.js';
 
 const ICONO = { ok: '✓', advertencia: '!', error: '✕' };
 
@@ -200,15 +200,8 @@ export function renderHistorial(lista, contador, filas, activa, alAbrir) {
 // ---------------------------------------------------------------------------
 // Leyenda (unidades explícitas)
 // ---------------------------------------------------------------------------
-export function renderLeyenda(cuerpo, capa, haySim) {
+export function renderLeyenda(cuerpo, haySim) {
   const filas = [];
-  if (capa !== 'ninguna') {
-    const esc = ESCALAS_FLUJO[capa];
-    filas.push(el('div', { class: 'ley-titulo' }, `${esc.titulo} · ${esc.unidad}`),
-      el('div', { class: 'ley-rampa' }, RAMPA_FLUJO.map((c) => el('i', { style: `background:${c}` }))),
-      el('div', { class: 'ley-ticks' }, el('span', {}, '0'), esc.cortes.map((c) => el('span', {}, fmtNum(c, c < 1 ? 2 : 0))), el('span', {}, '')));
-    if (capa === 'viento') filas.push(el('div', { class: 'ley-titulo' }, 'Trazos en la dirección HACIA la que sopla (el hover muestra la dirección DESDE).'));
-  }
   filas.push(
     el('div', { class: 'ley-fila' }, simbolo('punto', COLOR_SARGAZO), 'Partícula de sargazo a flote'),
     el('div', { class: 'ley-fila' }, simbolo('anillo', COLOR_VARADA), 'Partícula varada en la costa'),

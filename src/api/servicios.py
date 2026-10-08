@@ -94,7 +94,7 @@ class ServicioDatos:
         return conjunto
 
     def campos(self, conjunto_id: str) -> dict:
-        """Campos para la capa animada y el hover, compactos (enteros escalados en base64)."""
+        """Campos para el hover y la malla, compactos (enteros escalados en base64)."""
         c = self.conjunto_valido(conjunto_id)
         ola = np.where(np.isfinite(c.ola_dir), np.round(c.ola_dir * 10), 65535).astype("<u2")
         return {

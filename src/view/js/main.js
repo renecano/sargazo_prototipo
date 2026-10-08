@@ -2,7 +2,7 @@
 /* global L */
 import { api, esperarTrabajo } from './api.js';
 import { Campos, Simulacion } from './datos.js';
-import { CapaCanvas, Flujo, dibujarDensidad, dibujarMalla, dibujarParticulas } from './capas.js';
+import { CapaCanvas, dibujarDensidad, dibujarMalla, dibujarParticulas } from './capas.js';
 import { actualizarResultado, bitacora, cajaError, listaVerificaciones, renderHistorial, renderLeyenda, renderResultado } from './paneles.js';
 import {
   MS_A_NUDOS, dirDesde, dirHacia, el, fmtCoord, fmtFechaUTC, fmtHoraCancun, fmtLat, fmtLon, fmtNum, fmtPct,
@@ -18,7 +18,6 @@ const est = {
   conjuntos: [],
   campos: null,
   sim: null,
-  capa: 'deriva',
   hora: 0,
   alpha: 1,
   ver: { particulas: true, zona: true, densidad: true, trayectoria: true, malla: false, costa: false },
@@ -45,15 +44,13 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 mapa.attributionControl.setPrefix('<a href="https://leafletjs.com" title="Biblioteca de mapas">Leaflet</a>');
 L.control.scale({ imperial: false, position: 'bottomright' }).addTo(mapa);
 
-for (const [nombre, z] of [['densidad', 380], ['flujo', 390], ['malla', 395], ['particulas', 460], ['trayectoria', 470]]) {
+for (const [nombre, z] of [['densidad', 380], ['malla', 395], ['particulas', 460], ['trayectoria', 470]]) {
   mapa.createPane(nombre).style.zIndex = z;
 }
-mapa.getPane('flujo').style.pointerEvents = 'none';
 
 const capaDensidad = new CapaCanvas({ pane: 'densidad', nombre: 'densidad', dibujar: (ctx, c) => dibujarDensidad(ctx, c, est) }).addTo(mapa);
 const capaMalla = new CapaCanvas({ pane: 'malla', nombre: 'malla', dibujar: (ctx, c) => dibujarMalla(ctx, c, est) }).addTo(mapa);
 const capaParticulas = new CapaCanvas({ pane: 'particulas', nombre: 'particulas', dibujar: (ctx, c) => dibujarParticulas(ctx, c, est) }).addTo(mapa);
-const flujo = new Flujo(mapa, est);
 
 L.rectangle([[DOMINIO.sur, DOMINIO.oeste], [DOMINIO.norte, DOMINIO.este]], {
   color: '#5f86a3', weight: 1, dashArray: '2 5', fill: false, interactive: false,
@@ -601,9 +598,8 @@ function redibujarTodo() {
   capaDensidad.redibujar();
   capaMalla.redibujar();
   capaParticulas.redibujar();
-  flujo.sembrar();
   actualizarTrayectoria();
-  renderLeyenda($('leyenda-cuerpo'), est.capa, Boolean(est.sim));
+  renderLeyenda($('leyenda-cuerpo'), Boolean(est.sim));
 }
 
 mapa.on('click', (e) => {
@@ -645,12 +641,6 @@ document.addEventListener('keydown', (e) => {
   else if (e.code === 'End') { pausar(); ponerHora(horaMaxima()); }
 });
 
-document.querySelectorAll('.segmentado button').forEach((b) => b.addEventListener('click', () => {
-  document.querySelectorAll('.segmentado button').forEach((o) => o.setAttribute('aria-checked', String(o === b)));
-  est.capa = b.dataset.capa;
-  flujo.sembrar();
-  renderLeyenda($('leyenda-cuerpo'), est.capa, Boolean(est.sim));
-}));
 document.querySelectorAll('[data-ver]').forEach((c) => c.addEventListener('change', () => {
   est.ver[c.dataset.ver] = c.checked;
   if (c.dataset.ver === 'costa') {
@@ -677,6 +667,6 @@ api.costa().then((gj) => {
 
 fijarPunto(est.punto.lat, est.punto.lon);
 actualizarEtiquetasForm();
-renderLeyenda($('leyenda-cuerpo'), est.capa, false);
+renderLeyenda($('leyenda-cuerpo'), false);
 configurarLineaTiempo();
 iniciar().then(cargarHistorial);

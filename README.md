@@ -11,7 +11,7 @@
 
 *Simulación de 120 h desde frente a Cancún, pausada en +72 h: partículas a flote (ámbar) y
 varadas (anillos coral), trayectoria central, densidad y zona probable P90 en celdas de
-0.16°, flujo animado de la deriva combinada, tooltip con los valores del nodo de malla
+0.16°, tooltip con los valores del nodo de malla
 más cercano y resumen probabilístico del resultado.*
 
 ---
@@ -159,8 +159,8 @@ Panel oscuro a la izquierda y mapa a la derecha, como en el boceto del equipo, c
    arrastre del viento α (0–4 %, por defecto 1 %), difusión K<sub>h</sub> (m²/s, por
    defecto 10), horizonte (24–120 h) y semilla. Botón **Simular**.
 4. **Mapa** (Leaflet + OpenStreetMap con filtro oscuro):
-   - Capa animada seleccionable: **viento**, **corriente** o **deriva combinada**
-     (u<sub>c</sub> + α·u<sub>w</sub>), con trazos coloreados por velocidad (m/s).
+   - Sin capas animadas de viento o corriente, para que la atención quede en el sargazo:
+     esos valores se consultan con el cursor (ver Hover).
    - Partículas de sargazo (a flote / varadas), **trayectoria central** con marcas cada
      24 h y **zona probable P90** sobre la **densidad por celda de 0.16°**.
    - Etiquetas de arribo acumulado por tramo de costa hasta la hora mostrada.

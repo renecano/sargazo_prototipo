@@ -41,29 +41,6 @@ export class Campos {
       mar: this.mar[nodo.k] === 1,
     };
   }
-
-  // Interpolación bilineal de la capa pedida: 'viento', 'corriente' o 'deriva' (u_c + α·u_w).
-  muestra(capa, lon, lat, h, alpha) {
-    const fj = (lon - this.lon0) / this.dlon;
-    const fi = (lat - this.lat0) / this.dlat;
-    if (fi < 0 || fj < 0 || fi > this.ny - 1 || fj > this.nx - 1) return null;
-    const i0 = Math.min(Math.floor(fi), this.ny - 2), j0 = Math.min(Math.floor(fj), this.nx - 2);
-    const wi = fi - i0, wj = fj - j0;
-    const k00 = i0 * this.nx + j0, k01 = k00 + 1, k10 = k00 + this.nx, k11 = k10 + 1;
-    const w00 = (1 - wi) * (1 - wj), w01 = (1 - wi) * wj, w10 = wi * (1 - wj), w11 = wi * wj;
-    let u = 0, v = 0;
-    if (capa !== 'corriente') {
-      const o = this.hora(h) * this.nx * this.ny;
-      const f = capa === 'viento' ? 0.01 : 0.01 * alpha;
-      u += f * (w00 * this.vu[o + k00] + w01 * this.vu[o + k01] + w10 * this.vu[o + k10] + w11 * this.vu[o + k11]);
-      v += f * (w00 * this.vv[o + k00] + w01 * this.vv[o + k01] + w10 * this.vv[o + k10] + w11 * this.vv[o + k11]);
-    }
-    if (capa !== 'viento') {
-      u += 0.001 * (w00 * this.cu[k00] + w01 * this.cu[k01] + w10 * this.cu[k10] + w11 * this.cu[k11]);
-      v += 0.001 * (w00 * this.cv[k00] + w01 * this.cv[k01] + w10 * this.cv[k10] + w11 * this.cv[k11]);
-    }
-    return [u, v];
-  }
 }
 
 export class Simulacion {
