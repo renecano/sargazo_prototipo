@@ -13,3 +13,6 @@ data/simulations/*.json
 # Documentos de referencia locales del equipo (no forman parte del código)
 /*.pdf
 /ejemplo.jpeg
+
+.vercel
+.env*

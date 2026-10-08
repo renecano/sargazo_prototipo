@@ -100,7 +100,9 @@ def test_ids_invalidos_404(cliente, sim_id):
 
 
 def test_interfaz_y_salud(cliente):
-    assert cliente.get("/api/salud").json()["estado"] == "ok"
+    salud = cliente.get("/api/salud").json()
+    assert salud["estado"] == "ok"
+    assert salud["trabajos_en_segundo_plano"] is True and salud["almacenamiento_efimero"] is False
     html = cliente.get("/")
     assert html.status_code == 200 and "Predicción de Movimiento del Sargazo" in html.text
     js = cliente.get("/static/js/main.js")

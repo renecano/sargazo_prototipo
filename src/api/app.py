@@ -16,7 +16,7 @@ from src.api.servicios import (
 )
 from src.config import (
     DIR_DATOS, DIR_SIMULACIONES, DIR_VISTA, HORAS_ESPERADAS, LAT_MAX, LAT_MIN, LON_MAX, LON_MIN,
-    VERSION_APP, VERSION_MODELO,
+    SERVERLESS, VERSION_APP, VERSION_MODELO,
 )
 from src.model import costa
 from src.model.simulacion import Parametros, PuntoInvalido, validar_punto
@@ -62,7 +62,13 @@ def crear_app(dir_datos: Path = DIR_DATOS, dir_simulaciones: Path = DIR_SIMULACI
 
     @app.get("/api/salud")
     def salud():
-        return {"estado": "ok", "version_app": VERSION_APP, "version_modelo": VERSION_MODELO}
+        return {
+            "estado": "ok", "version_app": VERSION_APP, "version_modelo": VERSION_MODELO,
+            # En modo sin servidor la interfaz usa los endpoints síncronos y avisa que el
+            # historial vive en almacenamiento temporal.
+            "trabajos_en_segundo_plano": not SERVERLESS,
+            "almacenamiento_efimero": SERVERLESS,
+        }
 
     @app.get("/api/conjuntos")
     def conjuntos():

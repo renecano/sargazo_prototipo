@@ -27,6 +27,7 @@ const est = {
   historial: [],
   poligonosCosta: [],
   estadoPrevio: null,
+  sinServidor: false, // despliegue sin servidor (Vercel): endpoints síncronos
 };
 window.pms = est; // facilita la inspección desde la consola y las pruebas de interfaz
 
@@ -132,6 +133,8 @@ async function iniciar() {
   try {
     const salud = await api.salud();
     $('version').textContent = `App v${salud.version_app} · modelo ${salud.version_modelo}`;
+    est.sinServidor = salud.trabajos_en_segundo_plano === false;
+    $('aviso-historial').hidden = !salud.almacenamiento_efimero;
     est.conjuntos = await api.conjuntos();
   } catch (e) {
     ponerEstado('error', { titulo: 'Error', texto: 'No se pudo contactar al servidor.', detalle: cajaError(e.detalle || { causa: e.message }), acciones: [['Reintentar', () => iniciar()]] });
@@ -157,8 +160,14 @@ async function cargarConjunto(id, forzar = false) {
   ponerEstado('validando', { titulo: 'Validando datos', texto: `Revisando ${info.archivos} archivos de data/${id}/…`, progreso: 0, paso: `0/${info.archivos + 1}` });
   let t;
   try {
-    const { trabajo_id } = await api.validar(id, forzar);
-    t = await esperarTrabajo(trabajo_id, (tr) => progresoEstado(tr.avance / tr.total, `${tr.avance}/${tr.total}`, tr.mensaje));
+    if (est.sinServidor) {
+      $('estado-progreso').classList.add('indeterminado');
+      t = { estado: 'terminado', resultado: await api.validacion(id) };
+      $('estado-progreso').classList.remove('indeterminado');
+    } else {
+      const { trabajo_id } = await api.validar(id, forzar);
+      t = await esperarTrabajo(trabajo_id, (tr) => progresoEstado(tr.avance / tr.total, `${tr.avance}/${tr.total}`, tr.mensaje));
+    }
   } catch (e) {
     ponerEstado('error', { titulo: 'Error', texto: 'No se pudo validar el conjunto.', detalle: cajaError(e.detalle || { causa: e.message }), acciones: [['Reintentar', () => cargarConjunto(id, true)]] });
     return;
@@ -308,8 +317,17 @@ async function simular() {
   });
   let t;
   try {
-    const { trabajo_id } = await api.simular(p);
-    t = await esperarTrabajo(trabajo_id, (tr) => progresoEstado(tr.avance / tr.total, `${tr.avance}/${tr.total} h`));
+    if (est.sinServidor) {
+      $('estado-progreso').classList.add('indeterminado');
+      try {
+        t = { estado: 'terminado', resultado: await api.simularSincrono(p) };
+      } finally {
+        $('estado-progreso').classList.remove('indeterminado');
+      }
+    } else {
+      const { trabajo_id } = await api.simular(p);
+      t = await esperarTrabajo(trabajo_id, (tr) => progresoEstado(tr.avance / tr.total, `${tr.avance}/${tr.total} h`));
+    }
   } catch (e) {
     mostrarError(e.detalle || { causa: e.message });
     return;

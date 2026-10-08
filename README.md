@@ -1,5 +1,7 @@
 # PMS · Predicción de Movimiento del Sargazo — prototipo visual
 
+**Demo en línea:** <https://pms-sargazo.vercel.app>
+
 > **Prototipo con datos sintéticos.** Muestra cómo se verá y se sentirá la aplicación
 > terminada, de punta a punta, para revisarla con el equipo y con SEMAR. Los campos de
 > viento y corriente **no son datos reales** y los parámetros del modelo **no están
@@ -18,7 +20,7 @@ más cercano y resumen probabilístico del resultado.*
 
 1. [Problema y contexto](#problema-y-contexto)
 2. [Qué es y qué no es este prototipo](#qué-es-y-qué-no-es-este-prototipo)
-3. [Cómo correrlo en Windows](#cómo-correrlo-en-windows-powershell)
+3. [Cómo correrlo en Windows](#cómo-correrlo-en-windows-powershell) · [Despliegue en Vercel](#despliegue-en-vercel)
 4. [Qué se ve en la pantalla](#qué-se-ve-en-la-pantalla)
 5. [El modelo](#el-modelo)
 6. [Datos y validación](#datos-y-validación)
@@ -112,6 +114,28 @@ python scripts/medir_rendimiento.py       # mide tiempos y memoria → docs/rend
 
 Las pruebas de interfaz usan el Microsoft Edge que ya trae Windows. En otro sistema,
 instala Chromium una vez con `python -m playwright install chromium`.
+
+## Despliegue en Vercel
+
+La demo pública vive en <https://pms-sargazo.vercel.app> (proyecto `pms-sargazo`). Vercel
+ejecuta la app como una función Python sin servidor (`api/index.py`, configurada en
+`vercel.json`), con estas diferencias respecto a `python main.py`:
+
+- **Historial efímero**: el disco es de solo lectura salvo `/tmp`, así que las
+  simulaciones se guardan en `/tmp/pms-simulaciones` y se pierden cuando Vercel recicla la
+  instancia; la interfaz lo avisa en la sección Historial.
+- **Sin progreso hora por hora**: cada petición puede atenderla otra instancia, así que no
+  hay trabajos en segundo plano; la interfaz usa los endpoints síncronos y muestra una
+  barra de progreso indeterminada.
+- **Datos**: se suben los `data/demo/` y `data/demo_errores/` generados localmente; si
+  faltaran, la función los genera en `/tmp` al arrancar (son deterministas).
+
+Para volver a desplegar (con la CLI de Vercel y sesión iniciada):
+
+```powershell
+python scripts/generar_datos_demo.py
+vercel deploy --prod
+```
 
 ## Qué se ve en la pantalla
 
@@ -271,6 +295,8 @@ válido, 422 parámetros o punto en tierra, 404 id inexistente).
 ```
 sargazo_prototipo/
 ├── main.py                     Punto de entrada: python main.py → http://localhost:8000
+├── api/index.py                Punto de entrada para Vercel (función sin servidor)
+├── vercel.json                 Configuración del despliegue en Vercel
 ├── requirements.txt            Dependencias de ejecución (fijadas)
 ├── requirements-dev.txt        + pytest, httpx, playwright
 ├── data/
@@ -336,8 +362,9 @@ libres al medir; detalles y método en [`docs/rendimiento.md`](docs/rendimiento.
 - **Sin biología** (crecimiento, hundimiento o descomposición del sargazo).
 - **Infraestructura mínima.** Sin base de datos (JSON en disco), sin usuarios ni
   autenticación, sin carga de archivos desde la interfaz y sin despliegue: corre en local
-  para una persona. Hay CI (pruebas en Windows y Ubuntu + e2e), pero no pipelines de
-  despliegue dev/prod.
+  para una persona, o como demo en Vercel con historial efímero. Hay CI (pruebas en
+  Windows y Ubuntu + e2e), pero no pipelines de despliegue dev/prod: el despliegue a
+  Vercel es manual con la CLI.
 - **Mapa base en línea.** Las teselas de OpenStreetMap requieren internet y su política de
   uso no permite tráfico intensivo; para la versión final conviene un servidor de teselas
   propio o un mapa estático (aceptado por SEMAR).

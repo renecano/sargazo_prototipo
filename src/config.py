@@ -3,11 +3,16 @@
 Todo lo que define el dominio, la malla y la versión del modelo vive aquí para que
 ingesta, modelo, API e interfaz usen exactamente los mismos valores.
 """
+import os
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 DIR_DATOS = RAIZ / "data"
 DIR_SIMULACIONES = DIR_DATOS / "simulations"
+
+# En Vercel (funciones sin servidor) el disco es de solo lectura salvo /tmp y cada
+# petición puede caer en otra instancia: no hay trabajos en segundo plano compartidos.
+SERVERLESS = os.environ.get("VERCEL") == "1"
 DIR_VISTA = RAIZ / "src" / "view"
 
 VERSION_APP = "0.1.0"
