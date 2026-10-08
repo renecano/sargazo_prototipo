@@ -77,7 +77,7 @@ def pagina(navegador, app_url):
     pg = navegador.new_page(viewport={"width": 1600, "height": 900})
     errores = []
     pg.on("pageerror", lambda e: errores.append(str(e)))
-    pg.goto(app_url)
+    pg.goto(app_url, wait_until="domcontentloaded")
     pg.errores = errores
     yield pg
     pg.close()
@@ -226,7 +226,7 @@ def test_estado_sin_datos(navegador, tmp_path):
     servidor, url = _levantar(tmp_path, tmp_path / "simulations")
     try:
         pg = navegador.new_page(viewport={"width": 1400, "height": 850})
-        pg.goto(url)
+        pg.goto(url, wait_until="domcontentloaded")
         esperar_estado(pg, "sin-datos", timeout=15_000)
         assert "generar_datos_demo.py" in pg.text_content("#velo")
         assert pg.is_disabled("#btn-simular")

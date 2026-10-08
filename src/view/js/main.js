@@ -300,6 +300,7 @@ async function simular() {
     return;
   }
   pausar();
+  $('estado').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   ponerEstado('calculando', {
     titulo: 'Calculando trayectorias',
     texto: `${fmtNum(p.particulas)} partículas × ${p.horizonte_h} pasos horarios desde ${fmtCoord(p.lat, p.lon)}.`,
@@ -534,7 +535,8 @@ function mostrarHover(e) {
   const zona = mapa.getContainer().getBoundingClientRect();
   const p = e.containerPoint;
   const w = tt.offsetWidth, h = tt.offsetHeight;
-  tt.style.left = `${p.x + 16 + w > zona.width ? p.x - w - 16 : p.x + 16}px`;
+  // El tooltip se abre hacia el centro del mapa para no tapar los paneles laterales.
+  tt.style.left = `${p.x > zona.width / 2 || p.x + 16 + w > zona.width ? Math.max(4, p.x - w - 16) : p.x + 16}px`;
   tt.style.top = `${p.y + 16 + h > zona.height - 80 ? p.y - h - 12 : p.y + 16}px`;
 }
 
