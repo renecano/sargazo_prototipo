@@ -300,7 +300,7 @@ async function simular() {
     return;
   }
   pausar();
-  $('estado').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  document.querySelector('.panel').scrollTo({ top: 0, behavior: 'smooth' }); // el progreso se ve en la tarjeta de estado
   ponerEstado('calculando', {
     titulo: 'Calculando trayectorias',
     texto: `${fmtNum(p.particulas)} partículas × ${p.horizonte_h} pasos horarios desde ${fmtCoord(p.lat, p.lon)}.`,
