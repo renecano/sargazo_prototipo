@@ -4,7 +4,12 @@ Para cada partícula y cada paso Δt = 1 h:
 
     X(t+Δt) = X(t) + [u_c(X,t) + α·u_w(X,t)]·Δt + √(2·K_h·Δt)·ξ,   ξ ~ N(0, 1)
 
-- u_c: corriente superficial; u_w: viento a 10 m convertido a vector "hacia".
+- u_w: viento a 10 m de SEMAR convertido a vector "hacia" (con los datos actuales, una sola
+  hora: estacionario).
+- u_c: corriente superficial OPCIONAL. Si el conjunto no trae corrientes, u_c = 0 y la
+  ecuación queda X(t+Δt) = X(t) + α·u_w·Δt + √(2·K_h·Δt)·ξ.
+- El oleaje no entra al movimiento: sin período de ola no se puede estimar la deriva de
+  Stokes de forma defendible (decisión pendiente).
 - El término determinista se integra con punto medio (RK2) en espacio y tiempo; con
   campos uniformes coincide exactamente con la solución analítica.
 - El desplazamiento métrico se convierte a grados corrigiendo la longitud por cos(lat).
@@ -143,6 +148,8 @@ def simular(campos, p: Parametros, en_tierra: FuncionTierra = costa.en_tierra,
     hora_fuera = np.full(n, -1, dtype=np.int16)
     bitacora = [
         f"Modelo {VERSION_MODELO}; semilla {p.semilla}; α = {p.alpha_pct:g} %; K_h = {p.kh_m2s:g} m²/s; Δt = 1 h.",
+        ("Corriente: u_c del conjunto de datos." if getattr(campos, "hay_corriente", False)
+         else "Sin corrientes: u_c = 0 (solo viento y difusión)."),
         f"{n} partículas en un radio de {p.radio_km:g} km alrededor de ({p.lat:.3f}, {p.lon:.3f})"
         + (f"; {reubicadas} se re-sortearon por caer en tierra." if reubicadas else "."),
     ]
