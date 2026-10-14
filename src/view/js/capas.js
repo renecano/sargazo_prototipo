@@ -1,4 +1,4 @@
-// Capas canvas sobre Leaflet: sargazo (densidad por celda de 0.16°, zona P90 y partículas) y malla.
+// Capas canvas sobre Leaflet: flechas estáticas de viento, contorno de la zona P90 y partículas.
 /* global L */
 import { A_FLOTE, VARADA } from './datos.js';
 
@@ -57,62 +57,78 @@ export const CapaCanvas = L.Layer.extend({
   },
 });
 
-// ---------------------------------------------------------------------------
-// Sargazo: densidad por celda, zona P90 y partículas.
-// ---------------------------------------------------------------------------
-// Probabilidad por celda (% de partículas). Rampa secuencial ámbar (color del sargazo).
-export const CORTES_DENSIDAD = [0.005, 0.02, 0.05, 0.1, 0.2];
-export const RAMPA_DENSIDAD = ['rgba(226,176,73,0.16)', 'rgba(226,176,73,0.28)', 'rgba(232,160,58,0.40)',
-  'rgba(236,140,46,0.52)', 'rgba(240,118,40,0.62)'];
 export const COLOR_SARGAZO = '#f0c35a';
 export const COLOR_VARADA = '#ff6b5b';
+export const COLOR_VIENTO = 'rgba(160, 205, 240, 0.62)';
+export const PX_POR_MS = 2.4;            // largo de la flecha: 10 m/s = 24 px
+const SEPARACION_MIN_PX = 30;            // las flechas se dibujan en una submalla para no saturar
 
-export function dibujarDensidad(ctx, c, est) {
-  const { sim, campos, hora, ver } = est;
-  if (!sim || !campos || (!ver.densidad && !ver.zona)) return;
-  const d = sim.densidad(hora, campos);
-  const medio = campos.resolucion / 2;
-  const celda = (k) => {
-    const i = Math.floor(k / campos.nx), j = k % campos.nx;
-    const lon = campos.lon0 + j * campos.dlon, lat = campos.lat0 + i * campos.dlat;
-    return [c.x(lon - medio), c.y(lat + medio), c.x(lon + medio), c.y(lat - medio), i, j];
-  };
-  if (ver.densidad) {
-    for (const [k, n] of d.conteo) {
-      const p = n / sim.N;
-      let b = 0;
-      while (b < CORTES_DENSIDAD.length - 1 && p >= CORTES_DENSIDAD[b + 1]) b++;
-      const [x0, y0, x1, y1] = celda(k);
-      ctx.fillStyle = RAMPA_DENSIDAD[b];
-      ctx.fillRect(x0 + 0.5, y0 + 0.5, x1 - x0 - 1, y1 - y0 - 1);
-    }
-  }
-  if (ver.zona && d.zona.size) {
-    // Contorno de la unión de celdas: solo los bordes que no comparten con otra celda de la zona.
-    ctx.strokeStyle = 'rgba(255,255,255,0.92)';
-    ctx.lineWidth = 1.6;
-    ctx.setLineDash([5, 3]);
-    ctx.beginPath();
-    for (const k of d.zona) {
-      const [x0, y0, x1, y1, i, j] = celda(k);
-      const tiene = (ii, jj) => ii >= 0 && jj >= 0 && ii < campos.ny && jj < campos.nx && d.zona.has(ii * campos.nx + jj);
-      if (!tiene(i + 1, j)) { ctx.moveTo(x0, y0); ctx.lineTo(x1, y0); }
-      if (!tiene(i - 1, j)) { ctx.moveTo(x0, y1); ctx.lineTo(x1, y1); }
-      if (!tiene(i, j - 1)) { ctx.moveTo(x0, y0); ctx.lineTo(x0, y1); }
-      if (!tiene(i, j + 1)) { ctx.moveTo(x1, y0); ctx.lineTo(x1, y1); }
-    }
-    ctx.stroke();
-    ctx.setLineDash([]);
-    if (!ver.densidad) {
-      ctx.fillStyle = 'rgba(255,255,255,0.06)';
-      for (const k of d.zona) { const [x0, y0, x1, y1] = celda(k); ctx.fillRect(x0, y0, x1 - x0, y1 - y0); }
+// Flechas estáticas del viento (dirección HACIA la que sopla, largo ∝ velocidad).
+export function dibujarViento(ctx, c, est) {
+  const { campos, hora, ver } = est;
+  if (!campos || !ver.viento) return;
+  const pxNodo = Math.abs(c.x(campos.lon0 + campos.dlon) - c.x(campos.lon0));
+  const paso = Math.max(2, Math.ceil(SEPARACION_MIN_PX / pxNodo));
+  ctx.strokeStyle = COLOR_VIENTO;
+  ctx.fillStyle = COLOR_VIENTO;
+  ctx.lineWidth = 1.3;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < campos.ny; i += paso) {
+    for (let j = 0; j < campos.nx; j += paso) {
+      const uv = campos.viento(i * campos.nx + j, hora);
+      if (!uv) continue;
+      const xc = c.x(campos.lon0 + j * campos.dlon), yc = c.y(campos.lat0 + i * campos.dlat);
+      if (xc < -40 || yc < -40 || xc > c.ancho + 40 || yc > c.alto + 40) continue;
+      const vel = Math.hypot(uv[0], uv[1]);
+      if (vel < 0.05) continue;
+      // Flecha centrada en el nodo; en pantalla el norte es −y.
+      const largo = vel * PX_POR_MS, ux = uv[0] / vel, uy = -uv[1] / vel;
+      const xa = xc - ux * largo * 0.5, ya = yc - uy * largo * 0.5;
+      const xp = xc + ux * largo * 0.5, yp = yc + uy * largo * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(xa, ya);
+      ctx.lineTo(xp, yp);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(xp, yp);
+      ctx.lineTo(xp - ux * 5 - uy * 3, yp - uy * 5 + ux * 3);
+      ctx.lineTo(xp - ux * 5 + uy * 3, yp - uy * 5 - ux * 3);
+      ctx.closePath();
+      ctx.fill();
     }
   }
 }
 
+// Contorno de la zona probable P90 (unión de celdas de 0.16°).
+export function dibujarZona(ctx, c, est) {
+  const { sim, campos, hora } = est;
+  if (!sim || !campos) return;
+  const zona = sim.zonaP90(hora, campos);
+  if (!zona.size) return;
+  const medio = campos.resolucion / 2;
+  const tiene = (i, j) => i >= 0 && j >= 0 && i < campos.ny && j < campos.nx && zona.has(i * campos.nx + j);
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = 1.6;
+  ctx.setLineDash([5, 3]);
+  ctx.beginPath();
+  for (const k of zona) {
+    const i = Math.floor(k / campos.nx), j = k % campos.nx;
+    const lon = campos.lon0 + j * campos.dlon, lat = campos.lat0 + i * campos.dlat;
+    const x0 = c.x(lon - medio), x1 = c.x(lon + medio), y0 = c.y(lat + medio), y1 = c.y(lat - medio);
+    ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+    if (!tiene(i + 1, j)) { ctx.moveTo(x0, y0); ctx.lineTo(x1, y0); }
+    if (!tiene(i - 1, j)) { ctx.moveTo(x0, y1); ctx.lineTo(x1, y1); }
+    if (!tiene(i, j - 1)) { ctx.moveTo(x0, y0); ctx.lineTo(x0, y1); }
+    if (!tiene(i, j + 1)) { ctx.moveTo(x1, y0); ctx.lineTo(x1, y1); }
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
 export function dibujarParticulas(ctx, c, est) {
-  const { sim, hora, ver } = est;
-  if (!sim || !ver.particulas) return;
+  const { sim, hora } = est;
+  if (!sim) return;
   const o = hora * sim.N;
   const tam = sim.N > 3000 ? 1.6 : 2.0;
   ctx.fillStyle = COLOR_SARGAZO;
@@ -133,32 +149,4 @@ export function dibujarParticulas(ctx, c, est) {
     ctx.arc(x, y, 2.6, 0, 2 * Math.PI);
   }
   ctx.stroke();
-}
-
-export function dibujarMalla(ctx, c, est) {
-  const { campos, ver } = est;
-  if (!campos || !ver.malla) return;
-  const medio = campos.resolucion / 2;
-  ctx.strokeStyle = 'rgba(160,200,230,0.18)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let j = 0; j <= campos.nx; j++) {
-    const x = Math.round(c.x(campos.lon0 - medio + j * campos.dlon)) + 0.5;
-    ctx.moveTo(x, c.y(campos.latMax + medio));
-    ctx.lineTo(x, c.y(campos.lat0 - medio));
-  }
-  for (let i = 0; i <= campos.ny; i++) {
-    const y = Math.round(c.y(campos.lat0 - medio + i * campos.dlat)) + 0.5;
-    ctx.moveTo(c.x(campos.lon0 - medio), y);
-    ctx.lineTo(c.x(campos.lonMax + medio), y);
-  }
-  ctx.stroke();
-  // Nodos con dato de mar
-  ctx.fillStyle = 'rgba(160,200,230,0.35)';
-  for (let i = 0; i < campos.ny; i++) {
-    for (let j = 0; j < campos.nx; j++) {
-      if (!campos.mar[i * campos.nx + j]) continue;
-      ctx.fillRect(c.x(campos.lon0 + j * campos.dlon) - 1, c.y(campos.lat0 + i * campos.dlat) - 1, 2, 2);
-    }
-  }
 }

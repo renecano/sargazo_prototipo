@@ -1,29 +1,43 @@
-// Decodificación de los campos ambientales y de los resultados de simulación.
-import { b64a, b64aBytes, parseUTC, sumarHoras } from './util.js';
+// Decodificación de los campos de SEMAR (viento y oleaje) y de los resultados de simulación.
+import { b64a, parseUTC, sumarHoras } from './util.js';
 
 export const A_FLOTE = 0, VARADA = 1, FUERA = 2;
+const SIN_DATO_I16 = -32768, SIN_DATO_U16 = 65535;
 
 export class Campos {
   constructor(j) {
     const m = j.malla;
     Object.assign(this, { lon0: m.lon0, dlon: m.dlon, nx: m.nx, lat0: m.lat0, dlat: m.dlat, ny: m.ny });
     this.resolucion = m.resolucion_grados;
-    this.horas = j.horas;
-    this.inicio = parseUTC(j.tiempos_utc[0]);
-    this.conjunto = j.conjunto;
+    this.datos = j.datos;
+    this.tiempos = j.tiempos_viento_utc.map(parseUTC);
+    this.inicio = this.tiempos[0];
+    this.horasViento = this.tiempos.map((t) => (t - this.inicio) / 3600000);
+    this.olaHoras = j.ola_horas || [];
     this.vu = b64a(j.viento_u, Int16Array);
     this.vv = b64a(j.viento_v, Int16Array);
-    this.cu = b64a(j.corriente_u, Int16Array);
-    this.cv = b64a(j.corriente_v, Int16Array);
-    this.ola = b64a(j.ola_dir, Uint16Array);
-    this.mar = b64aBytes(j.mar);
+    this.olaDir = j.ola_dir ? b64a(j.ola_dir, Uint16Array) : null;
+    this.olaAlt = j.ola_altura ? b64a(j.ola_altura, Uint16Array) : null;
     this.lonMax = this.lon0 + this.dlon * (this.nx - 1);
     this.latMax = this.lat0 + this.dlat * (this.ny - 1);
   }
 
-  hora(h) { return Math.max(0, Math.min(this.horas - 1, Math.floor(h))); }
+  get n() { return this.nx * this.ny; }
 
-  // Nodo de malla más cercano (o null fuera de la malla, con media celda de margen).
+  // Índice del tiempo de viento a usar en la hora h (el último que no la rebasa).
+  tiempoViento(h) {
+    let k = 0;
+    while (k + 1 < this.horasViento.length && this.horasViento[k + 1] <= h) k++;
+    return k;
+  }
+
+  // Bloque de oleaje a usar en la hora h (cada 3 h en dirmarea.txt).
+  tiempoOla(h) {
+    let k = 0;
+    while (k + 1 < this.olaHoras.length && this.olaHoras[k + 1] <= h) k++;
+    return k;
+  }
+
   nodoCercano(lon, lat) {
     const j = Math.round((lon - this.lon0) / this.dlon);
     const i = Math.round((lat - this.lat0) / this.dlat);
@@ -31,15 +45,19 @@ export class Campos {
     return { i, j, lon: this.lon0 + j * this.dlon, lat: this.lat0 + i * this.dlat, k: i * this.nx + j };
   }
 
-  valoresNodo(nodo, h) {
-    const t = this.hora(h) * this.nx * this.ny + nodo.k;
-    const ola = this.ola[t];
-    return {
-      vu: this.vu[t] / 100, vv: this.vv[t] / 100,
-      cu: this.cu[nodo.k] / 1000, cv: this.cv[nodo.k] / 1000,
-      ola: ola === 65535 ? null : ola / 10,
-      mar: this.mar[nodo.k] === 1,
-    };
+  // Viento (u, v) «hacia» en m/s del nodo k a la hora h; null si el nodo no tiene dato (tierra).
+  viento(k, h) {
+    const t = this.tiempoViento(h) * this.n + k;
+    if (this.vu[t] === SIN_DATO_I16) return null;
+    return [this.vu[t] / 100, this.vv[t] / 100];
+  }
+
+  // Ola de viento (altura m, dirección «desde» °) del nodo k a la hora h; null sin dato.
+  ola(k, h) {
+    if (!this.olaAlt) return null;
+    const t = this.tiempoOla(h) * this.n + k;
+    if (this.olaAlt[t] === SIN_DATO_U16) return null;
+    return { altura: this.olaAlt[t] / 100, dir: this.olaDir[t] / 10 };
   }
 }
 
@@ -60,11 +78,9 @@ export class Simulacion {
     }
     this.horaVarada = b64a(reg.resultados.hora_varada, Int16Array);
     this.horaFuera = b64a(reg.resultados.hora_fuera, Int16Array);
-    this.zonaVarada = reg.resultados.zona_varada ? b64aBytes(reg.resultados.zona_varada) : null;
-    this.zonas = reg.resultados.zonas || [];
     this.series = reg.resultados.series;
-    this.inicio = parseUTC(reg.conjunto.inicio_utc);
-    this._densidad = new Map();
+    this.inicio = parseUTC(reg.datos.inicio_utc);
+    this._zona = new Map();
   }
 
   fecha(h) { return sumarHoras(this.inicio, h); }
@@ -77,10 +93,9 @@ export class Simulacion {
     return A_FLOTE;
   }
 
-  // Conteo por celda de 0.16° (centrada en los nodos de la malla) y zona probable P90.
-  densidad(h, campos) {
-    const clave = h;
-    if (this._densidad.has(clave)) return this._densidad.get(clave);
+  // Zona probable P90: el menor conjunto de celdas de 0.16° con el 90 % de las partículas en el dominio.
+  zonaP90(h, campos) {
+    if (this._zona.has(h)) return this._zona.get(h);
     const conteo = new Map();
     let dentro = 0;
     const o = h * this.N;
@@ -91,39 +106,15 @@ export class Simulacion {
       conteo.set(nodo.k, (conteo.get(nodo.k) || 0) + 1);
       dentro++;
     }
-    const orden = [...conteo.entries()].sort((a, b) => b[1] - a[1]);
     const zona = new Set();
     let acumulado = 0;
-    for (const [k, c] of orden) {
+    for (const [k, c] of [...conteo.entries()].sort((a, b) => b[1] - a[1])) {
       if (acumulado >= 0.9 * dentro) break;
       zona.add(k);
       acumulado += c;
     }
-    const r = { conteo, zona, dentro, max: orden.length ? orden[0][1] : 0 };
-    if (this._densidad.size > 160) this._densidad.clear();
-    this._densidad.set(clave, r);
-    return r;
-  }
-
-  // Partículas varadas por tramo de costa hasta la hora h (acumulado).
-  arribosHasta(h) {
-    const cuenta = new Map();
-    if (!this.zonaVarada) return cuenta;
-    for (let n = 0; n < this.N; n++) {
-      const hv = this.horaVarada[n];
-      if (hv >= 0 && hv <= h && this.zonaVarada[n] !== 255) {
-        cuenta.set(this.zonaVarada[n], (cuenta.get(this.zonaVarada[n]) || 0) + 1);
-      }
-    }
-    return cuenta;
-  }
-
-  conteoEstados(h) {
-    let flote = 0, varadas = 0, fuera = 0;
-    for (let n = 0; n < this.N; n++) {
-      const e = this.estado(n, h);
-      if (e === A_FLOTE) flote++; else if (e === VARADA) varadas++; else fuera++;
-    }
-    return { flote, varadas, fuera };
+    if (this._zona.size > 160) this._zona.clear();
+    this._zona.set(h, zona);
+    return zona;
   }
 }

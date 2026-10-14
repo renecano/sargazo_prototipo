@@ -36,13 +36,12 @@ const json = (cuerpo) => ({ method: 'POST', headers: { 'Content-Type': 'applicat
 
 export const api = {
   salud: () => pedir('/api/salud'),
-  conjuntos: () => pedir('/api/conjuntos'),
-  validar: (id, forzar = false) => pedir(`/api/conjuntos/${encodeURIComponent(id)}/validar?forzar=${forzar}`, { method: 'POST' }),
-  campos: (id) => pedir(`/api/conjuntos/${encodeURIComponent(id)}/campos`),
+  validar: (forzar = false) => pedir(`/api/validacion?forzar=${forzar}`, { method: 'POST' }),
+  validacion: (forzar = false) => pedir(`/api/validacion?forzar=${forzar}`),
+  campos: () => pedir('/api/campos'),
   costa: () => pedir('/api/costa'),
   simular: (parametros) => pedir('/api/trabajos/simulacion', json(parametros)),
   simularSincrono: (parametros) => pedir('/api/simulaciones', json(parametros)),
-  validacion: (id) => pedir(`/api/conjuntos/${encodeURIComponent(id)}/validacion`),
   trabajo: (id) => pedir(`/api/trabajos/${encodeURIComponent(id)}`),
   simulaciones: () => pedir('/api/simulaciones'),
   simulacion: (id) => pedir(`/api/simulaciones/${encodeURIComponent(id)}`),
