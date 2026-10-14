@@ -3,9 +3,10 @@ import { el, fmtCoord, fmtFechaCorta, fmtNum, fmtPct } from './util.js';
 
 const ICONO = { ok: '✓', advertencia: '!', error: '✕' };
 
-// Solo las verificaciones con algo que decir (errores o advertencias), con su acción.
-export function detalleValidacion(reporte) {
-  const relevantes = reporte.verificaciones.filter((v) => v.estado !== 'ok');
+// Solo las verificaciones con algo que decir, con su acción. Con `soloErrores` se omiten
+// las advertencias para que el error no quede enterrado entre avisos.
+export function detalleValidacion(reporte, { soloErrores = false } = {}) {
+  const relevantes = reporte.verificaciones.filter((v) => (soloErrores ? v.estado === 'error' : v.estado !== 'ok'));
   return el('ul', { class: 'checks', 'data-prueba': 'verificaciones' },
     relevantes.map((v) => el('li', { class: v.estado },
       el('span', { class: 'ico', 'aria-label': v.estado }, ICONO[v.estado]),
@@ -15,7 +16,7 @@ export function detalleValidacion(reporte) {
           h.archivo ? el('code', {}, h.archivo) : null, h.archivo ? ' ' : null, h.detalle,
           h.accion ? el('span', { class: 'accion' }, `→ ${h.accion}`) : null)),
         v.omitidos ? el('span', { class: 'hallazgo' }, `… y ${v.omitidos} más.`) : null))),
-    el('li', { class: 'ok resumen-ok' }, el('span', { class: 'ico' }, ICONO.ok),
+    soloErrores ? null : el('li', { class: 'ok resumen-ok' }, el('span', { class: 'ico' }, ICONO.ok),
       el('span', {}, `${reporte.verificaciones.length - relevantes.length} verificaciones sin observaciones · ${reporte.duracion_s.toFixed(2)} s`)));
 }
 

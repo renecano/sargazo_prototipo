@@ -152,7 +152,8 @@ async function validar(forzar = false) {
     const errores = rep.verificaciones.flatMap((v) => v.hallazgos.filter((h) => h.nivel === 'error'));
     const primero = errores[0] || { detalle: 'Error de validación.' };
     ponerEstado('error', `Error en los datos: ${primero.detalle}`,
-      [cajaError({ causa: primero.detalle, archivo: primero.archivo, accion: primero.accion }), detalleValidacion(rep)]);
+      [cajaError({ causa: primero.detalle, archivo: primero.archivo, accion: primero.accion }),
+        errores.length > 1 ? detalleValidacion(rep, { soloErrores: true }) : null]);
     mostrarVelo([
       el('h2', {}, 'Los datos no pasaron la validación'),
       el('p', {}, 'No se puede simular hasta corregirlos. La causa, el archivo y la acción están en «Ver detalle», en el panel izquierdo.'),
@@ -288,7 +289,7 @@ async function abrirSimulacion(reg, { reproducir = false } = {}) {
   const b = L.latLngBounds([[reg.parametros.lat, reg.parametros.lon]]);
   const o = est.sim.H * est.sim.N;
   for (let n = 0; n < est.sim.N; n += 7) b.extend([est.sim.lat[o + n], est.sim.lon[o + n]]);
-  mapa.fitBounds(b.pad(0.25), { paddingTopLeft: [40, 60], paddingBottomRight: [320, 80], maxZoom: 9 });
+  mapa.fitBounds(b.pad(0.25), { paddingTopLeft: [40, 60], paddingBottomRight: [320, 80], maxZoom: 10 });
   ponerHora(0);
   marcarHistorial();
   if (reproducir) reproducir_();
