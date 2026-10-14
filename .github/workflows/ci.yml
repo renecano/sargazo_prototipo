@@ -26,9 +26,9 @@ jobs:
           cache-dependency-path: requirements-dev.txt
       - name: Instalar dependencias
         run: python -m pip install -r requirements-dev.txt
-      - name: Generar datos sintéticos
-        run: python scripts/generar_datos_demo.py
-      - name: Pruebas rápidas (conversiones, validador, modelo, API)
+      # Los datos de SEMAR no están en git: las pruebas usan fixtures en el formato real
+      # (scripts/generar_fixtures.py) y las de datos reales se omiten.
+      - name: Pruebas rápidas (lector, validador, modelo, API)
         run: python -m pytest
 
   interfaz:

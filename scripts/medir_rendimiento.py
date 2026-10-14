@@ -22,7 +22,7 @@ import numpy as np  # noqa: E402
 
 from src.api.almacen import armar_registro  # noqa: E402
 from src.api.servicios import ServicioDatos  # noqa: E402
-from src.config import DIR_DATOS  # noqa: E402
+from src.config import ARCHIVO_VIENTO, DIR_SEMAR  # noqa: E402
 from src.ingestion.validador import validar_conjunto  # noqa: E402
 from src.model.campos import CamposMalla  # noqa: E402
 from src.model.metricas import resumir  # noqa: E402
@@ -68,20 +68,21 @@ def memoria_sistema() -> str:
 
 
 def principal() -> int:
-    demo = DIR_DATOS / "demo"
-    if not any(demo.glob("*.txt")):
-        print("Primero genera los datos: python scripts/generar_datos_demo.py")
+    if not (DIR_SEMAR / ARCHIVO_VIENTO).is_file():
+        print(f"Faltan los datos de SEMAR en {DIR_SEMAR} (ver data/semar/README.md).")
         return 1
     filas = []
-    med, mx, (reporte, conjunto) = medir(lambda: validar_conjunto(demo))
-    filas.append(("Validar 120 archivos + corrientes", f"{med:.2f} s", f"{mx:.2f} s", f"{pico_memoria(lambda: validar_conjunto(demo)):.0f} MB"))
+    med, mx, (reporte, conjunto) = medir(lambda: validar_conjunto(DIR_SEMAR))
+    filas.append(("Validar salidadatos.txt + dirmarea.txt (lectura, 10 verificaciones, interpolación del oleaje)",
+                  f"{med:.2f} s", f"{mx:.2f} s", f"{pico_memoria(lambda: validar_conjunto(DIR_SEMAR)):.0f} MB"))
 
     campos = CamposMalla(conjunto)
+    dominio = (float(conjunto.lons[0]), float(conjunto.lons[-1]), float(conjunto.lats[0]), float(conjunto.lats[-1]))
     for n in (500, 2000, 5000):
         p = Parametros(lon=-86.66, lat=21.12, particulas=n, horizonte_h=120)
-        med, mx, r = medir(lambda: simular(campos, p))
-        filas.append((f"Simular {n:,} partículas × 120 h".replace(",", " "), f"{med:.2f} s", f"{mx:.2f} s",
-                      f"{pico_memoria(lambda: simular(campos, p)):.0f} MB"))
+        med, mx, r = medir(lambda: simular(campos, p, dominio=dominio))
+        filas.append((f"Simular {n:,} partículas × 120 h frente a Cancún".replace(",", " "), f"{med:.2f} s", f"{mx:.2f} s",
+                      f"{pico_memoria(lambda: simular(campos, p, dominio=dominio)):.0f} MB"))
         if n in (2000, 5000):
             t0 = time.perf_counter()
             reg = armar_registro(r, resumir(r), conjunto.resumen())
@@ -89,10 +90,10 @@ def principal() -> int:
             filas.append((f"Métricas + registro JSON ({n:,} partículas)".replace(",", " "),
                           f"{time.perf_counter() - t0:.2f} s", "—", f"{len(texto) / 2**20:.1f} MB en disco"))
 
-    servicio = ServicioDatos(DIR_DATOS)
-    campos_json = json.dumps(servicio.campos("demo"), separators=(",", ":")).encode()
-    filas.append(("Campos para la interfaz (JSON)", "—", "—",
-                  f"{len(campos_json) / 2**20:.1f} MB; {len(gzip.compress(campos_json)) / 2**20:.1f} MB con gzip"))
+    servicio = ServicioDatos(DIR_SEMAR)
+    campos_json = json.dumps(servicio.campos(), separators=(",", ":")).encode()
+    filas.append(("Campos para la interfaz (viento + 41 horas de oleaje)", "—", "—",
+                  f"{len(campos_json) / 2**20:.2f} MB; {len(gzip.compress(campos_json)) / 2**20:.2f} MB con gzip"))
 
     ahora = datetime.now().strftime("%Y-%m-%d %H:%M")
     md = [
@@ -109,9 +110,13 @@ def principal() -> int:
         "",
         "Notas:",
         "",
-        f"- Conjunto: {conjunto.resumen()['puntos_malla']} nodos × 120 horas (sintético).",
+        f"- Datos de SEMAR: {conjunto.resumen()['puntos_malla']} nodos en el dominio ({conjunto.resumen()['puntos_mar']} con viento), "
+        "viento de una sola hora y 41 bloques de oleaje.",
         "- La simulación incluye la prueba de tierra por segmento y la búsqueda binaria del punto de varamiento.",
-        "- La interfaz descarga los campos una sola vez por conjunto; la API los comprime con gzip.",
+        "- Las partículas varadas dejan de calcularse; frente a Cancún varan de forma gradual (mediana +64 h), "
+        "así que el costo baja a lo largo de la simulación.",
+        "- La interfaz descarga los campos una sola vez al abrir; la API los comprime con gzip (los 41 bloques de "
+        "oleaje idénticos se comprimen casi por completo).",
         "- Los tiempos varían con la carga del equipo: con poca RAM libre todo se vuelve más lento.",
         "",
     ]
