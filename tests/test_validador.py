@@ -1,165 +1,212 @@
-"""Validador: detecta archivos faltantes, coordenadas fuera de rango, columnas ausentes y más."""
-from pathlib import Path
+"""Validador de los datos de SEMAR: errores con causa, archivo y acción, y advertencias que no bloquean."""
+from datetime import datetime, timezone
 
 import numpy as np
+import pytest
 
-from src.ingestion.lector import leer_tabla
+from scripts.generar_fixtures import CANCUN, escribir_dirmarea, escribir_salidadatos, ola_analitica
+from src.config import ARCHIVO_OLEAJE, ARCHIVO_VIENTO, CARPETA_CORRIENTES, DIR_SEMAR
 from src.ingestion.validador import validar_conjunto
-from tests.conftest import LATS_PEQ, LONS_PEQ, archivos_horarios, editar_filas
+from src.model import costa
+from tests.conftest import editar_columna, editar_lineas, solo_con_datos_reales
 
 
-def verificacion(reporte, vid):
+def verif(reporte, vid):
     return next(v for v in reporte.verificaciones if v.id == vid)
 
 
-def test_conjunto_sintetico_valido(conjunto):
-    reporte, datos = validar_conjunto(conjunto)
+def textos(reporte, vid):
+    return " ".join(h.detalle for h in verif(reporte, vid).hallazgos)
+
+
+def test_fixture_valido_con_advertencias_esperadas(semar):
+    reporte, datos = validar_conjunto(semar)
     assert reporte.valido, [h.detalle for h in reporte.errores]
-    assert reporte.archivos_encontrados == 120
-    assert datos is not None
-    assert datos.viento_u.shape == (120, LATS_PEQ.size, LONS_PEQ.size)
-    assert datos.sintetico and datos.corrientes_esquematicas
-    # Las corrientes esquemáticas se reportan como advertencia, nunca se ocultan.
-    assert verificacion(reporte, "corrientes").estado == "advertencia"
-    for vid in ("archivos", "continuidad", "columnas", "coordenadas", "ausentes", "rangos", "unidades", "convencion"):
-        assert verificacion(reporte, vid).estado == "ok", vid
+    assert datos is not None and datos.viento_u.shape == (1, 11, 10)
+    for vid in ("archivos", "formato", "relleno", "rangos", "coherencia"):
+        assert verif(reporte, vid).estado == "ok", (vid, verif(reporte, vid).hallazgos)
+    assert "una sola hora" in textos(reporte, "fechas")
+    assert "no coincide" in textos(reporte, "fechas")
+    assert "idénticos" in textos(reporte, "oleaje")
+    assert "u_c = 0" in textos(reporte, "corrientes")
+    assert datos.corriente_u is None
+    assert set(datos.archivos) == {ARCHIVO_VIENTO, ARCHIVO_OLEAJE}
+    assert all(len(h) == 64 for h in datos.archivos.values())
 
 
-def test_detecta_archivo_horario_faltante(conjunto):
-    faltante = archivos_horarios(conjunto)[30]
-    faltante.unlink()
-    reporte, datos = validar_conjunto(conjunto)
-    assert not reporte.valido and datos is None
-    assert verificacion(reporte, "archivos").estado == "error"
-    continuidad = verificacion(reporte, "continuidad")
-    assert continuidad.estado == "error"
-    hallazgo = continuidad.hallazgos[0]
-    assert hallazgo.archivo == faltante.name
-    assert "+30" in hallazgo.detalle
-    assert hallazgo.accion
+def test_advertencia_bloques_identicos_solo_si_lo_son(semar):
+    reporte, _ = validar_conjunto(semar)
+    assert verif(reporte, "oleaje").estado == "advertencia"
+    escribir_dirmarea(semar / ARCHIVO_OLEAJE, identicos=False)
+    reporte, datos = validar_conjunto(semar)
+    assert verif(reporte, "oleaje").estado == "ok"
+    assert not np.allclose(datos.ola_altura[0], datos.ola_altura[-1], equal_nan=True)
 
 
-def test_detecta_latitud_fuera_de_rango(conjunto):
-    archivo = archivos_horarios(conjunto)[10]
-
-    def lat_mala(columnas, filas):
-        filas[3][columnas.index("LAT")] = "95.00"
-        return columnas, filas
-
-    editar_filas(archivo, lat_mala)
-    reporte, datos = validar_conjunto(conjunto)
-    assert not reporte.valido and datos is None
-    coord = verificacion(reporte, "coordenadas")
-    assert coord.estado == "error"
-    assert coord.hallazgos[0].archivo == archivo.name
-    assert "Latitud fuera de rango (95)" in coord.hallazgos[0].detalle
-
-
-def test_detecta_columna_ausente(conjunto):
-    archivo = archivos_horarios(conjunto)[80]
-
-    def quitar(columnas, filas):
-        k = columnas.index("WindsfcDir")
-        return columnas[:k] + columnas[k + 1:], [f[:k] + f[k + 1:] for f in filas]
-
-    editar_filas(archivo, quitar)
-    reporte, datos = validar_conjunto(conjunto)
-    assert not reporte.valido and datos is None
-    col = verificacion(reporte, "columnas")
-    assert col.estado == "error"
-    assert col.hallazgos[0].archivo == archivo.name
-    assert "WindsfcDir" in col.hallazgos[0].detalle
-
-
-def test_reporta_todos_los_errores_a_la_vez(conjunto):
-    archivos = archivos_horarios(conjunto)
-    archivos[5].unlink()
-    editar_filas(archivos[6], lambda c, f: (c, [r if i else r[:1] + ["-99.0"] + r[2:] for i, r in enumerate(f)]))
-    reporte, _ = validar_conjunto(conjunto)
-    estados = {v.id: v.estado for v in reporte.verificaciones}
-    assert estados["continuidad"] == "error"
-    assert estados["coordenadas"] == "error"
-
-
-def test_detecta_convencion_hacia_invertida(conjunto):
-    for archivo in archivos_horarios(conjunto):
-        def invertir(columnas, filas):
-            k = columnas.index("WindsfcDir")
-            for f in filas:
-                f[k] = f"{(float(f[k]) + 180) % 360:.2f}"
-            return columnas, filas
-        editar_filas(archivo, invertir)
-    reporte, _ = validar_conjunto(conjunto)
-    conv = verificacion(reporte, "convencion")
-    assert conv.estado == "error"
-    assert "hacia" in conv.hallazgos[0].detalle
-
-
-def test_detecta_viento_fuera_de_rango(conjunto):
-    archivo = archivos_horarios(conjunto)[0]
-
-    def relleno(columnas, filas):
-        filas[0][columnas.index("WindsfcSp")] = "9999"
-        return columnas, filas
-
-    editar_filas(archivo, relleno)
-    reporte, _ = validar_conjunto(conjunto)
-    assert verificacion(reporte, "rangos").estado == "error"
-
-
-def test_detecta_viento_ausente(conjunto):
-    archivo = archivos_horarios(conjunto)[3]
-    editar_filas(archivo, lambda c, f: (c, [r[:2] + ["nan"] + r[3:] for r in f]))
-    reporte, _ = validar_conjunto(conjunto)
-    assert verificacion(reporte, "ausentes").estado == "error"
-
-
-def test_ignora_extension_inesperada_con_advertencia(conjunto):
-    (conjunto / "malicioso.exe").write_bytes(b"MZ")
-    reporte, datos = validar_conjunto(conjunto)
-    assert reporte.valido and datos is not None
-    arch = verificacion(reporte, "archivos")
-    assert arch.estado == "advertencia"
-    assert "malicioso.exe" == arch.hallazgos[0].archivo
-
-
-def test_detecta_malla_inconsistente_entre_archivos(conjunto):
-    editar_filas(archivos_horarios(conjunto)[50], lambda c, f: (c, f[:-1]))  # un nodo menos
-    reporte, _ = validar_conjunto(conjunto)
-    assert verificacion(reporte, "coordenadas").estado == "error"
-
-
-def test_sin_corrientes_es_error(conjunto):
-    for p in (conjunto / "corrientes").glob("*.txt"):
-        p.unlink()
-    reporte, datos = validar_conjunto(conjunto)
-    assert not reporte.valido and datos is None
-    assert verificacion(reporte, "corrientes").estado == "error"
-
-
-def test_carpeta_inexistente(tmp_path):
-    reporte, datos = validar_conjunto(tmp_path / "no_existe")
-    assert not reporte.valido and datos is None
-    assert "generar_datos_demo.py" in reporte.verificaciones[0].hallazgos[0].accion
-
-
-def test_lector_tolera_filas_defectuosas(tmp_path):
-    ruta = tmp_path / "x_2026100100.txt"
-    ruta.write_text("# fecha_validez: 2026-10-01T00:00Z\nLON LAT U\n-86.0 21.0 1.0\n-86.16 21.0\n-86.32 21.0 abc\n", encoding="utf-8")
-    t = leer_tabla(ruta)
-    assert t.columnas == ["LON", "LAT", "U"]
-    assert t.datos.shape == (1, 3)
-    assert np.allclose(t.datos[0], [-86.0, 21.0, 1.0])
-    assert len(t.filas_invalidas) == 2
-    assert t.metadatos["fecha_validez"] == "2026-10-01T00:00Z"
-
-
-def test_conjunto_completo_de_demo_si_existe():
-    """Si ya se generó data/demo/, el validador debe aceptarlo tal cual (como lo verá la app)."""
-    demo = Path(__file__).resolve().parent.parent / "data" / "demo"
-    if not any(demo.glob("*.txt")):
-        import pytest
-        pytest.skip("data/demo/ no generado")
-    reporte, datos = validar_conjunto(demo)
+def test_advertencia_fechas_distintas_solo_si_lo_son(semar):
+    escribir_dirmarea(semar / ARCHIVO_OLEAJE, fecha=datetime(2026, 8, 19, tzinfo=timezone.utc))
+    reporte, _ = validar_conjunto(semar)
+    assert "no coincide" not in textos(reporte, "fechas")
     assert reporte.valido
-    assert datos.mar.sum() == 1323
+
+
+def test_malla_de_oleaje_desplazada_se_interpola(semar):
+    """dirmarea está desplazada 0.08° en longitud; la altura (lineal en lon) debe quedar exacta
+    en los nodos del modelo cuyos dos vecinos tienen dato."""
+    reporte, datos = validar_conjunto(semar)
+    assert "desplazada 0.08°" in verif(reporte, "oleaje").resumen
+    X, Y = np.meshgrid(datos.lons, datos.lats)
+    direccion, altura = ola_analitica(X, Y)
+    con_dato = np.isfinite(datos.ola_altura[0])
+    assert con_dato.sum() > 40
+    # Altura lineal en lon y redondeada a 0.01 m en el archivo: el promedio de los vecinos es exacto ±0.01.
+    ambos_vecinos = ~costa.en_tierra(X - 0.08, Y) & ~costa.en_tierra(X + 0.08, Y)
+    interiores = con_dato & ambos_vecinos
+    assert interiores.sum() >= 30
+    assert np.allclose(datos.ola_altura[0][interiores], altura[interiores], atol=0.011)
+    assert np.allclose(datos.ola_dir[0][interiores], direccion[interiores], atol=0.011)
+
+
+def test_falta_salidadatos_es_error_con_accion(semar):
+    (semar / ARCHIVO_VIENTO).unlink()
+    reporte, datos = validar_conjunto(semar)
+    assert not reporte.valido and datos is None
+    h = verif(reporte, "archivos").hallazgos[0]
+    assert h.archivo == ARCHIVO_VIENTO and "README" in h.accion
+
+
+def test_falta_dirmarea_solo_advierte(semar):
+    (semar / ARCHIVO_OLEAJE).unlink()
+    reporte, datos = validar_conjunto(semar)
+    assert reporte.valido and datos.ola_altura is None
+    assert verif(reporte, "archivos").estado == "advertencia"
+
+
+def test_fecha_ilegible(semar):
+    editar_lineas(semar / ARCHIVO_VIENTO, lambda l: [l[0], "19AGO2026 00"] + l[2:])
+    reporte, datos = validar_conjunto(semar)
+    assert not reporte.valido
+    assert verif(reporte, "fechas").estado == "error"
+    assert "ilegible" in textos(reporte, "formato")
+
+
+def test_columna_ausente(semar):
+    def quitar(lineas):
+        k = lineas[0].split(";").index("WindsfcDir")
+        return [";".join(p for i, p in enumerate(l.split(";")) if i != k) if ";" in l else l for l in lineas]
+    editar_lineas(semar / ARCHIVO_VIENTO, quitar)
+    reporte, _ = validar_conjunto(semar)
+    assert not reporte.valido
+    assert "WindsfcDir" in textos(reporte, "formato")
+
+
+def test_viento_fuera_de_rango(semar):
+    editar_columna(semar / ARCHIVO_VIENTO, "WindsfcSp", lambda v: 99.0)
+    reporte, _ = validar_conjunto(semar)
+    assert verif(reporte, "rangos").estado == "error"
+
+
+def test_velocidad_incoherente_con_u_v(semar):
+    editar_columna(semar / ARCHIVO_VIENTO, "WindsfcSp", lambda v: v + 1.0)
+    reporte, _ = validar_conjunto(semar)
+    assert "WindsfcSp difiere" in textos(reporte, "coherencia")
+
+
+def test_convencion_hacia_invertida(semar):
+    editar_columna(semar / ARCHIVO_VIENTO, "WindsfcDir", lambda v: (v + 180) % 360)
+    reporte, _ = validar_conjunto(semar)
+    assert "hacia" in textos(reporte, "coherencia")
+
+
+def test_relleno_inconsistente_entre_columnas(semar):
+    def romper(lineas):
+        partes = lineas[3].split(";")
+        partes[4] = "-9.99e+08"  # U sin dato pero V, WindsfcSp y WindsfcDir con dato
+        return lineas[:3] + [";".join(partes)] + lineas[4:]
+    editar_lineas(semar / ARCHIVO_VIENTO, romper)
+    reporte, _ = validar_conjunto(semar)
+    assert verif(reporte, "relleno").estado == "error"
+
+
+def test_malla_no_rectangular(semar):
+    editar_lineas(semar / ARCHIVO_VIENTO, lambda l: l[:-1])
+    reporte, _ = validar_conjunto(semar)
+    assert "rectangular" in textos(reporte, "malla")
+
+
+def test_hora_de_oleaje_faltante(semar):
+    escribir_dirmarea(semar / ARCHIVO_OLEAJE, horas=[h for h in range(0, 121, 3) if h != 57])
+    reporte, _ = validar_conjunto(semar)
+    assert not reporte.valido
+    assert "+57" in textos(reporte, "oleaje")
+
+
+def test_altura_de_ola_fuera_de_rango(semar):
+    editar_columna(semar / ARCHIVO_OLEAJE, "alturaolavto", lambda v: 45.0)
+    reporte, _ = validar_conjunto(semar)
+    assert "alturas de ola" in textos(reporte, "rangos")
+
+
+def test_mascara_de_mar_vs_costa(semar):
+    reporte, _ = validar_conjunto(semar)
+    assert verif(reporte, "mascara").estado == "ok", "el fixture usa la misma costa poligonal"
+    # Un nodo de tierra con viento: debe contarse como discrepancia.
+    def viento_en_tierra(lineas):
+        for k, l in enumerate(lineas[2:], start=2):
+            if l.endswith("-9.99e+08;-9.99e+08;-9.99e+08;-9.99e+08"):
+                p = l.split(";")
+                lineas[k] = ";".join(p[:2] + ["90", "90", "-5", "0", "5", "90"])
+                break
+        return lineas
+    editar_lineas(semar / ARCHIVO_VIENTO, viento_en_tierra)
+    reporte, _ = validar_conjunto(semar)
+    assert verif(reporte, "mascara").estado == "advertencia"
+    assert "no coinciden 1" in verif(reporte, "mascara").resumen
+
+
+def test_corrientes_opcionales(semar):
+    carpeta = semar / CARPETA_CORRIENTES
+    carpeta.mkdir()
+    lineas = ["LON;LAT;UO;VO", "19AUG2026 00"]
+    lon0, lon1, lat0, lat1 = CANCUN
+    for lat in np.arange(lat1, lat0 - 0.01, -0.16):
+        for lon in np.arange(lon0, lon1 + 0.01, 0.16):
+            lineas.append(f"{lon:.2f};{lat:.2f};0.10;0.30")
+    (carpeta / "corrientes.txt").write_text("\n".join(lineas) + "\n", encoding="utf-8")
+    reporte, datos = validar_conjunto(semar)
+    assert verif(reporte, "corrientes").estado == "ok"
+    assert np.allclose(datos.corriente_v, 0.30)
+    assert "corrientes/corrientes.txt" in datos.archivos
+    (carpeta / "corrientes.txt").write_text("\n".join(lineas).replace("0.30", "30.0") + "\n", encoding="utf-8")
+    reporte, _ = validar_conjunto(semar)
+    assert verif(reporte, "corrientes").estado == "error"
+
+
+def test_extension_inesperada_advierte(semar):
+    (semar / "malicioso.exe").write_bytes(b"MZ")
+    reporte, datos = validar_conjunto(semar)
+    assert reporte.valido and "malicioso.exe" in [h.archivo for h in verif(reporte, "archivos").hallazgos]
+
+
+def test_viento_con_varias_horas(semar):
+    escribir_salidadatos(semar / ARCHIVO_VIENTO, horas=(0, 60, 120))
+    reporte, datos = validar_conjunto(semar)
+    assert reporte.valido
+    assert not datos.viento_estacionario
+    assert list(datos.horas_viento) == [0, 60, 120]
+    assert "una sola hora" not in textos(reporte, "fechas")
+
+
+@solo_con_datos_reales
+def test_datos_reales_de_semar():
+    """Hallazgos documentados de los archivos de muestra (solo si están en data/semar/)."""
+    reporte, datos = validar_conjunto(DIR_SEMAR)
+    assert reporte.valido
+    assert datos.lons.size * datos.lats.size == 1989
+    assert int(datos.mar.sum()) == 1314
+    assert "1045 con sfcDirWindWa" in verif(reporte, "relleno").resumen
+    assert datos.viento_estacionario and datos.inicio == datetime(2026, 8, 19, tzinfo=timezone.utc)
+    assert "Los 41 bloques de oleaje son idénticos" in textos(reporte, "oleaje")
+    assert "no coincide" in textos(reporte, "fechas")
+    assert "desplazada 0.08°" in verif(reporte, "oleaje").resumen
+    assert verif(reporte, "coherencia").estado == "ok"
