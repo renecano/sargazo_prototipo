@@ -4,9 +4,12 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Datos generados (se recrean con scripts/generar_datos_demo.py)
-data/demo/*.txt
-data/demo/corrientes/
+# Datos de SEMAR: NO se publican (no hay permiso). Ver data/semar/README.md
+data/semar/*
+!data/semar/README.md
+
+# Restos del conjunto sintético de la v0.1 y simulaciones guardadas
+data/demo/
 data/demo_errores/
 data/simulations/*.json
 
