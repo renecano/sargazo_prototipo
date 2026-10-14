@@ -4,8 +4,9 @@ Vercel enruta todas las peticiones a esta función (ver vercel.json). Diferencia
 `python main.py`:
   - El disco es de solo lectura salvo /tmp: las simulaciones se guardan en
     /tmp/pms-simulaciones y son efímeras (se pierden al reciclarse la instancia).
-  - Si el despliegue no incluye data/demo/, se generan los datos sintéticos en /tmp
-    al arrancar (son deterministas: todas las instancias producen el mismo conjunto).
+  - Los datos de SEMAR se leen de data/semar/ dentro del paquete desplegado. Como esa
+    carpeta está fuera de git, un despliegue desde GitHub no los trae y la app muestra
+    el estado «Sin datos».
 """
 from __future__ import annotations
 
@@ -16,20 +17,6 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 
 from src.api.app import crear_app  # noqa: E402
-from src.config import DIR_DATOS  # noqa: E402
+from src.config import DIR_SEMAR  # noqa: E402
 
-DIR_TMP = Path("/tmp")
-
-
-def _dir_datos() -> Path:
-    if any((DIR_DATOS / "demo").glob("*.txt")):
-        return DIR_DATOS
-    destino = DIR_TMP / "pms-datos"
-    if not any((destino / "demo").glob("*.txt")):
-        from scripts.generar_datos_demo import escribir_conjunto, sembrar_errores
-        escribir_conjunto(destino / "demo")
-        sembrar_errores(destino / "demo", destino / "demo_errores")
-    return destino
-
-
-app = crear_app(_dir_datos(), DIR_TMP / "pms-simulaciones")
+app = crear_app(DIR_SEMAR, Path("/tmp") / "pms-simulaciones")

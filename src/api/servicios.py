@@ -1,4 +1,4 @@
-"""Servicios de la API: conjuntos de datos validados (en caché) y trabajos en segundo plano."""
+"""Servicios de la API: datos de SEMAR validados (en caché) y trabajos en segundo plano."""
 from __future__ import annotations
 
 import secrets
@@ -11,18 +11,12 @@ from typing import Callable
 import numpy as np
 
 from src.api.almacen import Almacen, armar_registro, b64
+from src.config import ARCHIVO_VIENTO, CARPETA_CORRIENTES, RESOLUCION_GRADOS
 from src.ingestion.lector import ConjuntoDatos
 from src.ingestion.validador import ReporteValidacion, validar_conjunto
 from src.model.campos import CamposMalla
 from src.model.metricas import resumir
 from src.model.simulacion import Parametros, simular
-
-PATRON_CONJUNTO = r"^[A-Za-z0-9_\-]{1,64}$"
-NOMBRES_CONJUNTO = {
-    "demo": "Demo sintético · 120 h",
-    "demo_errores": "Demo con errores sembrados (prueba del validador)",
-}
-
 
 class ErrorConAccion(Exception):
     """Error que la interfaz muestra con su causa y la acción para corregirlo."""
@@ -36,56 +30,42 @@ class ErrorConAccion(Exception):
 
 
 class ServicioDatos:
-    """Valida conjuntos bajo data/ y conserva en memoria el último resultado de cada uno."""
+    """Valida los datos de SEMAR (una sola carpeta) y conserva en memoria el último resultado."""
 
-    def __init__(self, dir_datos: Path):
-        self.dir_datos = Path(dir_datos)
-        self._cache: dict[str, tuple[tuple, ReporteValidacion, ConjuntoDatos | None]] = {}
+    def __init__(self, dir_semar: Path):
+        self.dir_semar = Path(dir_semar)
+        self._cache: tuple[tuple, ReporteValidacion, ConjuntoDatos | None] | None = None
         self._lock = threading.Lock()
 
-    def _huella_rapida(self, conjunto_id: str) -> tuple:
-        d = self.dir_datos / conjunto_id
-        if not d.is_dir():
+    def _huella_rapida(self) -> tuple:
+        if not self.dir_semar.is_dir():
             return ()
-        archivos = sorted(list(d.glob("*.txt")) + list(d.glob("corrientes/*.txt")))
+        archivos = sorted(list(self.dir_semar.glob("*.txt")) + list(self.dir_semar.glob(f"{CARPETA_CORRIENTES}/*.txt")))
         return tuple((p.name, p.stat().st_mtime_ns, p.stat().st_size) for p in archivos)
 
-    def listar(self) -> list[dict]:
-        filas = []
-        if self.dir_datos.is_dir():
-            for d in sorted(p for p in self.dir_datos.iterdir() if p.is_dir() and p.name != "simulations"):
-                n = len(list(d.glob("*.txt")))
-                guardado = self._cache.get(d.name)
-                filas.append({
-                    "id": d.name,
-                    "nombre": NOMBRES_CONJUNTO.get(d.name, d.name),
-                    "archivos": n,
-                    "validado": None if not guardado else guardado[1].valido,
-                })
-        orden = {"demo": 0, "demo_errores": 1}
-        return sorted(filas, key=lambda f: (orden.get(f["id"], 2), f["id"]))
+    @property
+    def disponibles(self) -> bool:
+        return (self.dir_semar / ARCHIVO_VIENTO).is_file()
 
-    def validar(self, conjunto_id: str, progreso=None, forzar: bool = False):
-        huella = self._huella_rapida(conjunto_id)
+    def validar(self, progreso=None, forzar: bool = False):
+        huella = self._huella_rapida()
         with self._lock:
-            guardado = self._cache.get(conjunto_id)
-            if guardado and guardado[0] == huella and not forzar:
+            if self._cache and self._cache[0] == huella and not forzar:
                 if progreso:
                     progreso(1, 1, "Resultado de validación en caché (archivos sin cambios)")
-                return guardado[1], guardado[2]
-        reporte, conjunto = validar_conjunto(self.dir_datos / conjunto_id, progreso)
+                return self._cache[1], self._cache[2]
+        reporte, conjunto = validar_conjunto(self.dir_semar, progreso)
         with self._lock:
-            self._cache[conjunto_id] = (huella, reporte, conjunto)
+            self._cache = (huella, reporte, conjunto)
         return reporte, conjunto
 
-    def conjunto_valido(self, conjunto_id: str) -> ConjuntoDatos:
-        reporte, conjunto = self.validar(conjunto_id)
+    def conjunto_valido(self) -> ConjuntoDatos:
+        reporte, conjunto = self.validar()
         if conjunto is None:
             errores = reporte.errores
             primero = errores[0] if errores else None
             raise ErrorConAccion(
-                causa=("El conjunto de datos no pasó la validación"
-                       + (f": {primero.detalle}" if primero else ".")),
+                causa="Los datos de SEMAR no pasaron la validación" + (f": {primero.detalle}" if primero else "."),
                 accion=(primero.accion if primero and primero.accion
                         else "Revisa el reporte de validación y corrige los archivos."),
                 archivo=primero.archivo if primero else None,
@@ -93,43 +73,42 @@ class ServicioDatos:
             )
         return conjunto
 
-    def campos(self, conjunto_id: str) -> dict:
-        """Campos para el hover y la malla, compactos (enteros escalados en base64)."""
-        c = self.conjunto_valido(conjunto_id)
-        ola = np.where(np.isfinite(c.ola_dir), np.round(c.ola_dir * 10), 65535).astype("<u2")
+    def campos(self) -> dict:
+        """Viento y oleaje para las flechas y el hover, compactos (enteros escalados en base64)."""
+        c = self.conjunto_valido()
+
+        def entero(x, escala, tipo, vacio):
+            return b64(np.where(np.isfinite(x), np.round(x * escala), vacio).astype(tipo))
+
+        hay_ola = c.ola_altura is not None
         return {
-            "conjunto": c.resumen(),
+            "datos": c.resumen(),
             "malla": {
                 "lon0": float(c.lons[0]), "dlon": float(c.lons[1] - c.lons[0]), "nx": int(c.lons.size),
                 "lat0": float(c.lats[0]), "dlat": float(c.lats[1] - c.lats[0]), "ny": int(c.lats.size),
-                "resolucion_grados": 0.16,
+                "resolucion_grados": RESOLUCION_GRADOS,
             },
-            "horas": c.horas,
-            "tiempos_utc": [t.strftime("%Y-%m-%dT%H:%MZ") for t in c.tiempos],
+            "tiempos_viento_utc": [t.strftime("%Y-%m-%dT%H:%MZ") for t in c.tiempos_viento],
+            "ola_horas": [int(h) for h in c.ola_horas],
             "codificacion": {
-                "viento": "int16-le, m/s × 100, forma [horas, ny, nx]",
-                "corriente": "int16-le, m/s × 1000, forma [ny, nx] (estacionaria)",
-                "ola_dir": "uint16-le, grados × 10, 65535 = sin dato (tierra)",
-                "mar": "uint8, 1 = nodo de mar",
+                "viento": "int16-le, m/s × 100, −32768 = sin dato (tierra), forma [tiempos, ny, nx]",
+                "ola_dir": "uint16-le, grados «desde» × 10, 65535 = sin dato, forma [horas, ny, nx]",
+                "ola_altura": "uint16-le, m × 100, 65535 = sin dato, forma [horas, ny, nx]",
             },
-            "viento_u": b64(np.round(c.viento_u * 100).astype("<i2")),
-            "viento_v": b64(np.round(c.viento_v * 100).astype("<i2")),
-            "corriente_u": b64(np.round(c.corriente_u * 1000).astype("<i2")),
-            "corriente_v": b64(np.round(c.corriente_v * 1000).astype("<i2")),
-            "ola_dir": b64(ola),
-            "mar": b64(c.mar.astype(np.uint8)),
+            "viento_u": entero(c.viento_u, 100, "<i2", -32768),
+            "viento_v": entero(c.viento_v, 100, "<i2", -32768),
+            "ola_dir": entero(c.ola_dir, 10, "<u2", 65535) if hay_ola else None,
+            "ola_altura": entero(c.ola_altura, 100, "<u2", 65535) if hay_ola else None,
         }
 
 
-def ejecutar_simulacion(datos: ServicioDatos, almacen: Almacen, conjunto_id: str, p: Parametros,
-                        progreso=None) -> dict:
-    conjunto = datos.conjunto_valido(conjunto_id)
-    if p.horizonte_h > conjunto.horas:
-        raise ErrorConAccion(f"El horizonte ({p.horizonte_h} h) excede las {conjunto.horas} h del conjunto.",
-                             "Reduce el horizonte.", codigo=422)
+def ejecutar_simulacion(datos: ServicioDatos, almacen: Almacen, p: Parametros, progreso=None) -> dict:
+    conjunto = datos.conjunto_valido()
     dominio = (float(conjunto.lons[0]), float(conjunto.lons[-1]), float(conjunto.lats[0]), float(conjunto.lats[-1]))
     resultado = simular(CamposMalla(conjunto), p, dominio=dominio, progreso=progreso)
-    registro = armar_registro(resultado, resumir(resultado), conjunto.resumen())
+    resumen = resumir(resultado)
+    resumen["advertencias"] = conjunto.advertencias + resumen["advertencias"]
+    registro = armar_registro(resultado, resumen, conjunto.resumen())
     almacen.guardar(registro)
     return registro
 

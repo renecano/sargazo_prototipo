@@ -4,7 +4,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
-      "includeFiles": "{src/**,scripts/**,data/demo/**,data/demo_errores/**}"
+      "includeFiles": "{src/**,data/semar/**}"
     }
   },
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]

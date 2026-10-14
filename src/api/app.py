@@ -1,22 +1,20 @@
-"""API FastAPI del prototipo PMS y servidor de la interfaz estática."""
+"""API FastAPI de PMS y servidor de la interfaz estática."""
 from __future__ import annotations
 
 import mimetypes
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Path as RutaParam
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.api.almacen import Almacen
-from src.api.servicios import (
-    PATRON_CONJUNTO, ErrorConAccion, GestorTrabajos, ServicioDatos, ejecutar_simulacion,
-)
+from src.api.servicios import ErrorConAccion, GestorTrabajos, ServicioDatos, ejecutar_simulacion
 from src.config import (
-    DIR_DATOS, DIR_SIMULACIONES, DIR_VISTA, HORAS_ESPERADAS, LAT_MAX, LAT_MIN, LON_MAX, LON_MIN,
-    SERVERLESS, VERSION_APP, VERSION_MODELO,
+    DIR_SEMAR, DIR_SIMULACIONES, DIR_VISTA, HORIZONTE_H, LAT_MAX, LAT_MIN, LON_MAX, LON_MIN, SERVERLESS,
+    VERSION_APP, VERSION_MODELO,
 )
 from src.model import costa
 from src.model.simulacion import Parametros, PuntoInvalido, validar_punto
@@ -27,14 +25,13 @@ mimetypes.add_type("text/css", ".css")
 
 
 class SolicitudSimulacion(BaseModel):
-    conjunto: str = Field("demo", pattern=PATRON_CONJUNTO)
     lon: float = Field(..., ge=LON_MIN, le=LON_MAX, description="Longitud del punto de liberación (°, oeste negativo)")
     lat: float = Field(..., ge=LAT_MIN, le=LAT_MAX, description="Latitud del punto de liberación (°)")
     radio_km: float = Field(5.0, ge=0.5, le=50.0, description="Radio inicial del conglomerado (km)")
     particulas: int = Field(2000, ge=100, le=5000)
     alpha_pct: float = Field(1.0, ge=0.0, le=4.0, description="Arrastre del viento α (%)")
     kh_m2s: float = Field(10.0, ge=0.0, le=100.0, description="Difusión horizontal K_h (m²/s)")
-    horizonte_h: int = Field(120, ge=24, le=HORAS_ESPERADAS)
+    horizonte_h: int = Field(HORIZONTE_H, ge=24, le=HORIZONTE_H)
     semilla: int = Field(2026, ge=0, le=2**31 - 1)
 
     def parametros(self) -> Parametros:
@@ -43,10 +40,10 @@ class SolicitudSimulacion(BaseModel):
                           semilla=self.semilla)
 
 
-def crear_app(dir_datos: Path = DIR_DATOS, dir_simulaciones: Path = DIR_SIMULACIONES) -> FastAPI:
-    app = FastAPI(title="PMS · Predicción de Movimiento del Sargazo (prototipo)", version=VERSION_APP)
+def crear_app(dir_semar: Path = DIR_SEMAR, dir_simulaciones: Path = DIR_SIMULACIONES) -> FastAPI:
+    app = FastAPI(title="PMS · Predicción de Movimiento del Sargazo", version=VERSION_APP)
     app.add_middleware(GZipMiddleware, minimum_size=2048)
-    datos = ServicioDatos(dir_datos)
+    datos = ServicioDatos(dir_semar)
     almacen = Almacen(dir_simulaciones)
     trabajos = GestorTrabajos()
     app.state.datos, app.state.almacen, app.state.trabajos = datos, almacen, trabajos
@@ -64,30 +61,28 @@ def crear_app(dir_datos: Path = DIR_DATOS, dir_simulaciones: Path = DIR_SIMULACI
     def salud():
         return {
             "estado": "ok", "version_app": VERSION_APP, "version_modelo": VERSION_MODELO,
+            "datos_disponibles": datos.disponibles,
             # En modo sin servidor la interfaz usa los endpoints síncronos y avisa que el
             # historial vive en almacenamiento temporal.
             "trabajos_en_segundo_plano": not SERVERLESS,
             "almacenamiento_efimero": SERVERLESS,
         }
 
-    @app.get("/api/conjuntos")
-    def conjuntos():
-        return datos.listar()
-
-    @app.get("/api/conjuntos/{conjunto_id}/validacion")
-    def validacion(conjunto_id: str = RutaParam(..., pattern=PATRON_CONJUNTO)):
-        reporte, _ = datos.validar(conjunto_id)
+    @app.get("/api/validacion")
+    def validacion(forzar: bool = False):
+        """Valida los datos de SEMAR de forma síncrona (usa la caché si los archivos no cambiaron)."""
+        reporte, _ = datos.validar(forzar=forzar)
         return reporte.a_dict()
 
-    @app.post("/api/conjuntos/{conjunto_id}/validar")
-    def validar_async(conjunto_id: str = RutaParam(..., pattern=PATRON_CONJUNTO), forzar: bool = False):
-        trabajo = trabajos.lanzar(
-            "validacion", lambda progreso: datos.validar(conjunto_id, progreso, forzar=forzar)[0].a_dict())
+    @app.post("/api/validacion")
+    def validar_async(forzar: bool = False):
+        """Igual que GET /api/validacion, en segundo plano para mostrar el progreso."""
+        trabajo = trabajos.lanzar("validacion", lambda progreso: datos.validar(progreso, forzar=forzar)[0].a_dict())
         return {"trabajo_id": trabajo.id}
 
-    @app.get("/api/conjuntos/{conjunto_id}/campos")
-    def campos(conjunto_id: str = RutaParam(..., pattern=PATRON_CONJUNTO)):
-        return datos.campos(conjunto_id)
+    @app.get("/api/campos")
+    def campos():
+        return datos.campos()
 
     @app.get("/api/costa")
     def geojson_costa():
@@ -96,15 +91,14 @@ def crear_app(dir_datos: Path = DIR_DATOS, dir_simulaciones: Path = DIR_SIMULACI
     @app.post("/api/simulaciones")
     def crear_simulacion(s: SolicitudSimulacion):
         """Ejecuta una simulación de forma síncrona, la guarda y devuelve el registro completo."""
-        return ejecutar_simulacion(datos, almacen, s.conjunto, s.parametros())
+        return ejecutar_simulacion(datos, almacen, s.parametros())
 
     @app.post("/api/trabajos/simulacion")
     def simulacion_async(s: SolicitudSimulacion):
         """Igual que POST /api/simulaciones, pero en segundo plano para mostrar el progreso."""
         p = s.parametros()
         validar_punto(p.lon, p.lat)
-        trabajo = trabajos.lanzar(
-            "simulacion", lambda progreso: ejecutar_simulacion(datos, almacen, s.conjunto, p, progreso))
+        trabajo = trabajos.lanzar("simulacion", lambda progreso: ejecutar_simulacion(datos, almacen, p, progreso))
         return {"trabajo_id": trabajo.id}
 
     @app.get("/api/trabajos/{trabajo_id}")

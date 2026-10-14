@@ -1,6 +1,6 @@
 """Persistencia de simulaciones como archivos JSON en data/simulations/.
 
-Cada archivo es autocontenido: id, fecha de ejecución, conjunto de entrada (con huella
+Cada archivo es autocontenido: id, fecha de ejecución, archivos de SEMAR de entrada (con huella
 SHA-256), parámetros, versión del modelo, semilla, bitácora y resultados. Las
 posiciones de todas las partículas se guardan cuantizadas a 0.0002° (~22 m, muy por
 debajo de la malla de 0.16°) en uint16 little-endian codificado en base64.
@@ -68,7 +68,7 @@ def zonas_por_particula(resultado: Resultado) -> np.ndarray:
     return codigos
 
 
-def armar_registro(resultado: Resultado, resumen: dict, conjunto: dict) -> dict:
+def armar_registro(resultado: Resultado, resumen: dict, datos: dict) -> dict:
     ahora = datetime.now(timezone.utc)
     series = resumen.pop("series")
     return {
@@ -76,7 +76,7 @@ def armar_registro(resultado: Resultado, resumen: dict, conjunto: dict) -> dict:
         "creada_utc": ahora.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "version_modelo": resultado.version_modelo,
         "version_app": VERSION_APP,
-        "conjunto": conjunto,
+        "datos": datos,                 # archivos de SEMAR con su huella SHA-256
         "parametros": resultado.parametros.a_dict(),
         "resumen": resumen,
         "resultados": {
@@ -130,6 +130,8 @@ class Almacen:
                     continue
                 try:
                     r = json.loads(ruta.read_text(encoding="utf-8"))
+                    if "datos" not in r:  # registros de la v0.1 (datos sintéticos): no se listan
+                        continue
                 except (OSError, json.JSONDecodeError):
                     continue
                 arribos = r["resumen"].get("arribos", [])
@@ -137,8 +139,6 @@ class Almacen:
                     "id": r["id"],
                     "creada_utc": r["creada_utc"],
                     "version_modelo": r["version_modelo"],
-                    "conjunto": r["conjunto"]["id"],
-                    "sintetico": r["conjunto"].get("sintetico", False),
                     "parametros": r["parametros"],
                     "varadas_pct": r["resumen"]["varadas_pct"],
                     "fuera_pct": r["resumen"]["fuera_pct"],
