@@ -1,8 +1,12 @@
-# Datos de SEMAR (no versionados)
+# Datos de SEMAR
 
 Los archivos de esta carpeta son datos de la Secretaría de Marina (SEMAR) entregados al
-equipo como muestra. **No tenemos permiso para publicarlos**, por eso están en
-`.gitignore` y no se suben a GitHub. Para correr PMS, copia aquí:
+equipo como muestra. Se versionan en este repositorio **privado** para que la app y su
+despliegue los encuentren; **no deben redistribuirse** fuera del equipo sin autorización de
+SEMAR. Si el repositorio vuelve a ser público, hay que sacarlos antes (también del
+historial). `.gitattributes` los guarda byte a byte para que su huella SHA-256 no cambie.
+
+Archivos esperados:
 
 | Archivo | Contenido | Obligatorio |
 |---|---|---|
@@ -14,5 +18,6 @@ Formato común: separador `;`, primera línea con los nombres de columna, una l�
 fecha `DDMMMAAAA HH [h]` (mes en inglés) al inicio de cada bloque y `-9.99e+08` como valor
 de relleno (sin dato, normalmente tierra).
 
-Al levantar la app (`python main.py`) el validador revisa ambos archivos y reporta
+Para usar otros archivos, reemplázalos aquí o apunta la app a otra carpeta con
+`python main.py --datos <carpeta>`. Al levantar la app el validador revisa ambos archivos y reporta
 cualquier problema con la causa, el archivo y la acción sugerida.

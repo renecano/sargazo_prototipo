@@ -8,7 +8,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 DIR_DATOS = RAIZ / "data"
-DIR_SEMAR = DIR_DATOS / "semar"          # datos reales, fuera de git (ver data/semar/README.md)
+DIR_SEMAR = DIR_DATOS / "semar"          # datos reales de SEMAR (ver data/semar/README.md)
 DIR_SIMULACIONES = DIR_DATOS / "simulations"
 DIR_VISTA = RAIZ / "src" / "view"
 

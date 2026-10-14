@@ -125,7 +125,7 @@ function sinDatos() {
     el('h2', {}, 'Faltan los datos de SEMAR'),
     el('p', {}, 'Copia ', el('code', {}, 'salidadatos.txt'), ' (viento) y ', el('code', {}, 'dirmarea.txt'),
       ' (oleaje) en ', el('code', {}, 'data/semar/'), ' y recarga la página.'),
-    el('p', {}, 'No se publican en el repositorio porque no hay permiso para difundirlos; ver data/semar/README.md.'),
+    el('p', {}, 'Formato y origen de los archivos: data/semar/README.md.'),
   ]);
 }
 

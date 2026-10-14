@@ -4,9 +4,8 @@ Vercel enruta todas las peticiones a esta función (ver vercel.json). Diferencia
 `python main.py`:
   - El disco es de solo lectura salvo /tmp: las simulaciones se guardan en
     /tmp/pms-simulaciones y son efímeras (se pierden al reciclarse la instancia).
-  - Los datos de SEMAR se leen de data/semar/ dentro del paquete desplegado. Como esa
-    carpeta está fuera de git, un despliegue desde GitHub no los trae y la app muestra
-    el estado «Sin datos».
+  - Los datos de SEMAR se leen de data/semar/ dentro del paquete desplegado (están en el
+    repositorio privado, así que los despliegues desde GitHub los incluyen).
 """
 from __future__ import annotations
 

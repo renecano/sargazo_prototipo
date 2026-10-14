@@ -41,7 +41,7 @@ resumen del resultado.*
 
 | | v0.1 (prototipo visual) | v0.2.0 |
 |---|---|---|
-| Datos | 120 archivos **sintéticos** generados por un script | `salidadatos.txt` y `dirmarea.txt` **reales de SEMAR**, en `data/semar/` (fuera de git) |
+| Datos | 120 archivos **sintéticos** generados por un script | `salidadatos.txt` y `dirmarea.txt` **reales de SEMAR**, en `data/semar/` |
 | Viento | Sintético, horario | SEMAR, **una sola hora** (19 ago 2026 00 UTC), usado fijo durante 120 h; el lector ya acepta N horas |
 | Corrientes | Esquemáticas (inventadas) | **Ninguna**: u_c = 0. El término sigue implementado como entrada opcional (`data/semar/corrientes/`) |
 | Oleaje | Solo dirección, sintética | Altura y dirección de SEMAR en validación, registro y hover; **no mueve partículas** |
@@ -69,9 +69,9 @@ Fuentes de referencia:
 
 ## Datos de SEMAR
 
-Los archivos son datos de la Secretaría de Marina entregados como muestra. **No hay permiso
-para publicarlos**, así que `data/semar/*` está en `.gitignore`. Para usar PMS, copia en
-`data/semar/` (detalle en [`data/semar/README.md`](data/semar/README.md)):
+Los archivos son datos de la Secretaría de Marina entregados como muestra. Están
+versionados en `data/semar/` porque **este repositorio es privado**; no deben
+redistribuirse sin autorización de SEMAR (detalle en [`data/semar/README.md`](data/semar/README.md)):
 
 | Archivo | Contenido | Obligatorio |
 |---|---|---|
@@ -110,21 +110,20 @@ cd sargazo_prototipo
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1          # si se bloquea: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 python -m pip install -r requirements-dev.txt
-
-# Copia salidadatos.txt y dirmarea.txt de SEMAR en data\semar\
-python main.py                        # abre http://localhost:8000
+python main.py                        # abre http://localhost:8000 (lee data\semar\)
 ```
 
 Opciones: `python main.py --puerto 8080 --no-navegador --datos D:\otra\carpeta --simulaciones D:\sims`.
-Sin los archivos la app abre en el estado **Sin datos** y explica dónde colocarlos.
+Si faltan los archivos (por ejemplo, con `--datos` apuntando a otra carpeta) la app abre en
+el estado **Sin datos** y explica qué se necesita.
 
 Pruebas y utilidades:
 
 ```powershell
 python -m pytest                      # pruebas rápidas (no necesitan los datos de SEMAR)
 python -m pytest -m e2e               # pruebas de interfaz con Playwright (usa Microsoft Edge)
-python scripts/capturar_pantalla.py   # capturas de docs/ (necesita data/semar/)
-python scripts/medir_rendimiento.py   # tiempos y memoria → docs/rendimiento.md (necesita data/semar/)
+python scripts/capturar_pantalla.py   # capturas de docs/
+python scripts/medir_rendimiento.py   # tiempos y memoria → docs/rendimiento.md
 python scripts/generar_fixtures.py --destino tmp\fixture --completo   # fixture en formato SEMAR
 ```
 
@@ -249,7 +248,7 @@ sargazo_prototipo/
 ├── main.py                       python main.py → http://localhost:8000
 ├── api/index.py · vercel.json    Función sin servidor para Vercel
 ├── data/
-│   ├── semar/                    Datos de SEMAR (fuera de git; solo README.md versionado)
+│   ├── semar/                    Datos de SEMAR (repositorio privado; no redistribuir)
 │   └── simulations/              Simulaciones guardadas (JSON)
 ├── src/
 │   ├── config.py                 Dominio, malla, archivos de SEMAR, versiones
@@ -265,10 +264,10 @@ sargazo_prototipo/
 
 ## Pruebas y rendimiento medido
 
-`python -m pytest` corre **97 pruebas rápidas** (96 + 1 que verifica los datos reales y se
-omite si no están en `data/semar/`, como en el CI) y `python -m pytest -m e2e` corre **13 de
-interfaz**; todas en verde al cierre de esta versión. Las pruebas no dependen de los datos de SEMAR: usan fixtures generados en
-el formato real.
+`python -m pytest` corre **97 pruebas rápidas** (incluida una que verifica los hallazgos de
+los datos reales de `data/semar/`) y `python -m pytest -m e2e` corre **13 de interfaz**; todas
+en verde al cierre de esta versión. El resto de las pruebas usa fixtures generados en el
+formato real para poder sembrar errores.
 
 | Archivo | Qué comprueba |
 |---|---|
@@ -285,16 +284,14 @@ o 3.1 MB (5 000).
 
 ## Despliegue en Vercel
 
-El proyecto de Vercel `pms-sargazo` está **conectado a GitHub** (despliega `main` en
-<https://pms-sargazo.vercel.app>). Como `data/semar/` no está en git, los despliegues desde
-GitHub **no llevan los datos de SEMAR** y la app muestra el estado **Sin datos**. Es
-intencional: no hay permiso para publicar esos archivos, y un despliegue público los
-expondría a través de `/api/campos`.
+El proyecto de Vercel `pms-sargazo` está conectado a GitHub y despliega `main` en
+<https://pms-sargazo.vercel.app> en cada push. Como los datos de SEMAR están en el
+repositorio (privado), el despliegue los incluye: `vercel.json` empaqueta `data/semar/**` en
+la función. **La demo sí es pública**: cualquiera con la URL puede ver el viento y el oleaje
+en la interfaz y en `/api/campos`. Si SEMAR no autoriza esa exposición, hay que activar la
+protección de despliegues de Vercel (Deployment Protection) o retirar los datos.
 
-`vercel.json` ya incluye `data/semar/**` en la función, por si se decide desplegar desde la
-CLI (`vercel deploy --prod`, que sube los archivos locales) **con autorización de SEMAR** y,
-de preferencia, con la protección de despliegues de Vercel activada. En Vercel el historial
-vive en `/tmp` (efímero) y la interfaz usa los endpoints síncronos.
+En Vercel el historial vive en `/tmp` (efímero) y la interfaz usa los endpoints síncronos.
 
 ## Límites honestos
 
@@ -308,8 +305,8 @@ vive en `/tmp` (efímero) y la interfaz usa los endpoints síncronos.
   la malla de 0.16° (~17 km) no resuelve procesos costeros.
 - **Dominio limitado** al recuadro de Yucatán; liberación única en t = 0; sin biología.
 - **Infraestructura mínima**: JSON en disco, sin usuarios ni autenticación, sin carga de
-  archivos desde la interfaz. Hay CI, pero no pipelines de despliegue dev/prod, y la demo en
-  Vercel queda sin datos por la restricción de publicación.
+  archivos desde la interfaz. Hay CI y despliegue automático a Vercel desde `main`, pero no
+  entornos dev/prod separados, y la demo pública muestra datos de SEMAR.
 
 ## Preguntas abiertas para SEMAR y el profesor
 
@@ -321,7 +318,7 @@ vive en `/tmp` (efímero) y la interfaz usa los endpoints síncronos.
    resolución temporal?
 5. ¿La malla de `dirmarea.txt` desplazada 0.08° es intencional (centros de celda)?
 6. ¿Qué valores de α (arrastre del viento) usan para sargazo?
-7. ¿Autorizan publicar los datos o una versión derivada en una demo pública?
+7. ¿Autorizan mostrar los datos (o una versión derivada) en una demo pública como la de Vercel?
 
 ## Siguientes pasos
 

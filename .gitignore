@@ -4,10 +4,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Datos de SEMAR: NO se publican (no hay permiso). Ver data/semar/README.md
-data/semar/*
-!data/semar/README.md
-
 # Restos del conjunto sintético de la v0.1 y simulaciones guardadas
 data/demo/
 data/demo_errores/

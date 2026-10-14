@@ -1,6 +1,6 @@
 """Genera las capturas de pantalla de docs/ con Playwright (Edge o Chromium).
 
-Usa los datos reales de data/semar/ (no se publican en git; ver data/semar/README.md) y
+Usa los datos reales de data/semar/ (ver data/semar/README.md) y
 guarda las simulaciones de la sesión en una carpeta temporal para no ensuciar tu historial:
 
     docs/captura_listo.png    datos validados, listo para simular

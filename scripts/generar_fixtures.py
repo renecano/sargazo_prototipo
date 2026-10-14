@@ -1,7 +1,7 @@
 """Genera fixtures pequeños en el FORMATO REAL de SEMAR, solo para pruebas.
 
 La aplicación ya no usa datos simulados: lee data/semar/. Este script existe para que las
-pruebas (pytest y Playwright) no dependan de los archivos de SEMAR, que no se publican.
+pruebas (pytest y Playwright) no dependan de los archivos de SEMAR y puedan sembrar errores.
 Produce archivos con exactamente la misma estructura que los reales:
 
     salidadatos.txt   LON;LAT;sfcPrimWaDir;sfcDirWindWa;U;V;WindsfcSp;WindsfcDir

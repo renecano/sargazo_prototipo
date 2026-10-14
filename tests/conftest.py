@@ -12,7 +12,7 @@ from src.config import ARCHIVO_VIENTO, DIR_SEMAR
 
 HAY_DATOS_REALES = (DIR_SEMAR / ARCHIVO_VIENTO).is_file()
 solo_con_datos_reales = pytest.mark.skipif(
-    not HAY_DATOS_REALES, reason="data/semar/ no tiene los archivos de SEMAR (no se publican en git)")
+    not HAY_DATOS_REALES, reason="data/semar/ no tiene los archivos de SEMAR")
 
 
 @pytest.fixture(scope="session")
