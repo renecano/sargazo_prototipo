@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import gc
 import json
+import os
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -179,10 +180,13 @@ def descargar(dataset_id: str, variables, desde: datetime, hasta: datetime, cach
         gc.collect()
     rej = Rejilla(dataset_id, lons, lats, tiempos, valores, datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"))
     ruta.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(ruta, dataset=dataset_id, lons=lons, lats=lats,
+    # Escritura atómica: otro proceso nunca ve un archivo a medias en la caché.
+    temporal = ruta.with_name(ruta.stem + f".{os.getpid()}.tmp.npz")
+    np.savez_compressed(temporal, dataset=dataset_id, lons=lons, lats=lats,
                         tiempos=np.array([t.strftime("%Y-%m-%dT%H:%M") for t in tiempos]),
                         variables=np.array(list(valores)), valores=np.stack([valores[v] for v in valores]),
                         descargado=rej.descargado)
+    os.replace(temporal, ruta)
     registrar(f"  Copernicus Marine {dataset_id} {desde:%Y-%m-%d}…{hasta:%Y-%m-%d}: "
               f"{len(tiempos)} tiempos × {lats.size} × {lons.size} en {time.perf_counter() - t0:.0f} s")
     return rej
