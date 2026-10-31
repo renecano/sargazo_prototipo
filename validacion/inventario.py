@@ -63,7 +63,7 @@ def calcular_mascaras(archivo: afai.ArchivoAfai, cache: Path = cfg.DIR_CACHE, re
     ruta = _ruta_mascaras(cache)
     if ruta.is_file():
         with np.load(ruta) as z:
-            return Mascaras(**{k: z[k] for k in z.files})
+            return _derivar(z["lons"], z["lats"], z["mar_modelo"], z["observaciones"], z["sobre_umbral"])
     lons, lats = archivo.rejilla()
     mar = afai.mar_del_modelo(lons, lats)
     obs = np.zeros(mar.shape, dtype=np.int32)
@@ -73,14 +73,26 @@ def calcular_mascaras(archivo: afai.ArchivoAfai, cache: Path = cfg.DIR_CACHE, re
         obs += o
         sobre += s
         registrar(f"  pasada 1 {anio}-{mes:02d}")
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    # Se guardan solo los conteos de la pasada 1; las máscaras se derivan de ellos.
+    np.savez_compressed(ruta, lons=lons, lats=lats, mar_modelo=mar, observaciones=obs, sobre_umbral=sobre)
+    return _derivar(lons, lats, mar, obs, sobre)
+
+
+def franja_costura(lons: np.ndarray, lats: np.ndarray, px: int = cfg.FRANJA_COSTURA_PX) -> np.ndarray:
+    """bool: píxeles de la región «Caribe» a ≤ px píxeles de las costuras del producto."""
+    caribe = afai.regiones_producto(lons, lats).astype(bool)
+    dlat, dlon = float(np.mean(np.diff(lats))), float(np.mean(np.diff(lons)))
+    cerca = ((lats[:, None] >= cfg.COSTURA_LAT - px * dlat) | (lons[None, :] <= cfg.COSTURA_LON + px * dlon))
+    return caribe & cerca
+
+
+def _derivar(lons, lats, mar, obs, sobre) -> Mascaras:
     with np.errstate(invalid="ignore", divide="ignore"):
         frecuencia = np.where(obs > 0, sobre / np.maximum(obs, 1), 0.0)
     persistente = mar & (obs >= MIN_OBSERVACIONES) & (frecuencia >= cfg.FRECUENCIA_PERSISTENTE)
-    mar_util = mar & (obs >= MIN_OBSERVACIONES) & ~persistente
-    m = Mascaras(lons, lats, mar, obs, sobre, persistente, mar_util)
-    ruta.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(ruta, **m.__dict__)
-    return m
+    mar_util = mar & (obs >= MIN_OBSERVACIONES) & ~persistente & ~franja_costura(lons, lats)
+    return Mascaras(lons, lats, mar, obs, sobre, persistente, mar_util)
 
 
 PROCESOS = 4          # meses en paralelo (≈ 300 MB de memoria cada uno)

@@ -312,7 +312,10 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
         w(f"- **Dos regiones del producto**: el AFAI de AOML une dos regiones con ruido distinto y bordes rectos en "
           f"{cfg.COSTURA_LAT}° N y {abs(cfg.COSTURA_LON)}° O (salto brusco en la frecuencia de detección y en el número "
           "de observaciones). El fondo y el ruido se estiman por región; mezclarlas crea una franja falsa de "
-          "«sargazo» junto a la costura que, por estar fija, favorecería a la persistencia.")
+          "«sargazo» junto a la costura que, por estar fija, favorecería a la persistencia. Aun así, del lado «Caribe» "
+          f"la frecuencia de detección sube de forma monótona en los {cfg.FRANJA_COSTURA_PX} píxeles junto a la costura "
+          "(de ~6 % a ~26 %; al otro lado se queda en 2–3 %): es un artefacto de los valores del producto en el borde "
+          "y esa franja se excluye.")
     w("")
     w("![Máscaras](validacion/figuras/mascaras.png)")
     w("")

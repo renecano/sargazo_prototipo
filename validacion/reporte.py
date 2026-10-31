@@ -343,15 +343,20 @@ def figura_inventario(dias: list[dict], casos: list[dict], ruta: Path):
 
 
 def figura_mascaras(m, ruta: Path):
+    from validacion.inventario import franja_costura
     _estilo()
     ext = [m.lons[0], m.lons[-1], m.lats[0], m.lats[-1]]
-    cat = np.where(~m.mar_modelo, 3, np.where(m.persistente, 2, np.where(m.mar_util, 0, 1)))
-    fig, ax = plt.subplots(figsize=(7.2, 5.4))
+    franja = franja_costura(m.lons, m.lats) & m.mar_modelo & ~m.persistente
+    cat = np.where(~m.mar_modelo, 3, np.where(m.persistente, 2, np.where(franja, 4, np.where(m.mar_util, 0, 1))))
+    fig, ax = plt.subplots(figsize=(7.2, 5.6))
     ax.imshow(cat, origin="lower", extent=ext, interpolation="nearest",
-              cmap=ListedColormap(["#cde2fb", NUBE, NARANJA, TIERRA]), vmin=0, vmax=3)
-    ax.set_title(f"Máscaras: azul = mar evaluado ({int(m.mar_util.sum()):,} píxeles); naranja = brillante persistente "
-                 f"({int(m.persistente.sum()):,});\ngris = casi nunca observado; arena = tierra del modelo".replace(",", " "),
-                 loc="left", fontsize=9)
+              cmap=ListedColormap(["#cde2fb", NUBE, NARANJA, TIERRA, "#6250d6"]), vmin=0, vmax=4)
+
+    def n(x):
+        return f"{int(x):,}".replace(",", " ")
+    ax.set_title(f"Máscaras: azul = mar evaluado ({n(m.mar_util.sum())} píxeles); naranja = brillante persistente "
+                 f"({n(m.persistente.sum())});\nvioleta = franja junto a la costura del producto ({n(franja.sum())}); "
+                 "gris = casi nunca observado; arena = tierra", loc="left", fontsize=9)
     ax.grid(False)
     fig.tight_layout()
     fig.savefig(ruta)

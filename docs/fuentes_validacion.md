@@ -42,7 +42,10 @@ en sargcoop.org):
 - **Dos regiones del producto**: el AFAI de AOML une dos regiones con niveles de ruido distintos y bordes
   rectos en 22.0° N y 90.0° O (1 = lat < 22.0 y lon > −90.0; 0 = el resto). Se ven como un salto brusco en
   la frecuencia de detección y en el número de observaciones 2022–2026. El fondo y el ruido se estiman
-  por región; si se mezclan, aparece una franja falsa de "sargazo" de ~15 km junto a la costura.
+  por región; si se mezclan, aparece una franja falsa de "sargazo" de ~15 km junto a la costura. Aun por
+  región, del lado «Caribe» la frecuencia de detección sube de forma monótona en los 25 píxeles junto a la
+  costura (de ~6 % a ~26 %; del otro lado, 2–3 %): es un artefacto de los valores del producto en el borde, así
+  que esa franja de 25 píxeles se excluye del mar evaluado.
 - No hay máscara de sombra de nube (Wang & Hu usan bandas de reflectancia que este producto no trae).
 - El fondo sale de dos pasadas de mediana de 51 × 51 (evaluada cada 10 píxeles e interpolada), sin el
   ajuste polinómico de 4.º grado del artículo.

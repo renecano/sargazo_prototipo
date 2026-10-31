@@ -36,6 +36,8 @@ VENTANA_FONDO = 51              # píxeles (Wang & Hu, 2016, §4.1.2.2)
 PASO_FONDO = 10                 # la mediana se evalúa cada 10 píxeles y se interpola (ahorro de cómputo)
 MIN_VALIDOS_FONDO = 0.10        # fracción mínima de píxeles válidos en la ventana para estimar el fondo
 COSTURA_LAT, COSTURA_LON = 22.0, -90.0   # bordes de las dos regiones del producto de AOML (ver afai.py)
+FRANJA_COSTURA_PX = 25          # del lado «Caribe», en los 25 px junto a la costura la frecuencia de detección
+                                # sube de ~6 % a ~26 % hacia el borde (artefacto del producto): se excluye
 BORDE_NUBE_PX = 2               # píxeles junto a una nube se descartan (efecto de adyacencia)
 FRECUENCIA_PERSISTENTE = 0.20   # píxel "brillante" en ≥ 20 % de sus observaciones: fondo somero o
                                 # turbidez fija, no sargazo (el sargazo se mueve); se excluye
