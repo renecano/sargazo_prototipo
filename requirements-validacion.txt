@@ -1,0 +1,4 @@
+# Dependencias de la validación (scripts/validar.py y validacion/); no las usa la app
+-r requirements.txt
+scipy==1.18.1
+matplotlib==3.11.2

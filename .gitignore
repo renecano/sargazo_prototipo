@@ -15,3 +15,6 @@ data/simulations/*.json
 
 .vercel
 .env*
+
+# Caché de la validación (descargas completas de ERDDAP y Open-Meteo)
+data/validacion/
