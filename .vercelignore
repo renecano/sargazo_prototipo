@@ -4,8 +4,14 @@
 .pytest_cache
 **/__pycache__
 tests
-docs
+# docs/ no se sube salvo docs/validacion/ (página /validacion)
+docs/*.md
+docs/capturas
+docs/*.png
 data/simulations
 *.pdf
 ejemplo.jpeg
 .env.local
+data/validacion
+validacion
+scripts

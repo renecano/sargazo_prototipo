@@ -170,6 +170,8 @@ input[type="range"] { width: 100%; accent-color: var(--tinta); }
 .leyenda ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px; font-size: 11.5px; }
 .leyenda li { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .leyenda .aviso { margin: 7px 0 0; padding-top: 7px; border-top: 1px solid var(--linea-suave); font-size: 11px; color: var(--ambar); }
+.validacion-enlace { margin: 4px 0 0; font-size: 11px; }
+.validacion-enlace a { color: var(--tinta-2); text-underline-offset: 2px; }
 .rosa { position: fixed; right: 26px; bottom: 186px; width: 86px; height: 86px; z-index: 640; pointer-events: none; opacity: 0.9; }
 
 /* Línea de tiempo */

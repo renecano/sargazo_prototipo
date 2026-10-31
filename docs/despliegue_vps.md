@@ -1,6 +1,6 @@
 # Despliegue de PMS en un VPS Linux
 
-Guía para instalar PMS v0.3.0 en un servidor Linux propio (por ejemplo, el de SEMAR). **No
+Guía para instalar PMS v0.4.0 en un servidor Linux propio (por ejemplo, el de SEMAR). **No
 se ha ejecutado todavía**: no hay acceso al servidor. No contiene credenciales; donde haga
 falta una, se indica cómo obtenerla.
 

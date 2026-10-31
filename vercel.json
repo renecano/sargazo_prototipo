@@ -4,7 +4,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
-      "includeFiles": "{src/**,data/semar/dirmarea.txt}"
+      "includeFiles": "{src/**,data/semar/dirmarea.txt,docs/validacion/**}"
     }
   },
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]

@@ -1,4 +1,4 @@
-// Orquestador de la interfaz de PMS v0.3.0 («carta náutica»): pasos 1→2→3, mapa,
+// Orquestador de la interfaz de PMS v0.4.0 («carta náutica»): pasos 1→2→3, mapa,
 // línea de tiempo, hover, historial, estado del sistema y recorrido guiado.
 /* global L */
 import { api, esperarTrabajo } from './api.js';

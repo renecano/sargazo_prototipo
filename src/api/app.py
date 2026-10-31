@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from src.api.almacen import Almacen
 from src.api.servicios import ErrorConAccion, GestorTrabajos, ServicioDatos, ejecutar_simulacion
 from src.config import (
-    DIR_SEMAR, DIR_SIMULACIONES, DIR_VISTA, GAMMA_DEFECTO, GAMMA_MAX, GAMMA_MIN, HORIZONTE_H, KH_DEFECTO, LAT_MAX,
+    DIR_SEMAR, DIR_SIMULACIONES, DIR_VALIDACION, DIR_VISTA, GAMMA_DEFECTO, GAMMA_MAX, GAMMA_MIN, HORIZONTE_H, KH_DEFECTO, LAT_MAX,
     LAT_MIN, LON_MAX, LON_MIN, SERVERLESS, VERSION_APP, VERSION_MODELO,
 )
 from src.model import costa
@@ -124,5 +124,15 @@ def crear_app(dir_semar: Path = DIR_SEMAR, dir_simulaciones: Path = DIR_SIMULACI
     def inicio():
         return FileResponse(DIR_VISTA / "index.html", headers={"Cache-Control": "no-cache"})
 
+    @app.get("/validacion", include_in_schema=False)
+    def pagina_validacion():
+        """Validación contra el sargazo observado por satélite (generada por scripts/validar.py)."""
+        pagina = DIR_VALIDACION / "index.html"
+        if not pagina.is_file():
+            raise HTTPException(404, "Aún no hay resultados de validación: corre python scripts/validar.py")
+        return FileResponse(pagina, headers={"Cache-Control": "no-cache"})
+
+    if DIR_VALIDACION.is_dir():
+        app.mount("/validacion", StaticFiles(directory=DIR_VALIDACION), name="validacion")
     app.mount("/static", StaticFiles(directory=DIR_VISTA), name="static")
     return app

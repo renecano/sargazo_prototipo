@@ -12,12 +12,13 @@ DIR_DATOS = RAIZ / "data"
 DIR_SEMAR = DIR_DATOS / "semar"          # datos reales de SEMAR (ver data/semar/README.md)
 DIR_SIMULACIONES = DIR_DATOS / "simulations"
 DIR_VISTA = RAIZ / "src" / "view"
+DIR_VALIDACION = RAIZ / "docs" / "validacion"   # resultados de scripts/validar.py (página /validacion)
 
 # En Vercel (funciones sin servidor) el disco es de solo lectura salvo /tmp y cada
 # petición puede caer en otra instancia: no hay trabajos en segundo plano compartidos.
 SERVERLESS = os.environ.get("VERCEL") == "1"
 
-VERSION_APP = "0.3.0"
+VERSION_APP = "0.4.0"
 VERSION_MODELO = "pms-browniano-0.3.0"
 
 # Malla nativa de dirmarea.txt: 0.16°, lon −98.00…−83.12, lat 15…23. El modelo usa el
