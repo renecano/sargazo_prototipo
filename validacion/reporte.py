@@ -422,6 +422,8 @@ def veredicto(r: dict | None) -> str:
     """"mejor", "peor" o "indistinguible" frente a E0 según el IC 95 % de la diferencia."""
     if not r or not np.isfinite(r.get("dif_ic_inf", np.nan)):
         return "sin datos"
+    if r.get("casos_comparados", 0) < cfg.MIN_CASOS_VEREDICTO:
+        return "sin datos suficientes"
     if r["dif_ic_inf"] > 0:
         return "mejor"
     if r["dif_ic_sup"] < 0:

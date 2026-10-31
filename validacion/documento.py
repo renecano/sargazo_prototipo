@@ -55,6 +55,10 @@ def _todas(resultados, clave):
     return salida
 
 
+def _miles(n) -> str:
+    return f"{int(n):,}".replace(",", " ")
+
+
 def _pct(v, d=0):
     return "—" if v is None or not np.isfinite(v) else f"{100 * v:.{d}f} %"
 
@@ -108,8 +112,15 @@ def escribir_todo(d: Insumos, salida: Path, registrar=print) -> dict:
 
     # --- Resumen principal ------------------------------------------------------
     principal = rp.tabla_principal(fss, "evaluacion", cfg.ESCALA_CALIBRACION_KM)
-    n_eval = len([c for c in sel.casos if c.conjunto == "evaluacion"])
-    n_cal = len(sel.casos) - n_eval
+    con_resultado = {r["caso"]["id"] for r in resultados}
+    n_eval = len([c for c in sel.casos if c.conjunto == "evaluacion" and c.id in con_resultado])
+    n_cal = len([c for c in sel.casos if c.conjunto == "calibracion" and c.id in con_resultado])
+    faltan = [c.id for c in sel.casos if c.id not in con_resultado]
+    sin_extra = sorted({f["caso"] for f in filas if f["conjunto"] == "evaluacion" and f["experimento"] == "E4"
+                        and not f.get("disponible")})
+    d.extra.update(faltan=faltan, sin_extra=sin_extra,
+                   n_eval_sel=len([c for c in sel.casos if c.conjunto == "evaluacion"]),
+                   n_cal_sel=len([c for c in sel.casos if c.conjunto == "calibracion"]))
     v = {e: {k: rp.veredicto(next((f[k] for f in principal if f["experimento"] == e), None))
              for k in cfg.HORIZONTES_D} for e in rp.ORDEN}
     resumen = {
@@ -142,7 +153,9 @@ def escribir_todo(d: Insumos, salida: Path, registrar=print) -> dict:
 def _frase_e2(v) -> str:
     vs = v["E2"]
     partes = [f"+{k} d: {vs[k]}" for k in cfg.HORIZONTES_D]
-    if all(x == "mejor" for x in vs.values()):
+    if all(x.startswith("sin datos") for x in vs.values()):
+        base = "todavía no tiene casos suficientes para compararse con la persistencia"
+    elif all(x == "mejor" for x in vs.values()):
         base = "le gana a la persistencia en los tres horizontes"
     elif all(x == "peor" for x in vs.values()):
         base = "pierde contra la persistencia en los tres horizontes"
@@ -169,6 +182,8 @@ def _mejor_experimental(principal) -> tuple[str, dict] | tuple[None, None]:
 def _conclusion(v, principal) -> str:
     e2 = v["E2"]
     exp, fila = _mejor_experimental(principal)
+    if all(x.startswith("sin datos") for x in e2.values()):
+        return "Todavía no hay casos de evaluación suficientes para decir si el modelo le gana a la persistencia."
     gana_e2 = all(x == "mejor" for x in e2.values())
     pierde_e2 = any(x == "peor" for x in e2.values())
     if gana_e2:
@@ -179,10 +194,12 @@ def _conclusion(v, principal) -> str:
         txt = "Con datos satelitales 2022–2026, el modelo v0.3 (solo oleaje) no se distingue de suponer que el sargazo no se mueve"
     if exp:
         ve = v[exp]
-        if all(x == "mejor" for x in ve.values()):
+        if all(x.startswith("sin datos") for x in ve.values()):
+            txt += f"; para {rp.NOMBRES[exp]} aún no hay casos suficientes"
+        elif all(x == "mejor" for x in ve.values()):
             txt += f"; agregar corrientes ({rp.NOMBRES[exp]}) sí le gana a la persistencia en los tres horizontes"
         elif any(x == "mejor" for x in ve.values()):
-            txt += f"; agregar corrientes ({rp.NOMBRES[exp]}) le gana solo a algunos horizontes"
+            txt += f"; agregar corrientes ({rp.NOMBRES[exp]}) le gana solo en algunos horizontes"
         else:
             txt += f"; ni agregando corrientes ({rp.NOMBRES[exp]}) se supera a la persistencia"
     return txt + "."
@@ -210,7 +227,7 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
     w = L.append
     w("# ¿El modelo se mueve como el sargazo real? — Validación de PMS v0.4.0")
     w("")
-    w(f"> Generado por `python scripts/validar.py` el {d.generado} ({d.duracion_s / 60:.0f} min). Cada número "
+    w(f"> Generado por `python scripts/validar.py` el {d.generado}. Cada número "
       "de este documento sale de ese script; las tablas completas están en [`docs/validacion/`](validacion/).")
     w("")
     w("## Conclusión")
@@ -223,6 +240,13 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
     w("")
     w(_tabla_resumen_md(principal))
     w("")
+    if d.extra["faltan"] or d.extra["sin_extra"]:
+        w(f"**Incompleto**: de {d.extra['n_eval_sel']} casos de evaluación seleccionados hay resultados de {n_eval}"
+          + (f"; faltan {', '.join(d.extra['faltan'])}" if d.extra["faltan"] else "")
+          + (f"; sin corriente o viento (E4 y E5 no calculados): {', '.join(d.extra['sin_extra'])}"
+             if d.extra["sin_extra"] else "")
+          + ". Motivo: cuota diaria de Open-Meteo; al volver a correr `scripts/validar.py` se completan.")
+        w("")
     w("FSS: 1 = coincidencia perfecta, 0 = ninguna. Entre corchetes, intervalo de confianza del 95 % por "
       f"bootstrap de casos ({cfg.REMUESTREOS_BOOTSTRAP} remuestreos). Δ vs E0: diferencia pareada caso a caso "
       "contra la persistencia; si su intervalo no incluye 0, la diferencia es real con esos casos.")
@@ -268,11 +292,11 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
     w(f"- **Nubes y píxeles sin dato**: AOML entrega NaN donde hay nube, brillo solar o tierra; además se descartan "
       f"{cfg.BORDE_NUBE_PX} píxeles alrededor de cada nube (efecto de adyacencia). Un píxel con nube en la imagen de "
       "destino no cuenta ni para lo observado ni para lo simulado.")
-    w(f"- **Mar evaluado**: {int(m.mar_util.sum()):,} píxeles de ~1.6 km. Se excluyen la tierra del modelo, los píxeles "
+    w(f"- **Mar evaluado**: {_miles(m.mar_util.sum())} píxeles de ~1.6 km. Se excluyen la tierra del modelo, los píxeles "
       f"observados menos de 30 veces en 2022–2026 (AOML no cubre la franja al sur de 21° N y al oeste de 90.5° O) y "
-      f"**{int(m.persistente.sum()):,} píxeles brillantes persistentes** (sobre el umbral en ≥ "
+      f"**{_miles(m.persistente.sum())} píxeles brillantes persistentes** (sobre el umbral en ≥ "
       f"{cfg.FRECUENCIA_PERSISTENTE:.0%} de sus observaciones: fondo somero, turbidez, arrecifes; el sargazo se "
-      "mueve, un fondo no).".replace(",", " "))
+      "mueve, un fondo no).")
     mensual = [x for x in d.extra.get("mensual", []) if np.isfinite(x["fraccion_sargazo_mediana"])]
     if mensual:
         bajo = min(mensual, key=lambda x: x["fraccion_sargazo_mediana"])
@@ -314,7 +338,8 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
       f"imagen a +3, +5 y +7 días con ≥ {cfg.MIN_CLARO_DESTINO:.0%} despejado y ≥ {cfg.MIN_CLARO_ZONA:.0%} despejado a "
       f"≤ {cfg.RADIO_ZONA_KM:.0f} km del sargazo inicial. Los casos no comparten imágenes (t0 separados más de 7 días); "
       f"se eligen de mayor a menor calidad. Hubo **{sel.candidatos} días candidatos y {len(sel.casos)} casos**: "
-      f"{n_cal} de calibración (t0 antes de {cfg.CORTE_EVALUACION}) y {n_eval} de evaluación (2025–2026). La "
+      f"{d.extra['n_cal_sel']} de calibración (t0 antes de {cfg.CORTE_EVALUACION}) y {d.extra['n_eval_sel']} de "
+      "evaluación (2025–2026). La "
       "separación por fechas se fijó antes de correr.")
     w("")
     w("| Motivo de descarte (primer criterio que falla) | Días |")
@@ -328,10 +353,10 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
     w("")
     w("### Experimentos")
     w("")
-    w(f"Todos con las mismas {cfg.PARTICULAS:,} partículas (o una por píxel si hay más píxeles), sembradas en proporción a "
+    w(f"Todos con las mismas {_miles(cfg.PARTICULAS)} partículas (o una por píxel si hay más píxeles), sembradas en proporción a "
       f"los píxeles con sargazo en t0 (cada píxel pesa 1), la misma semilla ({cfg.SEMILLA}) y el integrador del "
       f"producto (Δt = 1 h, RK2, costa y varamiento iguales). La simulación empieza a las {cfg.HORA_IMAGEN_UTC} UTC "
-      "(hora aproximada de la imagen).".replace(",", " "))
+      "(hora aproximada de la imagen).")
     w("")
     w("| | Qué mueve las partículas |")
     w("|---|---|")

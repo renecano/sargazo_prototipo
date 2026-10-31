@@ -78,6 +78,7 @@ ESCALAS_FSS_KM = (10, 25, 50)
 ESCALA_CALIBRACION_KM = 25      # E3 maximiza el FSS medio a esta escala en los tres horizontes
 BANDA_COSTA_KM = 10.0           # "pegado a la costa": a ≤ 10 km de la costa del modelo
 REMUESTREOS_BOOTSTRAP = 2000
+MIN_CASOS_VEREDICTO = 5         # con menos casos comparados no se declara "mejor" ni "peor"
 NIVEL_CONFIANZA = 0.95
 
 # MCC (correlación cruzada máxima) entre imágenes AFAI de días consecutivos
