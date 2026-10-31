@@ -1,8 +1,8 @@
-// Decodificación de los campos de SEMAR (viento y oleaje) y de los resultados de simulación.
+// Decodificación del oleaje de SEMAR y de los resultados de simulación.
 import { b64a, parseUTC, sumarHoras } from './util.js';
 
 export const A_FLOTE = 0, VARADA = 1, FUERA = 2;
-const SIN_DATO_I16 = -32768, SIN_DATO_U16 = 65535;
+const SIN_DATO = 65535;
 
 export class Campos {
   constructor(j) {
@@ -10,31 +10,21 @@ export class Campos {
     Object.assign(this, { lon0: m.lon0, dlon: m.dlon, nx: m.nx, lat0: m.lat0, dlat: m.dlat, ny: m.ny });
     this.resolucion = m.resolucion_grados;
     this.datos = j.datos;
-    this.tiempos = j.tiempos_viento_utc.map(parseUTC);
-    this.inicio = this.tiempos[0];
-    this.horasViento = this.tiempos.map((t) => (t - this.inicio) / 3600000);
-    this.olaHoras = j.ola_horas || [];
-    this.vu = b64a(j.viento_u, Int16Array);
-    this.vv = b64a(j.viento_v, Int16Array);
-    this.olaDir = j.ola_dir ? b64a(j.ola_dir, Uint16Array) : null;
-    this.olaAlt = j.ola_altura ? b64a(j.ola_altura, Uint16Array) : null;
+    this.horas = j.horas;                         // +0, +3, …, +120
+    this.inicio = parseUTC(j.datos.inicio_utc);
+    this.coefStokes = j.modelo.coef_stokes;       // |u_s| = γ · coef · √H
+    this.dir = b64a(j.ola_dir, Uint16Array);
+    this.alt = b64a(j.ola_altura, Uint16Array);
     this.lonMax = this.lon0 + this.dlon * (this.nx - 1);
     this.latMax = this.lat0 + this.dlat * (this.ny - 1);
   }
 
   get n() { return this.nx * this.ny; }
 
-  // Índice del tiempo de viento a usar en la hora h (el último que no la rebasa).
-  tiempoViento(h) {
+  // Bloque de oleaje vigente en la hora h (el último que no la rebasa).
+  bloque(h) {
     let k = 0;
-    while (k + 1 < this.horasViento.length && this.horasViento[k + 1] <= h) k++;
-    return k;
-  }
-
-  // Bloque de oleaje a usar en la hora h (cada 3 h en dirmarea.txt).
-  tiempoOla(h) {
-    let k = 0;
-    while (k + 1 < this.olaHoras.length && this.olaHoras[k + 1] <= h) k++;
+    while (k + 1 < this.horas.length && this.horas[k + 1] <= h) k++;
     return k;
   }
 
@@ -45,19 +35,11 @@ export class Campos {
     return { i, j, lon: this.lon0 + j * this.dlon, lat: this.lat0 + i * this.dlat, k: i * this.nx + j };
   }
 
-  // Viento (u, v) «hacia» en m/s del nodo k a la hora h; null si el nodo no tiene dato (tierra).
-  viento(k, h) {
-    const t = this.tiempoViento(h) * this.n + k;
-    if (this.vu[t] === SIN_DATO_I16) return null;
-    return [this.vu[t] / 100, this.vv[t] / 100];
-  }
-
-  // Ola de viento (altura m, dirección «desde» °) del nodo k a la hora h; null sin dato.
+  // Ola del nodo k en la hora h: altura (m) y dirección DESDE donde viene (°); null sin dato (tierra).
   ola(k, h) {
-    if (!this.olaAlt) return null;
-    const t = this.tiempoOla(h) * this.n + k;
-    if (this.olaAlt[t] === SIN_DATO_U16) return null;
-    return { altura: this.olaAlt[t] / 100, dir: this.olaDir[t] / 10 };
+    const t = this.bloque(h) * this.n + k;
+    if (this.alt[t] === SIN_DATO) return null;
+    return { altura: this.alt[t] / 100, desde: this.dir[t] / 10 };
   }
 }
 

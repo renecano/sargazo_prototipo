@@ -4,108 +4,147 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PMS · Predicción de Movimiento del Sargazo</title>
-  <meta name="description" content="PMS: simulación probabilística de la deriva del sargazo en la Península de Yucatán con datos de SEMAR.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23092133'/%3E%3Cpath d='M5 20c4-4 7 4 11 0s7 4 11 0' stroke='%232bb3c0' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='12' cy='12' r='2.4' fill='%23f0c35a'/%3E%3Ccircle cx='18' cy='10' r='1.8' fill='%23f0c35a'/%3E%3Ccircle cx='21' cy='14' r='1.4' fill='%23f0c35a'/%3E%3C/svg%3E">
+  <meta name="description" content="PMS: simulación probabilística de la deriva del sargazo por oleaje en la Península de Yucatán con datos de SEMAR.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f4ecd8'/%3E%3Cpath d='M16 3l3 13-3 13-3-13z' fill='%231d3557'/%3E%3Cpath d='M3 16l13-3 13 3-13 3z' fill='%23b07d10'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/static/css/estilos.css">
+  <link rel="stylesheet" href="/static/css/carta.css">
 </head>
 <body>
-<div class="app">
-  <aside class="panel" aria-label="Controles de la simulación">
-    <header class="marca">
-      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
-        <rect width="32" height="32" rx="8" fill="#0d2a40"/>
-        <path d="M5 20c4-4 7 4 11 0s7 4 11 0" stroke="#2bb3c0" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-        <circle cx="12" cy="12" r="2.4" fill="#f0c35a"/><circle cx="18" cy="10" r="1.8" fill="#f0c35a"/><circle cx="21" cy="14" r="1.4" fill="#f0c35a"/>
-      </svg>
-      <div>
-        <h1><span class="sigla">PMS</span> · Predicción de Movimiento del Sargazo</h1>
-        <p class="fuente" id="fuente">Datos SEMAR</p>
-      </div>
-    </header>
+<div id="mapa" aria-label="Carta de la Península de Yucatán"></div>
+<div class="marco" aria-hidden="true"></div>
 
-    <!-- Estado en una línea: sin-datos | validando | listo | calculando | resultado | error -->
-    <div class="estado" id="estado" data-estado="validando" aria-live="polite">
-      <span class="estado-punto" aria-hidden="true"></span>
-      <span class="estado-texto" id="estado-texto">Validando datos…</span>
-      <button type="button" class="enlace" id="btn-detalle" hidden aria-expanded="false">Ver detalle</button>
-    </div>
-    <div class="estado-detalle" id="estado-detalle" hidden></div>
-
-    <section class="bloque" id="parametros">
-      <h2>Punto de liberación</h2>
-      <p class="ayuda">Haz clic en el mar o escribe las coordenadas.</p>
-      <div class="dos">
-        <div class="campo"><label for="p-lat">Latitud (°)</label><input id="p-lat" type="number" step="0.001" min="16.92" max="23" required></div>
-        <div class="campo"><label for="p-lon">Longitud (°)</label><input id="p-lon" type="number" step="0.001" min="-92" max="-84" required></div>
-      </div>
-      <p class="aviso-campo" id="aviso-punto" hidden></p>
-      <div class="campo deslizador">
-        <label for="p-horizonte"><span>Horizonte</span><span class="valor" id="v-horizonte">120 h</span></label>
-        <input id="p-horizonte" type="range" min="24" max="120" step="24" value="120">
-      </div>
-      <button type="button" class="primario" id="btn-simular">Simular</button>
-
-      <details class="plegable" id="avanzadas">
-        <summary>Opciones avanzadas</summary>
-        <div class="dos">
-          <div class="campo"><label for="p-radio">Radio inicial (km)</label><input id="p-radio" type="number" min="0.5" max="50" step="0.5" value="5"></div>
-          <div class="campo"><label for="p-n">Partículas</label><input id="p-n" type="number" min="100" max="5000" step="100" value="2000"></div>
-          <div class="campo"><label for="p-alpha">Arrastre α (%)</label><input id="p-alpha" type="number" min="0" max="4" step="0.1" value="1"></div>
-          <div class="campo"><label for="p-kh">Difusión K<sub>h</sub> (m²/s)</label><input id="p-kh" type="number" min="0" max="100" step="1" value="10"></div>
-          <div class="campo"><label for="p-semilla">Semilla</label><input id="p-semilla" type="number" min="0" max="2147483647" step="1" value="2026"></div>
-        </div>
-        <p class="nota">α y K<sub>h</sub> son supuestos preliminares, sin calibrar.</p>
-      </details>
-    </section>
-
-    <details class="plegable" id="historial">
-      <summary>Historial <span class="contador" id="hist-contador"></span></summary>
-      <p class="nota" id="aviso-historial" hidden>En la nube el historial es temporal y puede vaciarse.</p>
-      <ul class="lista-hist" id="lista-hist"></ul>
-    </details>
-
-    <footer class="creditos" id="version">Equipo 2</footer>
-  </aside>
-
-  <main class="zona-mapa">
-    <div id="mapa" aria-label="Mapa de la Península de Yucatán"></div>
-
-    <label class="chip-viento" title="Flechas en la dirección hacia la que sopla; largo proporcional a la velocidad">
-      <input type="checkbox" id="ver-viento" checked> Mostrar viento
-      <svg width="34" height="10" viewBox="0 0 34 10" aria-hidden="true"><path d="M2 5h24" stroke="#a0cdf0" stroke-width="1.4"/><path d="M30 5l-6 3.2v-6.4z" fill="#a0cdf0"/></svg>
-      <span>10 m/s</span>
-    </label>
-
-    <aside class="panel-resultado" id="resultado" hidden aria-label="Resultado"></aside>
-
-    <section class="leyenda" aria-label="Leyenda">
-      <ul>
-        <li><svg width="16" height="12" aria-hidden="true"><rect x="6" y="4" width="4" height="4" fill="#f0c35a"/></svg>Sargazo a flote</li>
-        <li><svg width="16" height="12" aria-hidden="true"><circle cx="8" cy="6" r="3.5" fill="none" stroke="#ff6b5b" stroke-width="1.6"/></svg>Varado en la costa</li>
-        <li><svg width="16" height="12" aria-hidden="true"><path d="M1 6h14" stroke="#fff" stroke-width="2.4"/></svg>Trayectoria central</li>
-        <li><svg width="16" height="12" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="9" fill="none" stroke="#fff" stroke-width="1.3" stroke-dasharray="3 2"/></svg>Zona probable P90 (celdas de 0.16°)</li>
-      </ul>
-      <p class="aviso" id="aviso-modelo" role="note">Pronóstico probabilístico; viento fijo de t = 0; sin corrientes.</p>
-    </section>
-
-    <section class="linea-tiempo" id="linea-tiempo" aria-label="Línea de tiempo">
-      <button type="button" class="play" id="btn-play" title="Reproducir / pausar (espacio)" aria-label="Reproducir">
-        <svg class="i-play" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>
-        <svg class="i-pausa" viewBox="0 0 20 20"><path d="M5 4h3.5v12H5zM11.5 4H15v12h-3.5z" fill="currentColor"/></svg>
+<header class="cabecera">
+  <div class="marca">
+    <svg class="sello" viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r="18.5" fill="none" stroke="#1d3557" stroke-width="1"/>
+      <path d="M20 4l3.2 16L20 36l-3.2-16z" fill="#1d3557"/>
+      <path d="M4 20l16-3.2L36 20l-16 3.2z" fill="#b07d10"/>
+    </svg>
+    <div class="marca-texto">
+      <h1><b>PMS</b> · Predicción de Movimiento del Sargazo</h1>
+      <button type="button" class="estado" id="estado" data-estado="validando" aria-live="polite" aria-expanded="false" title="Ver detalle del estado">
+        <span class="estado-punto" aria-hidden="true"></span>
+        <span class="estado-texto" id="estado-texto">Validando datos…</span>
+        <span class="estado-mas" id="estado-mas" hidden>detalle</span>
       </button>
-      <span class="lt-h" id="lt-h">+0 h</span>
-      <input type="range" id="lt-slider" min="0" max="120" step="1" value="0" aria-label="Hora de pronóstico">
-      <span class="lt-fechas"><span id="lt-utc">—</span><span id="lt-local">—</span></span>
-    </section>
+    </div>
+  </div>
 
-    <div class="tooltip" id="tooltip" role="status" hidden></div>
-    <div class="velo" id="velo" hidden></div>
-  </main>
-</div>
+  <nav class="pasos" id="pasos" aria-label="Pasos de la simulación">
+    <button type="button" data-paso="1" aria-current="step"><span class="n">1</span>Punto de liberación</button>
+    <span class="separador" aria-hidden="true"></span>
+    <button type="button" data-paso="2"><span class="n">2</span>Ajustes</button>
+    <span class="separador" aria-hidden="true"></span>
+    <button type="button" data-paso="3" disabled><span class="n">3</span>Resultado</button>
+  </nav>
+
+  <div class="acciones">
+    <label class="interruptor" id="chip-oleaje" title="Flechas hacia donde viaja la ola; largo proporcional a la altura">
+      <input type="checkbox" id="ver-oleaje" checked>
+      <span>Mostrar oleaje</span>
+      <svg width="30" height="10" viewBox="0 0 30 10" aria-hidden="true"><path d="M2 5h20" stroke="#1f5c7a" stroke-width="1.3"/><path d="M27 5l-6 3.2V1.8z" fill="#1f5c7a"/></svg>
+      <span class="mono">1 m</span>
+    </label>
+    <button type="button" class="boton-linea" id="btn-historial" aria-expanded="false" aria-controls="historial">Historial <span class="mono" id="hist-n"></span></button>
+    <button type="button" class="boton-tinta" id="btn-recorrido">Recorrido guiado</button>
+  </div>
+</header>
+
+<div class="estado-detalle" id="estado-detalle" hidden></div>
+
+<section class="hoja" id="hoja" aria-label="Pasos">
+  <div class="paso" data-paso="1">
+    <p class="cuaderno">Paso 1 de 3</p>
+    <h2>Punto de liberación</h2>
+    <p class="guia">Haz clic en el mar para soltar el conglomerado o escribe sus coordenadas. El círculo punteado es el radio inicial.</p>
+    <div class="dos">
+      <label class="campo"><span>Latitud (°)</span><input id="p-lat" type="number" step="0.001" min="16.92" max="23" required></label>
+      <label class="campo"><span>Longitud (°)</span><input id="p-lon" type="number" step="0.001" min="-92.08" max="-84.08" required></label>
+    </div>
+    <p class="aviso-campo" id="aviso-punto" hidden></p>
+    <button type="button" class="primario" id="btn-a-ajustes">Continuar a Ajustes</button>
+  </div>
+
+  <div class="paso" data-paso="2" hidden>
+    <p class="cuaderno">Paso 2 de 3</p>
+    <h2>Ajustes</h2>
+    <label class="campo" id="campo-horizonte">
+      <span class="fila"><span>Horizonte</span><b class="mono" id="v-horizonte">120 h</b></span>
+      <input id="p-horizonte" type="range" min="24" max="120" step="24" value="120">
+      <small>Cuántas horas hacia adelante se calcula la deriva (máximo 5 días).</small>
+    </label>
+    <details class="avanzado" id="avanzado">
+      <summary>Avanzado</summary>
+      <label class="campo"><span>Radio inicial (km)</span><input id="p-radio" type="number" min="0.5" max="50" step="0.5" value="5">
+        <small>Tamaño del conglomerado al soltarlo.</small></label>
+      <label class="campo"><span>Partículas</span><input id="p-n" type="number" min="100" max="5000" step="100" value="2000">
+        <small>Más partículas dan probabilidades más estables, pero tardan más.</small></label>
+      <label class="campo"><span>γ · factor de deriva por oleaje</span><input id="p-gamma" type="number" min="0" max="3" step="0.1" value="1">
+        <small>Escala la deriva de Stokes: 0 la apaga, 1 es la estimación base, 3 la triplica.</small></label>
+      <label class="campo"><span>K<sub>h</sub> · movimiento browniano (m²/s)</span><input id="p-kh" type="number" min="0" max="100" step="1" value="10">
+        <small>Cuánto se dispersan las partículas al azar alrededor de la deriva.</small></label>
+      <label class="campo"><span>Semilla</span><input id="p-semilla" type="number" min="0" max="2147483647" step="1" value="2026">
+        <small>Misma semilla y mismos ajustes dan exactamente el mismo resultado.</small></label>
+      <p class="nota">γ y K<sub>h</sub> son preliminares, sin calibrar. El período de la ola se supone T = 4.0·√H.</p>
+    </details>
+    <button type="button" class="primario" id="btn-simular">Simular</button>
+    <button type="button" class="enlace" data-ir="1">← Volver al punto de liberación</button>
+  </div>
+
+  <div class="paso" data-paso="3" hidden>
+    <p class="cuaderno">Paso 3 de 3</p>
+    <h2>Resultado</h2>
+    <div id="resultado"><p class="guia">Aún no hay resultado. Simula en el paso 2.</p></div>
+    <button type="button" class="enlace" data-ir="1">← Nueva simulación</button>
+  </div>
+</section>
+
+<aside class="historial" id="historial" hidden aria-label="Historial de simulaciones">
+  <h2>Historial</h2>
+  <p class="nota" id="aviso-historial" hidden>En la nube el historial es temporal y puede vaciarse.</p>
+  <ul class="lista-hist" id="lista-hist"></ul>
+</aside>
+
+<section class="leyenda" aria-label="Leyenda">
+  <ul>
+    <li><svg width="16" height="12" aria-hidden="true"><rect x="6" y="4" width="4" height="4" fill="#b07d10"/></svg>Sargazo a flote</li>
+    <li><svg width="16" height="12" aria-hidden="true"><circle cx="8" cy="6" r="3.5" fill="none" stroke="#c0392b" stroke-width="1.4"/></svg>Varado en la costa</li>
+    <li><svg width="16" height="12" aria-hidden="true"><path d="M1 6h14" stroke="#1d3557" stroke-width="2.2"/></svg>Trayectoria central</li>
+    <li><svg width="16" height="12" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="9" fill="rgba(29,53,87,0.07)" stroke="#1d3557" stroke-width="1.2" stroke-dasharray="4 2.5"/></svg>Zona probable P90</li>
+  </ul>
+  <p class="aviso" role="note">Pronóstico probabilístico de muestra; deriva estimada solo por oleaje, sin viento ni corrientes.</p>
+</section>
+
+<svg class="rosa" viewBox="0 0 120 120" aria-hidden="true">
+  <circle cx="60" cy="60" r="52" fill="none" stroke="#1d3557" stroke-width="0.8"/>
+  <circle cx="60" cy="60" r="46" fill="none" stroke="#1d3557" stroke-width="0.5" stroke-dasharray="1 3"/>
+  <g fill="#1d3557" opacity="0.85">
+    <path d="M60 10l5 50-5 50-5-50z"/><path d="M10 60l50-5 50 5-50 5z"/>
+  </g>
+  <g fill="#b07d10" opacity="0.8">
+    <path d="M60 60l22-22-18 26z"/><path d="M60 60l22 22-26-18z"/><path d="M60 60l-22 22 18-26z"/><path d="M60 60l-22-22 26 18z"/>
+  </g>
+  <circle cx="60" cy="60" r="3" fill="#f4ecd8" stroke="#1d3557"/>
+  <text x="60" y="7" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9" fill="#1d3557">N</text>
+</svg>
+
+<section class="linea-tiempo" id="linea-tiempo" aria-label="Línea de tiempo">
+  <button type="button" class="play" id="btn-play" title="Reproducir / pausar (espacio)" aria-label="Reproducir">
+    <svg class="i-play" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>
+    <svg class="i-pausa" viewBox="0 0 20 20"><path d="M5 4h3.5v12H5zM11.5 4H15v12h-3.5z" fill="currentColor"/></svg>
+  </button>
+  <span class="lt-h mono" id="lt-h">+0 h</span>
+  <input type="range" id="lt-slider" min="0" max="120" step="1" value="0" aria-label="Hora de pronóstico">
+  <span class="lt-fechas mono"><span id="lt-utc">—</span><span id="lt-local">—</span></span>
+</section>
+
+<div class="tooltip" id="tooltip" role="status" hidden></div>
+<div class="velo" id="velo" hidden></div>
+<div id="recorrido"></div>
+
 <script src="/static/vendor/leaflet/leaflet.js"></script>
 <script type="module" src="/static/js/main.js"></script>
 </body>
