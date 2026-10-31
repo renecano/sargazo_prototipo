@@ -566,6 +566,7 @@ def _html(d: Insumos, principal, v, figs_caso, hay_mcc, n_cal, n_eval, cos, mccr
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="/validacion/">
 <title>Validación PMS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">

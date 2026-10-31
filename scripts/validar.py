@@ -19,6 +19,7 @@ correrlo continúa donde se quedó.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from datetime import datetime, timezone
@@ -102,7 +103,12 @@ def principal(argv=None) -> int:
                       "continuará donde se quedó (todo lo descargado está en la caché).")
             return 2
     else:
-        filas_cal = [f for c in cal for f in ejecutar.calibrar_caso(c, ctx, det, None, cache, registrar)]
+        # Solo lo que ya está en la caché (no descarga ni calcula).
+        filas_cal = []
+        for c in cal:
+            ruta = cache / "casos" / c.id / "calibracion.json"
+            if ruta.is_file():
+                filas_cal += json.loads(ruta.read_text(encoding="utf-8"))
         gamma, kh, tabla_cal = ejecutar.elegir_calibracion(filas_cal)
 
     registrar("6. Tablas, figuras y documentos")
