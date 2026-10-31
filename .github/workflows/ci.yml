@@ -26,8 +26,8 @@ jobs:
           cache-dependency-path: requirements-dev.txt
       - name: Instalar dependencias
         run: python -m pip install -r requirements-dev.txt
-      # Los datos de SEMAR no están en git: las pruebas usan fixtures en el formato real
-      # (scripts/generar_fixtures.py) y las de datos reales se omiten.
+      # Las pruebas usan fixtures de dirmarea.txt en el formato real (scripts/generar_fixtures.py)
+      # y una más verifica el archivo de muestra de data/semar/.
       - name: Pruebas rápidas (lector, validador, modelo, API)
         run: python -m pytest
 

@@ -1,4 +1,4 @@
-"""Fixtures compartidas: datos pequeños en el formato real de SEMAR, generados en tmp."""
+"""Fixtures compartidas: dirmarea.txt pequeño en el formato real de SEMAR, generado en tmp."""
 from __future__ import annotations
 
 import shutil
@@ -8,16 +8,15 @@ import numpy as np
 import pytest
 
 from scripts.generar_fixtures import crear_fixture
-from src.config import ARCHIVO_VIENTO, DIR_SEMAR
+from src.config import ARCHIVO_OLEAJE, DIR_SEMAR
 
-HAY_DATOS_REALES = (DIR_SEMAR / ARCHIVO_VIENTO).is_file()
-solo_con_datos_reales = pytest.mark.skipif(
-    not HAY_DATOS_REALES, reason="data/semar/ no tiene los archivos de SEMAR")
+HAY_DATOS_REALES = (DIR_SEMAR / ARCHIVO_OLEAJE).is_file()
+solo_con_datos_reales = pytest.mark.skipif(not HAY_DATOS_REALES, reason="data/semar/dirmarea.txt no está disponible")
 
 
 @pytest.fixture(scope="session")
 def semar_base(tmp_path_factory) -> Path:
-    """Recuadro de Cancún y Cozumel (10 × 11 nodos), ~0.3 s; se genera una vez por sesión."""
+    """Recuadro de Cancún y Cozumel (11 × 11 nodos, 41 bloques); se genera una vez por sesión."""
     return crear_fixture(tmp_path_factory.mktemp("base") / "semar")
 
 

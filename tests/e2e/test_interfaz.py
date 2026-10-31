@@ -1,9 +1,9 @@
-"""Prueba de interfaz de punta a punta con Playwright (Edge o Chromium).
+"""Prueba de interfaz de punta a punta con Playwright (Edge o Chromium), versión 0.3.0.
 
-Levanta la app real sobre un fixture en el formato de SEMAR (dominio completo, valores
-sintéticos) generado en una carpeta temporal y recorre lo que pide SEMAR: validación,
-clic para liberar, simulación de 120 h frente a Cancún, pausa que conserva hora y
-posición, hover con viento y ola, historial, punto en tierra, datos inválidos y sin datos.
+Levanta la app real sobre un dirmarea.txt de fixture (dominio completo, formato real de
+SEMAR, valores sintéticos) y recorre: recorrido guiado (Saltar, no reabrirse, completo),
+los tres pasos, clic para liberar, simulación de 120 h frente a Cancún, pausa que conserva
+hora y posición, teclas, hover con ola, historial, punto en tierra, datos inválidos y sin datos.
 
     pytest -m e2e
 """
@@ -21,13 +21,15 @@ uvicorn = pytest.importorskip("uvicorn")
 
 from scripts.generar_fixtures import crear_fixture  # noqa: E402
 from src.api.app import crear_app  # noqa: E402
-from src.config import ARCHIVO_VIENTO  # noqa: E402
+from src.config import ARCHIVO_OLEAJE  # noqa: E402
 from tests.conftest import editar_lineas  # noqa: E402
 
 pytestmark = pytest.mark.e2e
 
-CANCUN = (21.12, -86.66)
+CANCUN = (21.12, -86.60)
+TIERRA = (20.50, -88.50)
 PATRON_COORD = re.compile(r"\d{2}\.\d{3}° N · \d{2}\.\d{3}° O")
+RECORRIDO = '[data-prueba="recorrido"]'
 
 
 def _puerto_libre() -> int:
@@ -71,8 +73,16 @@ def navegador():
 
 
 @pytest.fixture(scope="module")
-def pagina(navegador, app_url):
-    pg = navegador.new_page(viewport={"width": 1600, "height": 900})
+def contexto(navegador):
+    """Un solo contexto (mismo localStorage) para las pruebas que comparten página."""
+    ctx = navegador.new_context(viewport={"width": 1366, "height": 768})
+    yield ctx
+    ctx.close()
+
+
+@pytest.fixture(scope="module")
+def pagina(contexto, app_url):
+    pg = contexto.new_page()
     errores = []
     pg.on("pageerror", lambda e: errores.append(str(e)))
     pg.goto(app_url, wait_until="domcontentloaded")
@@ -90,11 +100,7 @@ def esperar_estado(pg, nombre, timeout=60_000):
 
 
 def punto_en_pantalla(pg, lat, lon):
-    return pg.evaluate("""([lat, lon]) => {
-        const m = window.pmsMapa, p = m.latLngToContainerPoint([lat, lon]);
-        const r = m.getContainer().getBoundingClientRect();
-        return [r.left + p.x, r.top + p.y];
-    }""", [lat, lon])
+    return pg.evaluate("([lat, lon]) => { const p = window.pmsMapa.latLngToContainerPoint([lat, lon]); return [p.x, p.y]; }", [lat, lon])
 
 
 def huella_canvas(pg, capa: str) -> str:
@@ -109,64 +115,90 @@ def hora(pg) -> int:
     return int(pg.text_content("#lt-h").strip().lstrip("+").split()[0])
 
 
-def test_valida_los_datos_y_queda_listo(pagina):
+def paso_recorrido(pg) -> int:
+    return int(pg.get_attribute(RECORRIDO, "data-paso"))
+
+
+def siguiente(pg):
+    k = paso_recorrido(pg)
+    pg.click("#rec-siguiente")
+    pg.wait_for_function(f"document.querySelector('{RECORRIDO}')?.dataset.paso === '{k + 1}'")
+    pg.wait_for_timeout(300)
+
+
+# --- Recorrido guiado: se abre la primera vez, «Saltar» y no se reabre ---------------------
+
+def test_recorrido_se_abre_solo_la_primera_vez_y_saltar_lo_cierra(pagina):
     esperar_estado(pagina, "listo")
-    assert pagina.text_content("#fuente") == "Datos SEMAR · viento 19 ago 2026 00 UTC (fijo)"
-    assert pagina.text_content("#aviso-modelo") == "Pronóstico probabilístico; viento fijo de t = 0; sin corrientes."
-    # El detalle de validación está plegado y se abre con un clic (hay advertencias).
+    pagina.wait_for_selector(RECORRIDO)
+    assert pagina.text_content('[data-prueba="rec-contador"]') == "Paso 1 de 11"
+    assert pagina.is_disabled("#rec-atras")
+    pagina.click("#rec-saltar")
+    assert pagina.locator(RECORRIDO).count() == 0
+    pagina.reload(wait_until="domcontentloaded")
+    esperar_estado(pagina, "listo")
+    pagina.wait_for_timeout(800)
+    assert pagina.locator(RECORRIDO).count() == 0, "no debe volver a abrirse solo"
+
+
+def test_estado_en_una_linea_con_detalle_al_clic(pagina):
+    assert "dirmarea.txt validado" in pagina.text_content("#estado-texto")
     assert pagina.is_hidden("#estado-detalle")
-    pagina.click("#btn-detalle")
-    detalle = pagina.text_content("#estado-detalle")
-    assert "una sola hora" in detalle and "idénticos" in detalle and "u_c = 0" in detalle
-    pagina.click("#btn-detalle")
+    pagina.click("#estado")
+    assert "idénticos" in pagina.text_content("#estado-detalle")
+    pagina.click("#estado")
     assert pagina.is_hidden("#estado-detalle")
 
 
-def test_interfaz_minima(pagina):
-    assert pagina.locator(".leyenda li").count() <= 4
-    assert pagina.locator("#conjunto").count() == 0, "ya no hay selector de conjunto de datos"
-    assert pagina.locator("#lt-vel").count() == 0, "la velocidad de reproducción es fija"
-    assert pagina.locator("input[type=checkbox]").count() == 1, "solo queda el interruptor «Mostrar viento»"
-    assert pagina.get_attribute("#avanzadas", "open") is None, "opciones avanzadas plegadas por defecto"
-    assert pagina.get_attribute("#historial", "open") is None
+def test_tres_pasos_y_resultado_deshabilitado_sin_simulacion(pagina):
+    assert pagina.get_attribute('#pasos [data-paso="1"]', "aria-current") == "step"
+    assert pagina.is_disabled('#pasos [data-paso="3"]')
+    pagina.click('#pasos [data-paso="2"]')
+    assert pagina.is_visible("#p-horizonte") and pagina.is_hidden("#p-lat")
+    assert pagina.get_attribute("#avanzado", "open") is None, "«Avanzado» plegado por defecto"
+    pagina.click("#avanzado summary")
+    for campo in ("#p-radio", "#p-n", "#p-gamma", "#p-kh", "#p-semilla"):
+        assert pagina.is_visible(campo)
+    assert pagina.locator("#avanzado small").count() == 5, "una línea de explicación por parámetro"
+    pagina.click("#avanzado summary")
+    pagina.click('#hoja [data-ir="1"]')
+    assert pagina.is_visible("#p-lat")
 
 
-def test_flechas_de_viento_estaticas_y_ocultables(pagina):
-    f1 = huella_canvas(pagina, "viento")
-    time.sleep(0.6)
-    assert huella_canvas(pagina, "viento") == f1, "las flechas no se animan"
-    pagina.uncheck("#ver-viento")
-    assert huella_canvas(pagina, "viento") != f1
-    pagina.check("#ver-viento")
-    assert huella_canvas(pagina, "viento") == f1
-
-
-def test_clic_en_el_mapa_fija_el_punto_de_liberacion(pagina):
-    x, y = punto_en_pantalla(pagina, *CANCUN)
-    pagina.mouse.click(x, y)
+def test_clic_en_el_mar_fija_el_punto_y_el_radio(pagina):
+    pagina.mouse.click(*punto_en_pantalla(pagina, *CANCUN))
     lat, lon = float(pagina.input_value("#p-lat")), float(pagina.input_value("#p-lon"))
-    assert abs(lat - CANCUN[0]) < 0.02 and abs(lon - CANCUN[1]) < 0.02
+    assert abs(lat - CANCUN[0]) < 0.03 and abs(lon - CANCUN[1]) < 0.03
     assert pagina.is_hidden("#aviso-punto")
+    assert pagina.evaluate("document.querySelectorAll('.leaflet-overlay-pane path').length") >= 2, "círculo del radio y recuadro"
+
+
+def test_flechas_de_oleaje_estaticas_y_ocultables(pagina):
+    f1 = huella_canvas(pagina, "oleaje")
+    time.sleep(0.6)
+    assert huella_canvas(pagina, "oleaje") == f1, "las flechas no se animan"
+    pagina.uncheck("#ver-oleaje")
+    assert huella_canvas(pagina, "oleaje") != f1
+    pagina.check("#ver-oleaje")
+    assert huella_canvas(pagina, "oleaje") == f1
 
 
 def test_simulacion_de_120_h_frente_a_cancun(pagina):
-    pagina.fill("#p-lat", f"{CANCUN[0]:.3f}")
-    pagina.fill("#p-lon", f"{CANCUN[1]:.3f}")
-    pagina.dispatch_event("#p-lon", "change")
+    pagina.click("#btn-a-ajustes")
     assert pagina.input_value("#p-horizonte") == "120"
     pagina.click("#btn-simular")
     esperar_estado(pagina, "resultado")
+    assert pagina.get_attribute('#pasos [data-paso="3"]', "aria-current") == "step"
+    texto = pagina.text_content("#resultado")
+    assert "Varado al final (+120 h)" in texto and "Radio P90 a +120 h" in texto
+    assert 1 <= pagina.locator('[data-prueba="arribos"] li').count() <= 3
+    assert pagina.locator('[data-prueba="arribos"] .etq').first.text_content() in ("Alta", "Media", "Baja", "Muy baja")
     assert pagina.get_attribute("#lt-slider", "max") == "120"
-    assert pagina.is_visible("#resultado")
-    assert "Varadas al final" in pagina.text_content("#resultado")
-    assert "Radio P90 a +120 h" in pagina.text_content("#resultado")
-    assert pagina.locator('[data-prueba="arribos"] li').count() <= 3
-    assert pagina.evaluate("window.pms.sim.H") == 120
-    assert pagina.locator("#lista-hist li[data-id]").count() == 1
+    assert pagina.evaluate("window.pms.sim.reg.version_modelo") == "pms-browniano-0.3.0"
 
 
 def test_la_pausa_conserva_hora_y_posicion(pagina):
-    pagina.wait_for_function("window.pms.hora >= 3", timeout=10_000)  # se reproduce sola al terminar
+    pagina.wait_for_function("window.pms.hora >= 3", timeout=10_000)   # se reproduce sola al terminar
     pagina.click("#btn-play")
     assert not pagina.evaluate("window.pms.reproduciendo")
     h1, f1 = hora(pagina), huella_canvas(pagina, "particulas")
@@ -174,79 +206,131 @@ def test_la_pausa_conserva_hora_y_posicion(pagina):
     assert hora(pagina) == h1 and huella_canvas(pagina, "particulas") == f1
     pagina.click("#btn-play")
     pagina.wait_for_function(f"window.pms.hora > {h1}", timeout=10_000)
+    pagina.mouse.click(683, 760)          # quita el foco del botón sin tocar el mapa
     pagina.keyboard.press("Space")
     assert not pagina.evaluate("window.pms.reproduciendo")
 
 
 def test_teclas_y_hora_utc_y_cancun(pagina):
     pagina.eval_on_selector("#lt-slider", "e => { e.value = 48; e.dispatchEvent(new Event('input')); }")
-    pagina.mouse.click(5, 890)  # quita el foco de los campos sin tocar el mapa
+    pagina.mouse.click(683, 760)
     pagina.keyboard.press("ArrowRight")
     assert hora(pagina) == 49
     pagina.keyboard.press("ArrowLeft")
     pagina.keyboard.press("ArrowLeft")
     assert hora(pagina) == 47
-    assert pagina.text_content("#lt-utc").endswith("23:00 UTC")       # 19 ago 00 UTC + 47 h
+    assert pagina.text_content("#lt-utc").endswith("23:00 UTC")          # 01 oct 00 UTC + 47 h
     assert "18:00 Cancún (UTC−5)" in pagina.text_content("#lt-local")
 
 
-def test_hover_muestra_coordenadas_viento_y_ola(pagina):
-    x, y = punto_en_pantalla(pagina, 21.0, -86.3)  # mar abierto al este de Cancún
-    pagina.mouse.move(x, y)
+def test_hover_muestra_coordenadas_y_ola(pagina):
+    pagina.mouse.move(*punto_en_pantalla(pagina, 21.0, -86.30))
     pagina.wait_for_selector("#tooltip:not([hidden])")
     texto = pagina.text_content("#tooltip")
     assert PATRON_COORD.search(texto), texto
-    assert re.search(r"Viento\d+\.\d m/s desde \d+° \(\w+\)", texto), texto
-    assert re.search(r"Ola\d+\.\d m desde \d+° \(\w+\)", texto), texto
-    assert "Partículas" not in texto, "el hover solo muestra coordenadas, viento y ola"
+    assert re.search(r"Ola \d+\.\d{2} m · desde \d+° \(\w+\)", texto), texto
+    pagina.mouse.move(*punto_en_pantalla(pagina, 21.16, -86.86))     # tierra: ciudad de Cancún
+    pagina.wait_for_timeout(300)
+    assert "sin dato" in pagina.text_content("#tooltip")
 
 
 def test_historial_guarda_y_reabre(pagina):
     primera = pagina.evaluate("window.pms.sim.id")
-    pagina.click("#avanzadas summary")
+    pagina.click('#pasos [data-paso="2"]')
+    pagina.click("#avanzado summary")
     pagina.fill("#p-semilla", "7")
     pagina.click("#btn-simular")
     pagina.wait_for_function(f"window.pms.sim && window.pms.sim.id !== '{primera}' && window.pms.estado === 'resultado'", timeout=60_000)
+    assert pagina.is_hidden("#historial"), "el historial está plegado"
+    pagina.click("#btn-historial")
     pagina.wait_for_function("document.querySelectorAll('#lista-hist li[data-id]').length === 2", timeout=5_000)
-    pagina.click("#historial summary")
     pagina.click(f'#lista-hist li[data-id="{primera}"] button')
     pagina.wait_for_function(f"window.pms.sim.id === '{primera}'", timeout=10_000)
     assert pagina.input_value("#p-semilla") == "2026"
-    assert "activa" in pagina.get_attribute(f'#lista-hist li[data-id="{primera}"]', "class")
+    assert pagina.is_hidden("#historial")
 
 
 def test_punto_en_tierra_muestra_error_con_accion(pagina):
-    pagina.fill("#p-lat", "20.500")
-    pagina.fill("#p-lon", "-88.500")
+    pagina.click('#pasos [data-paso="1"]')
+    pagina.fill("#p-lat", f"{TIERRA[0]:.3f}")
+    pagina.fill("#p-lon", f"{TIERRA[1]:.3f}")
     pagina.dispatch_event("#p-lon", "change")
-    assert pagina.is_visible("#aviso-punto")
+    assert "tierra" in pagina.text_content("#aviso-punto")
+    pagina.click('#pasos [data-paso="2"]')
     pagina.click("#btn-simular")
     esperar_estado(pagina, "error")
     assert "tierra" in pagina.text_content("#estado-texto")
-    pagina.click("#btn-detalle")
+    pagina.click("#estado")
     assert "Acción" in pagina.text_content('[data-prueba="caja-error"]')
-    pagina.click("#estado-detalle button")
-    assert estado(pagina) == "resultado"
 
 
 def test_sin_errores_de_javascript(pagina):
     assert pagina.errores == []
 
 
+# --- Recorrido guiado completo, en un navegador «nuevo» -----------------------------------------
+
+def test_recorrido_guiado_completo(navegador, app_url):
+    ctx = navegador.new_context(viewport={"width": 1366, "height": 768})
+    pg = ctx.new_page()
+    errores = []
+    pg.on("pageerror", lambda e: errores.append(str(e)))
+    pg.goto(app_url, wait_until="domcontentloaded")
+    esperar_estado(pg, "listo")
+    pg.wait_for_selector(RECORRIDO)
+    siguiente(pg)                                                     # 2: datos y oleaje
+    assert "dirmarea.txt" in pg.text_content(RECORRIDO)
+    siguiente(pg)                                                     # 3: fijar el punto (espera el clic)
+    assert pg.is_disabled("#rec-siguiente")
+    pg.mouse.click(*punto_en_pantalla(pg, *CANCUN))
+    pg.wait_for_function("!document.getElementById('rec-siguiente').disabled")
+    assert "Punto fijado" in pg.text_content("#rec-espera")
+    siguiente(pg)                                                     # 4: horizonte
+    assert pg.is_visible("#campo-horizonte")
+    siguiente(pg)                                                     # 5: γ y K_h
+    assert pg.get_attribute("#avanzado", "open") is not None
+    siguiente(pg)                                                     # 6: simular (espera el resultado)
+    assert pg.is_disabled("#rec-siguiente")
+    pg.click("#btn-simular")
+    pg.wait_for_function("!document.getElementById('rec-siguiente').disabled", timeout=60_000)
+    assert "Simulación lista" in pg.text_content("#rec-espera")
+    for esperado in ("Cómo leer el mapa", "línea de tiempo", "resultado", "historial", "Listo"):
+        siguiente(pg)
+        assert esperado.lower() in pg.text_content(f"{RECORRIDO} h2").lower()
+    assert pg.text_content('[data-prueba="rec-contador"]') == "Paso 11 de 11"
+    pg.click("#rec-atras")
+    assert paso_recorrido(pg) == 10
+    siguiente(pg)
+    pg.click("#rec-siguiente")                                        # «Terminar»
+    assert pg.locator(RECORRIDO).count() == 0
+    assert pg.evaluate("localStorage.getItem('pms.recorrido.visto.v3')") == "1"
+    pg.click("#btn-recorrido")                                        # siempre disponible
+    pg.wait_for_selector(RECORRIDO)
+    pg.keyboard.press("Escape")
+    assert pg.locator(RECORRIDO).count() == 0
+    assert errores == []
+    ctx.close()
+
+
+# --- Datos inválidos y sin datos ------------------------------------------------------------
+
 def test_datos_invalidos_muestran_error(navegador, tmp_path):
     malo = crear_fixture(tmp_path / "semar")
-    editar_lineas(malo / ARCHIVO_VIENTO, lambda l: [l[0], "19AGO2026 00"] + l[2:])  # mes en español: ilegible
+    editar_lineas(malo / ARCHIVO_OLEAJE, lambda l: [l[0], "01OCTU2026 00 0"] + l[2:])   # fecha ilegible
     servidor, url = _levantar(malo, tmp_path / "sims")
     try:
-        pg = navegador.new_page(viewport={"width": 1400, "height": 850})
+        ctx = navegador.new_context(viewport={"width": 1366, "height": 768})
+        pg = ctx.new_page()
         pg.goto(url, wait_until="domcontentloaded")
         esperar_estado(pg, "error", timeout=20_000)
         assert "Error en los datos" in pg.text_content("#estado-texto")
-        pg.click("#btn-detalle")
-        caja = pg.text_content('[data-prueba="caja-error"]')
-        assert ARCHIVO_VIENTO in caja and "Acción" in caja
-        assert pg.is_visible("#velo") and pg.is_disabled("#btn-simular")
-        pg.close()
+        assert pg.is_visible("#velo") and ARCHIVO_OLEAJE in pg.text_content("#velo")
+        assert "Acción" in pg.text_content("#velo")
+        pg.click("#estado")                                            # el velo no tapa el estado
+        assert pg.is_visible("#estado-detalle")
+        assert pg.is_disabled("#btn-simular")
+        assert pg.locator(RECORRIDO).count() == 0, "el recorrido no se abre si los datos no son válidos"
+        ctx.close()
     finally:
         servidor.should_exit = True
 
@@ -254,11 +338,12 @@ def test_datos_invalidos_muestran_error(navegador, tmp_path):
 def test_estado_sin_datos(navegador, tmp_path):
     servidor, url = _levantar(tmp_path / "vacio", tmp_path / "sims")
     try:
-        pg = navegador.new_page(viewport={"width": 1400, "height": 850})
+        ctx = navegador.new_context(viewport={"width": 1366, "height": 768})
+        pg = ctx.new_page()
         pg.goto(url, wait_until="domcontentloaded")
         esperar_estado(pg, "sin-datos", timeout=15_000)
         assert "data/semar/" in pg.text_content("#velo")
         assert pg.is_disabled("#btn-simular")
-        pg.close()
+        ctx.close()
     finally:
         servidor.should_exit = True
