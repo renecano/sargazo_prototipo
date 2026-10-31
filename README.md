@@ -319,6 +319,12 @@ todas en verde en local.
 | Simulación de 120 h frente a Cancún | 0.95 s |
 | La app queda «lista» en el navegador | ~1.8 s |
 
+**Arranque en frío.** No se pudo forzar uno limpio en Vercel, porque la instancia de producción
+ya estaba caliente tras cada despliegue (`/api/salud` respondió en 0.30 s en la primera
+petición). Con el mismo punto de entrada (`api/index.py`) medido en local cuesta ~1.0–1.1 s:
+0.75 s de importar la app y 0.30 s de la primera validación. Está muy lejos del límite de 60 s
+de la función, así que no fue necesario optimizar la lectura del archivo.
+
 ## Límites honestos
 
 - **Datos de muestra**: los 41 bloques de `dirmarea.txt` son idénticos (el oleaje no cambia en
