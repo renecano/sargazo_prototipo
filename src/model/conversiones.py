@@ -1,8 +1,8 @@
 """Conversiones de unidades y de convenciones de dirección.
 
 Convenciones usadas en todo PMS:
-- Meteorológica ("desde"): WindsfcDir es la dirección DESDE la que sopla el viento,
-  en grados desde el norte geográfico, sentido horario. Viento del norte = 0°.
+- "Desde": dirolavto es la dirección DESDE la que viene la ola, en grados desde el norte
+  geográfico, sentido horario. Ola que viene del norte = 0° (viaja hacia el sur).
 - Oceanográfica ("hacia"): un vector (u, v) apunta HACIA donde se desplaza el agua o
   la partícula; u positivo al este, v positivo al norte.
 """
@@ -26,7 +26,7 @@ def ms_a_nudos(ms):
 def desde_a_vector(velocidad, direccion_desde_grados):
     """Velocidad y dirección meteorológica "desde" → componentes (u, v) "hacia".
 
-    Un viento del norte (0°) empuja hacia el sur: u = 0, v = -velocidad.
+    Algo que viene del norte (0°) avanza hacia el sur: u = 0, v = -velocidad.
     """
     theta = np.radians(np.asarray(direccion_desde_grados, dtype=float))
     vel = np.asarray(velocidad, dtype=float)

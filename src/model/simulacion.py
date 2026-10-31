@@ -1,17 +1,15 @@
-"""Motor lagrangiano simplificado (estilo GNOME) para conglomerados de sargazo.
+"""Modelo de partículas brownianas (pms-browniano-0.3.0) para conglomerados de sargazo.
 
 Para cada partícula y cada paso Δt = 1 h:
 
-    X(t+Δt) = X(t) + [u_c(X,t) + α·u_w(X,t)]·Δt + √(2·K_h·Δt)·ξ,   ξ ~ N(0, 1)
+    X(t+Δt) = X(t) + u_ola(X,t)·Δt + √(2·K_h·Δt)·ξ,   ξ ~ N(0, 1) en cada eje
 
-- u_w: viento a 10 m de SEMAR convertido a vector "hacia" (con los datos actuales, una sola
-  hora: estacionario).
-- u_c: corriente superficial OPCIONAL. Si el conjunto no trae corrientes, u_c = 0 y la
-  ecuación queda X(t+Δt) = X(t) + α·u_w·Δt + √(2·K_h·Δt)·ξ.
-- El oleaje no entra al movimiento: sin período de ola no se puede estimar la deriva de
-  Stokes de forma defendible (decisión pendiente).
+- u_ola: deriva de Stokes de la ola de viento de SEMAR (dirmarea.txt), HACIA donde viaja la
+  ola (dirolavto + 180°): |u_s| = γ · 2π³·H² / (g·T³), con el período SUPUESTO T = 4.0·√H
+  (el archivo no trae período). γ escala la deriva; K_h es la intensidad del movimiento
+  browniano. No hay viento ni corrientes en el modelo.
 - El término determinista se integra con punto medio (RK2) en espacio y tiempo; con
-  campos uniformes coincide exactamente con la solución analítica.
+  oleaje uniforme coincide exactamente con la solución analítica.
 - El desplazamiento métrico se convierte a grados corrigiendo la longitud por cos(lat).
 - Costa: si el segmento recorrido en el paso toca tierra, la partícula queda VARADA en
   el último punto en mar del segmento (búsqueda binaria) y ya no se mueve.
@@ -25,7 +23,9 @@ from typing import Callable
 
 import numpy as np
 
-from src.config import LAT_MAX, LAT_MIN, LON_MAX, LON_MIN, PASO_SEGUNDOS, VERSION_MODELO
+from src.config import (
+    COEF_PERIODO, GAMMA_DEFECTO, KH_DEFECTO, LAT_MAX, LAT_MIN, LON_MAX, LON_MIN, PASO_SEGUNDOS, VERSION_MODELO,
+)
 from src.model import costa
 from src.model.conversiones import metros_a_grados
 
@@ -45,8 +45,8 @@ class Parametros:
     lat: float
     radio_km: float = 5.0
     particulas: int = 2000
-    alpha_pct: float = 1.0
-    kh_m2s: float = 10.0
+    gamma: float = GAMMA_DEFECTO      # factor de la deriva de Stokes (0–3)
+    kh_m2s: float = KH_DEFECTO        # intensidad browniana (m²/s)
     horizonte_h: int = 120
     semilla: int = 2026
 
@@ -124,9 +124,9 @@ def posiciones_iniciales(p: Parametros, rng: np.random.Generator, en_tierra: Fun
     return lon, lat, reubicadas
 
 
-def _deriva(campos, lon, lat, t, alpha):
-    uc, vc, uw, vw = campos.velocidades(lon, lat, t)
-    return uc + alpha * uw, vc + alpha * vw
+def _deriva(campos, lon, lat, t, gamma):
+    u, v = campos.velocidades(lon, lat, t)
+    return gamma * u, gamma * v
 
 
 def simular(campos, p: Parametros, en_tierra: FuncionTierra = costa.en_tierra,
@@ -136,7 +136,7 @@ def simular(campos, p: Parametros, en_tierra: FuncionTierra = costa.en_tierra,
     validar_punto(p.lon, p.lat, en_tierra, dominio)
     rng = np.random.default_rng(p.semilla)
     n, horas = p.particulas, p.horizonte_h
-    alpha = p.alpha_pct / 100.0
+    gamma = p.gamma
     dt = PASO_SEGUNDOS
     sigma = np.sqrt(2.0 * p.kh_m2s * dt)
 
@@ -147,9 +147,8 @@ def simular(campos, p: Parametros, en_tierra: FuncionTierra = costa.en_tierra,
     hora_varada = np.full(n, -1, dtype=np.int16)
     hora_fuera = np.full(n, -1, dtype=np.int16)
     bitacora = [
-        f"Modelo {VERSION_MODELO}; semilla {p.semilla}; α = {p.alpha_pct:g} %; K_h = {p.kh_m2s:g} m²/s; Δt = 1 h.",
-        ("Corriente: u_c del conjunto de datos." if getattr(campos, "hay_corriente", False)
-         else "Sin corrientes: u_c = 0 (solo viento y difusión)."),
+        f"Modelo {VERSION_MODELO}; semilla {p.semilla}; γ = {p.gamma:g}; K_h = {p.kh_m2s:g} m²/s; Δt = 1 h.",
+        f"Deriva de Stokes de la ola de viento con período supuesto T = {COEF_PERIODO:g}·√H; sin viento ni corrientes.",
         f"{n} partículas en un radio de {p.radio_km:g} km alrededor de ({p.lat:.3f}, {p.lon:.3f})"
         + (f"; {reubicadas} se re-sortearon por caer en tierra." if reubicadas else "."),
     ]
@@ -159,9 +158,9 @@ def simular(campos, p: Parametros, en_tierra: FuncionTierra = costa.en_tierra,
         activas = np.flatnonzero(estado == A_FLOTE)
         if activas.size:
             x, y = lon[k, activas], lat[k, activas]
-            u1, v1 = _deriva(campos, x, y, k, alpha)
+            u1, v1 = _deriva(campos, x, y, k, gamma)
             dlon, dlat = metros_a_grados(u1 * dt / 2, v1 * dt / 2, y)
-            u2, v2 = _deriva(campos, x + dlon, y + dlat, k + 0.5, alpha)
+            u2, v2 = _deriva(campos, x + dlon, y + dlat, k + 0.5, gamma)
             ruido = rng.standard_normal((2, activas.size))
             dx = u2 * dt + sigma * ruido[0]
             dy = v2 * dt + sigma * ruido[1]

@@ -94,7 +94,7 @@ def resumir(r: Resultado) -> dict:
     advertencias = [
         "Pronóstico probabilístico: los porcentajes son fracciones de partículas simuladas, "
         "no certezas de arribo a una playa específica.",
-        "Parámetros preliminares sin calibrar (α y K_h).",
+        "Parámetros preliminares sin calibrar (γ y K_h) y período de ola supuesto (T = 4.0·√H).",
     ]
     if fuera.any():
         advertencias.append(
