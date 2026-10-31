@@ -130,7 +130,8 @@ class Almacen:
                     continue
                 try:
                     r = json.loads(ruta.read_text(encoding="utf-8"))
-                    if "datos" not in r:  # registros de la v0.1 (datos sintéticos): no se listan
+                    # Solo registros del modelo actual: los de versiones previas (viento, α) no se pueden reabrir.
+                    if not str(r.get("version_modelo", "")).startswith("pms-browniano"):
                         continue
                 except (OSError, json.JSONDecodeError):
                     continue

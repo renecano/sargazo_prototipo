@@ -11,10 +11,10 @@ from typing import Callable
 import numpy as np
 
 from src.api.almacen import Almacen, armar_registro, b64
-from src.config import ARCHIVO_VIENTO, CARPETA_CORRIENTES, RESOLUCION_GRADOS
+from src.config import ARCHIVO_OLEAJE, COEF_PERIODO, COEF_STOKES, RESOLUCION_GRADOS
 from src.ingestion.lector import ConjuntoDatos
 from src.ingestion.validador import ReporteValidacion, validar_conjunto
-from src.model.campos import CamposMalla
+from src.model.campos import CamposOleaje
 from src.model.metricas import resumir
 from src.model.simulacion import Parametros, simular
 
@@ -40,12 +40,14 @@ class ServicioDatos:
     def _huella_rapida(self) -> tuple:
         if not self.dir_semar.is_dir():
             return ()
-        archivos = sorted(list(self.dir_semar.glob("*.txt")) + list(self.dir_semar.glob(f"{CARPETA_CORRIENTES}/*.txt")))
-        return tuple((p.name, p.stat().st_mtime_ns, p.stat().st_size) for p in archivos)
+        ruta = self.dir_semar / ARCHIVO_OLEAJE
+        if not ruta.is_file():
+            return ()
+        return (ruta.name, ruta.stat().st_mtime_ns, ruta.stat().st_size)
 
     @property
     def disponibles(self) -> bool:
-        return (self.dir_semar / ARCHIVO_VIENTO).is_file()
+        return (self.dir_semar / ARCHIVO_OLEAJE).is_file()
 
     def validar(self, progreso=None, forzar: bool = False):
         huella = self._huella_rapida()
@@ -74,13 +76,12 @@ class ServicioDatos:
         return conjunto
 
     def campos(self) -> dict:
-        """Viento y oleaje para las flechas y el hover, compactos (enteros escalados en base64)."""
+        """Altura y dirección de ola por bloque, para las flechas y el hover (enteros escalados en base64)."""
         c = self.conjunto_valido()
 
-        def entero(x, escala, tipo, vacio):
-            return b64(np.where(np.isfinite(x), np.round(x * escala), vacio).astype(tipo))
+        def entero(x, escala):
+            return b64(np.where(np.isfinite(x), np.round(x * escala), 65535).astype("<u2"))
 
-        hay_ola = c.ola_altura is not None
         return {
             "datos": c.resumen(),
             "malla": {
@@ -88,24 +89,21 @@ class ServicioDatos:
                 "lat0": float(c.lats[0]), "dlat": float(c.lats[1] - c.lats[0]), "ny": int(c.lats.size),
                 "resolucion_grados": RESOLUCION_GRADOS,
             },
-            "tiempos_viento_utc": [t.strftime("%Y-%m-%dT%H:%MZ") for t in c.tiempos_viento],
-            "ola_horas": [int(h) for h in c.ola_horas],
+            "horas": [int(h) for h in c.horas],
+            "modelo": {"coef_stokes": COEF_STOKES, "coef_periodo": COEF_PERIODO},
             "codificacion": {
-                "viento": "int16-le, m/s × 100, −32768 = sin dato (tierra), forma [tiempos, ny, nx]",
-                "ola_dir": "uint16-le, grados «desde» × 10, 65535 = sin dato, forma [horas, ny, nx]",
-                "ola_altura": "uint16-le, m × 100, 65535 = sin dato, forma [horas, ny, nx]",
+                "ola_dir": "uint16-le, grados «desde» × 10, 65535 = sin dato, forma [bloques, ny, nx]",
+                "ola_altura": "uint16-le, m × 100, 65535 = sin dato, forma [bloques, ny, nx]",
             },
-            "viento_u": entero(c.viento_u, 100, "<i2", -32768),
-            "viento_v": entero(c.viento_v, 100, "<i2", -32768),
-            "ola_dir": entero(c.ola_dir, 10, "<u2", 65535) if hay_ola else None,
-            "ola_altura": entero(c.ola_altura, 100, "<u2", 65535) if hay_ola else None,
+            "ola_dir": entero(c.direccion, 10),
+            "ola_altura": entero(c.altura, 100),
         }
 
 
 def ejecutar_simulacion(datos: ServicioDatos, almacen: Almacen, p: Parametros, progreso=None) -> dict:
     conjunto = datos.conjunto_valido()
     dominio = (float(conjunto.lons[0]), float(conjunto.lons[-1]), float(conjunto.lats[0]), float(conjunto.lats[-1]))
-    resultado = simular(CamposMalla(conjunto), p, dominio=dominio, progreso=progreso)
+    resultado = simular(CamposOleaje(conjunto), p, dominio=dominio, progreso=progreso)
     resumen = resumir(resultado)
     resumen["advertencias"] = conjunto.advertencias + resumen["advertencias"]
     registro = armar_registro(resultado, resumen, conjunto.resumen())

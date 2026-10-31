@@ -13,8 +13,8 @@ from pydantic import BaseModel, Field
 from src.api.almacen import Almacen
 from src.api.servicios import ErrorConAccion, GestorTrabajos, ServicioDatos, ejecutar_simulacion
 from src.config import (
-    DIR_SEMAR, DIR_SIMULACIONES, DIR_VISTA, HORIZONTE_H, LAT_MAX, LAT_MIN, LON_MAX, LON_MIN, SERVERLESS,
-    VERSION_APP, VERSION_MODELO,
+    DIR_SEMAR, DIR_SIMULACIONES, DIR_VISTA, GAMMA_DEFECTO, GAMMA_MAX, GAMMA_MIN, HORIZONTE_H, KH_DEFECTO, LAT_MAX,
+    LAT_MIN, LON_MAX, LON_MIN, SERVERLESS, VERSION_APP, VERSION_MODELO,
 )
 from src.model import costa
 from src.model.simulacion import Parametros, PuntoInvalido, validar_punto
@@ -29,14 +29,15 @@ class SolicitudSimulacion(BaseModel):
     lat: float = Field(..., ge=LAT_MIN, le=LAT_MAX, description="Latitud del punto de liberación (°)")
     radio_km: float = Field(5.0, ge=0.5, le=50.0, description="Radio inicial del conglomerado (km)")
     particulas: int = Field(2000, ge=100, le=5000)
-    alpha_pct: float = Field(1.0, ge=0.0, le=4.0, description="Arrastre del viento α (%)")
-    kh_m2s: float = Field(10.0, ge=0.0, le=100.0, description="Difusión horizontal K_h (m²/s)")
+    gamma: float = Field(GAMMA_DEFECTO, ge=GAMMA_MIN, le=GAMMA_MAX,
+                         description="Factor γ de la deriva de Stokes de la ola de viento (0–3)")
+    kh_m2s: float = Field(KH_DEFECTO, ge=0.0, le=100.0, description="Intensidad del movimiento browniano K_h (m²/s)")
     horizonte_h: int = Field(HORIZONTE_H, ge=24, le=HORIZONTE_H)
     semilla: int = Field(2026, ge=0, le=2**31 - 1)
 
     def parametros(self) -> Parametros:
         return Parametros(lon=self.lon, lat=self.lat, radio_km=self.radio_km, particulas=self.particulas,
-                          alpha_pct=self.alpha_pct, kh_m2s=self.kh_m2s, horizonte_h=self.horizonte_h,
+                          gamma=self.gamma, kh_m2s=self.kh_m2s, horizonte_h=self.horizonte_h,
                           semilla=self.semilla)
 
 
@@ -70,7 +71,7 @@ def crear_app(dir_semar: Path = DIR_SEMAR, dir_simulaciones: Path = DIR_SIMULACI
 
     @app.get("/api/validacion")
     def validacion(forzar: bool = False):
-        """Valida los datos de SEMAR de forma síncrona (usa la caché si los archivos no cambiaron)."""
+        """Valida dirmarea.txt de forma síncrona (usa la caché si el archivo no cambió)."""
         reporte, _ = datos.validar(forzar=forzar)
         return reporte.a_dict()
 
