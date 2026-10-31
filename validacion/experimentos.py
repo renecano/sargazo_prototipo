@@ -253,6 +253,7 @@ class Contexto:
         self.lons, self.lats = mascaras.lons, mascaras.lats
         self.glon, self.glat = np.meshgrid(self.lons, self.lats)
         self.km_px = afai.km_por_pixel(self.lons, self.lats)
+        self.regiones = afai.regiones_producto(self.lons, self.lats)
         self.km_lado = float(np.sqrt(self.km_px[0] * self.km_px[1]))
         self.ventanas = {e: metricas.ventana_impar(e, self.km_lado) for e in cfg.ESCALAS_FSS_KM}
         util = mascaras.mar_util
@@ -325,7 +326,7 @@ def mcc_caso(ctx: Contexto, caso, archivo_afai: afai.ArchivoAfai) -> list[dict]:
     for k in range(max(cfg.HORIZONTES_D) + 1):
         fecha = caso.t0 + timedelta(days=k)
         a = archivo_afai.dia(fecha)
-        actual = None if a is None else (fecha, afai.detectar(a, ctx.m.mar_util))
+        actual = None if a is None else (fecha, afai.detectar(a, ctx.m.mar_util, regiones=ctx.regiones))
         if previo is not None and actual is not None and (actual[0] - previo[0]).days == 1:
             da, db = previo[1], actual[1]
             campo_a = np.clip(np.nan_to_num(da.delta), 0, 1e-3)

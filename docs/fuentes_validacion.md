@@ -35,6 +35,14 @@ en sargcoop.org):
 
 - Nubes, brillo solar y tierra: ya vienen como NaN en el producto de AOML. Además se descartan 2 píxeles
   alrededor de cada nube (efecto de adyacencia; Wang & Hu eliminan los píxeles ambiguos junto a nubes).
+- **Umbral adaptado al ruido**: además de ΔAFAI > T0 se exige ΔAFAI > 3σ, con σ = 1.4826 × MAD de ΔAFAI
+  en la misma ventana. El ruido de ΔAFAI de este producto en el Caribe (~2 × 10⁻⁴, medido en el recuadro)
+  es del orden de T0: con T0 solo, en enero (sin temporada) 11–18 % del Caribe abierto salía con
+  "sargazo". Se fijó antes de correr cualquier experimento.
+- **Dos regiones del producto**: el AFAI de AOML une dos regiones con niveles de ruido distintos y bordes
+  rectos en 22.0° N y 90.0° O (1 = lat < 22.0 y lon > −90.0; 0 = el resto). Se ven como un salto brusco en
+  la frecuencia de detección y en el número de observaciones 2022–2026. El fondo y el ruido se estiman
+  por región; si se mezclan, aparece una franja falsa de "sargazo" de ~15 km junto a la costura.
 - No hay máscara de sombra de nube (Wang & Hu usan bandas de reflectancia que este producto no trae).
 - El fondo sale de dos pasadas de mediana de 51 × 51 (evaluada cada 10 píxeles e interpolada), sin el
   ajuste polinómico de 4.º grado del artículo.

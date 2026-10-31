@@ -68,7 +68,8 @@ def calcular_mascaras(archivo: afai.ArchivoAfai, cache: Path = cfg.DIR_CACHE, re
     mar = afai.mar_del_modelo(lons, lats)
     obs = np.zeros(mar.shape, dtype=np.int32)
     sobre = np.zeros(mar.shape, dtype=np.int32)
-    for anio, mes, o, s in _en_paralelo(_pasada1_mes, [(a, m, mar, cache) for a, m in meses()]):
+    regiones = afai.regiones_producto(lons, lats)
+    for anio, mes, o, s in _en_paralelo(_pasada1_mes, [(a, m, mar, regiones, cache) for a, m in meses()]):
         obs += o
         sobre += s
         registrar(f"  pasada 1 {anio}-{mes:02d}")
@@ -93,12 +94,12 @@ def _en_paralelo(funcion, tareas):
 
 
 def _pasada1_mes(tarea):
-    anio, mes, mar, cache = tarea
+    anio, mes, mar, regiones, cache = tarea
     rej = afai.mes_afai(anio, mes, cache, registrar=lambda *_: None)
     obs = np.zeros(mar.shape, dtype=np.int32)
     sobre = np.zeros(mar.shape, dtype=np.int32)
     for k in range(len(rej.fechas)):
-        d = afai.detectar(rej.afai[k], mar)
+        d = afai.detectar(rej.afai[k], mar, regiones=regiones)
         obs += d.valido
         sobre += d.sargazo
     return anio, mes, obs, sobre
@@ -109,9 +110,10 @@ def _pasada2_mes(tarea):
     ruta = _ruta_mes(cache, anio, mes)
     if not ruta.is_file():
         rej = afai.mes_afai(anio, mes, cache, registrar=lambda *_: None)
+        regiones = afai.regiones_producto(rej.lons, rej.lats)
         valido, sargazo = [], []
         for k in range(len(rej.fechas)):
-            d = afai.detectar(rej.afai[k], mar_util)
+            d = afai.detectar(rej.afai[k], mar_util, regiones=regiones)
             valido.append(d.valido)
             sargazo.append(d.sargazo)
         forma = mar_util.shape
@@ -147,9 +149,10 @@ class Detecciones:
         ruta = _ruta_mes(self.cache, anio, mes)
         if not ruta.is_file():
             fechas = self.archivo.fechas_mes(anio, mes)
+            regiones = afai.regiones_producto(self.m.lons, self.m.lats)
             valido, sargazo = [], []
             for f in fechas:
-                d = afai.detectar(self.archivo.dia(f), self.m.mar_util)
+                d = afai.detectar(self.archivo.dia(f), self.m.mar_util, regiones=regiones)
                 valido.append(d.valido)
                 sargazo.append(d.sargazo)
             forma = self.m.forma

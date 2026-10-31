@@ -186,11 +186,14 @@ class Deteccion:
 
 
 def detectar(afai: np.ndarray, mar_util: np.ndarray, t0: float = cfg.UMBRAL_T0, ts: float = cfg.UMBRAL_TS,
-             borde_nube_px: int = cfg.BORDE_NUBE_PX, k_sigma: float = cfg.K_SIGMA) -> Deteccion:
+             borde_nube_px: int = cfg.BORDE_NUBE_PX, k_sigma: float = cfg.K_SIGMA,
+             regiones: np.ndarray | None = None) -> Deteccion:
     """Detección de sargazo en una imagen AFAI.
 
     mar_util: bool, píxeles de mar donde tiene sentido buscar (sin tierra del modelo ni
     píxeles brillantes persistentes). Lo que no es mar útil nunca cuenta como válido.
+    regiones: int, región del producto de cada píxel (`regiones_producto`); el fondo y el ruido
+    se estiman por región. None = una sola región.
     """
     a = np.where(mar_util, afai, np.nan).astype(np.float64)
     observado = np.isfinite(a)
@@ -203,16 +206,37 @@ def detectar(afai: np.ndarray, mar_util: np.ndarray, t0: float = cfg.UMBRAL_T0, 
     if not valido.any():
         vacio = np.zeros(a.shape, dtype=bool)
         return Deteccion(np.full(a.shape, np.nan), vacio, vacio)
-    fondo1 = _mediana_movil(a)
-    candidatos = (a - fondo1) > ts
-    fondo2 = _mediana_movil(np.where(candidatos, np.nan, a))
-    delta = a - fondo2
-    # Ruido local robusto (1.4826·MAD de ΔAFAI sin los candidatos, en la misma ventana). En el
-    # producto de AOML el ruido del Caribe (~2×10⁻⁴) es del orden de T0: con T0 solo, en enero
-    # (sin temporada) 11–18 % del Caribe abierto saldría con "sargazo". Se exige ΔAFAI > k·σ.
-    sigma = ESCALA_MAD * _mediana_movil(np.abs(np.where(candidatos, np.nan, delta)))
-    umbral = np.maximum(t0, k_sigma * sigma)
+    regiones = np.zeros(a.shape, dtype=np.int8) if regiones is None else regiones
+    delta = np.full(a.shape, np.nan)
+    umbral = np.full(a.shape, np.inf)
+    for r in np.unique(regiones):
+        # El fondo y el ruido se estiman dentro de cada región del producto, sin mezclarlas.
+        en_r = regiones == r
+        ar = np.where(en_r, a, np.nan)
+        if not np.isfinite(ar).any():
+            continue
+        fondo1 = _mediana_movil(ar)
+        candidatos = (ar - fondo1) > ts
+        fondo2 = _mediana_movil(np.where(candidatos, np.nan, ar))
+        dr = ar - fondo2
+        # Ruido local robusto (1.4826·MAD de ΔAFAI sin los candidatos, en la misma ventana). En el
+        # producto de AOML el ruido del Caribe (~2×10⁻⁴) es del orden de T0: con T0 solo, en enero
+        # (sin temporada) 11–18 % del Caribe abierto saldría con "sargazo". Se exige ΔAFAI > k·σ.
+        sigma = ESCALA_MAD * _mediana_movil(np.abs(np.where(candidatos, np.nan, dr)))
+        delta[en_r] = dr[en_r]
+        umbral[en_r] = np.maximum(t0, k_sigma * sigma)[en_r]
     return Deteccion(delta, valido, valido & (delta > umbral))
+
+
+def regiones_producto(lons: np.ndarray, lats: np.ndarray) -> np.ndarray:
+    """Regiones de procesamiento del producto de AOML dentro del recuadro.
+
+    El AFAI de AOML une dos regiones con niveles de ruido distintos y bordes rectos en 22.0° N y
+    90.0° O (se ven en la frecuencia de detección y en el número de observaciones 2022–2026):
+    1 = «Caribe» (lat < 22.0 y lon > −90.0), 0 = el resto («Golfo»).
+    """
+    caribe = (np.asarray(lats)[:, None] < cfg.COSTURA_LAT) & (np.asarray(lons)[None, :] > cfg.COSTURA_LON)
+    return caribe.astype(np.int8)
 
 
 def mar_del_modelo(lons: np.ndarray, lats: np.ndarray) -> np.ndarray:

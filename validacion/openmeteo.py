@@ -123,6 +123,11 @@ def _peticion(grupo: Grupo, lons, lats, desde: date, hasta: date, registrar=prin
                 time.sleep(65)
                 LIMITADOR.historial = []
                 continue
+            if e.code == 429 and "Hourly" in motivo and intento < 5:
+                registrar("    Open-Meteo: límite por hora (5 000 llamadas); espero 12 min")
+                time.sleep(720)
+                LIMITADOR.historial = []
+                continue
             if e.code == 429:
                 raise CuotaAgotada(f"Open-Meteo rechazó la descarga ({grupo.nombre}): {motivo}") from e
             raise RuntimeError(f"Open-Meteo respondió {e.code} ({grupo.nombre}): {motivo}") from e
