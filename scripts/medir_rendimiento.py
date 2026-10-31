@@ -22,9 +22,9 @@ import numpy as np  # noqa: E402
 
 from src.api.almacen import armar_registro  # noqa: E402
 from src.api.servicios import ServicioDatos  # noqa: E402
-from src.config import ARCHIVO_VIENTO, DIR_SEMAR  # noqa: E402
+from src.config import ARCHIVO_OLEAJE, DIR_SEMAR  # noqa: E402
 from src.ingestion.validador import validar_conjunto  # noqa: E402
-from src.model.campos import CamposMalla  # noqa: E402
+from src.model.campos import CamposOleaje  # noqa: E402
 from src.model.metricas import resumir  # noqa: E402
 from src.model.simulacion import Parametros, simular  # noqa: E402
 
@@ -68,31 +68,32 @@ def memoria_sistema() -> str:
 
 
 def principal() -> int:
-    if not (DIR_SEMAR / ARCHIVO_VIENTO).is_file():
-        print(f"Faltan los datos de SEMAR en {DIR_SEMAR} (ver data/semar/README.md).")
+    if not (DIR_SEMAR / ARCHIVO_OLEAJE).is_file():
+        print(f"Falta {ARCHIVO_OLEAJE} en {DIR_SEMAR} (ver data/semar/README.md).")
         return 1
     filas = []
     med, mx, (reporte, conjunto) = medir(lambda: validar_conjunto(DIR_SEMAR))
-    filas.append(("Validar salidadatos.txt + dirmarea.txt (lectura, 10 verificaciones, interpolación del oleaje)",
+    filas.append(("Validar dirmarea.txt (lectura de 196 554 filas y 8 verificaciones)",
                   f"{med:.2f} s", f"{mx:.2f} s", f"{pico_memoria(lambda: validar_conjunto(DIR_SEMAR)):.0f} MB"))
 
-    campos = CamposMalla(conjunto)
+    campos = CamposOleaje(conjunto)
     dominio = (float(conjunto.lons[0]), float(conjunto.lons[-1]), float(conjunto.lats[0]), float(conjunto.lats[-1]))
-    for n in (500, 2000, 5000):
-        p = Parametros(lon=-86.66, lat=21.12, particulas=n, horizonte_h=120)
-        med, mx, r = medir(lambda: simular(campos, p, dominio=dominio))
-        filas.append((f"Simular {n:,} partículas × 120 h frente a Cancún".replace(",", " "), f"{med:.2f} s", f"{mx:.2f} s",
-                      f"{pico_memoria(lambda: simular(campos, p, dominio=dominio)):.0f} MB"))
-        if n in (2000, 5000):
-            t0 = time.perf_counter()
-            reg = armar_registro(r, resumir(r), conjunto.resumen())
-            texto = json.dumps(reg, ensure_ascii=False, separators=(",", ":"))
-            filas.append((f"Métricas + registro JSON ({n:,} partículas)".replace(",", " "),
-                          f"{time.perf_counter() - t0:.2f} s", "—", f"{len(texto) / 2**20:.1f} MB en disco"))
-
+    for etiqueta, lon, lat in (("frente a Cancún", -86.66, 21.12), ("en mar abierto", -86.30, 21.00)):
+        for n in (500, 2000, 5000):
+            p = Parametros(lon=lon, lat=lat, particulas=n, horizonte_h=120)
+            med, mx, r = medir(lambda: simular(campos, p, dominio=dominio))
+            filas.append((f"Simular {n:,} partículas × 120 h {etiqueta}".replace(",", " "), f"{med:.2f} s", f"{mx:.2f} s",
+                          f"{pico_memoria(lambda: simular(campos, p, dominio=dominio)):.0f} MB"))
+    p = Parametros(lon=-86.30, lat=21.00, particulas=2000, horizonte_h=120)
+    r = simular(campos, p, dominio=dominio)
+    t0 = time.perf_counter()
+    reg = armar_registro(r, resumir(r), conjunto.resumen())
+    texto = json.dumps(reg, ensure_ascii=False, separators=(",", ":"))
+    filas.append(("Métricas + registro JSON (2 000 partículas)", f"{time.perf_counter() - t0:.2f} s", "—",
+                  f"{len(texto) / 2**20:.1f} MB en disco"))
     servicio = ServicioDatos(DIR_SEMAR)
     campos_json = json.dumps(servicio.campos(), separators=(",", ":")).encode()
-    filas.append(("Campos para la interfaz (viento + 41 horas de oleaje)", "—", "—",
+    filas.append(("Campos de oleaje para la interfaz (41 bloques)", "—", "—",
                   f"{len(campos_json) / 2**20:.2f} MB; {len(gzip.compress(campos_json)) / 2**20:.2f} MB con gzip"))
 
     ahora = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -110,13 +111,13 @@ def principal() -> int:
         "",
         "Notas:",
         "",
-        f"- Datos de SEMAR: {conjunto.resumen()['puntos_malla']} nodos en el dominio ({conjunto.resumen()['puntos_mar']} con viento), "
-        "viento de una sola hora y 41 bloques de oleaje.",
-        "- La simulación incluye la prueba de tierra por segmento y la búsqueda binaria del punto de varamiento.",
-        "- Las partículas varadas dejan de calcularse; frente a Cancún varan de forma gradual (mediana +64 h), "
-        "así que el costo baja a lo largo de la simulación.",
-        "- La interfaz descarga los campos una sola vez al abrir; la API los comprime con gzip (los 41 bloques de "
-        "oleaje idénticos se comprimen casi por completo).",
+        f"- Datos: {ARCHIVO_OLEAJE}, {conjunto.resumen()['puntos_malla']} nodos en el dominio "
+        f"({conjunto.resumen()['puntos_mar']} con ola), 41 bloques idénticos; modelo pms-browniano-0.3.0.",
+        "- Frente a Cancún (21.12° N, 86.66° O) la ola empuja hacia la costa: todas las partículas varan entre "
+        "+8 h y +61 h (mediana +27 h) y las varadas dejan de calcularse; por eso esa simulación es más barata "
+        "que la de mar abierto.",
+        "- La interfaz descarga los campos de oleaje una sola vez al abrir; la API los comprime con gzip (los 41 "
+        "bloques idénticos se comprimen casi por completo).",
         "- Los tiempos varían con la carga del equipo: con poca RAM libre todo se vuelve más lento.",
         "",
     ]

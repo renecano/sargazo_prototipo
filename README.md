@@ -1,245 +1,270 @@
 # PMS · Predicción de Movimiento del Sargazo
 
-> **v0.2.0 — datos reales de SEMAR, interfaz mínima.** PMS simula la deriva probable de un
-> conglomerado de sargazo con el viento que entrega SEMAR. Los datos actuales son
-> **archivos de muestra** (una sola hora de viento y oleaje que no varía), no hay
-> corrientes y los parámetros del modelo **no están calibrados**: el resultado es un
-> pronóstico probabilístico para revisar con el equipo y con SEMAR, no para tomar
-> decisiones operativas.
+**v0.3.0 · demo en línea: <https://pms-sargazo.vercel.app>**
 
-![PMS: simulación de 120 h frente a Cancún con datos de SEMAR, pausada en +12 h, con el hover](docs/captura.png)
+PMS estima hacia dónde podría derivar un conglomerado de sargazo frente a la Península de
+Yucatán durante los próximos 5 días (120 h). Lo hace con un **modelo de partículas
+brownianas** que mueve cada partícula con la **deriva de Stokes de la ola de viento** de
+SEMAR más un movimiento aleatorio. El resultado es una **probabilidad**, no una certeza: el
+archivo de oleaje es de muestra, el modelo no incluye viento ni corrientes y sus
+parámetros no están calibrados.
 
-*Simulación de 120 h desde frente a Cancún con el viento de SEMAR del 19 ago 2026 00 UTC,
-pausada en +12 h: partículas a flote, trayectoria central, contorno de la zona probable P90
-en celdas de 0.16°, flechas de viento, hover con viento y ola del nodo más cercano y el
-resumen del resultado.*
+![PMS: resultado de 120 h frente a Cancún, pausado en +12 h, con el hover de la ola](docs/captura_resultado.png)
+
+*Interfaz «carta náutica» en 1366×768: tres pasos (punto de liberación → ajustes →
+resultado), flechas fijas de oleaje, partículas a flote y varadas, trayectoria central,
+contorno de la zona probable P90, hover con la ola del nodo más cercano y línea de tiempo.*
 
 ---
 
 ## Contenido
 
-1. [Qué cambió en la v0.2.0](#qué-cambió-en-la-v020)
-2. [Problema y contexto](#problema-y-contexto)
-3. [Datos de SEMAR](#datos-de-semar)
-4. [Cómo correrlo en Windows](#cómo-correrlo-en-windows-powershell)
-5. [Qué se ve en la pantalla](#qué-se-ve-en-la-pantalla)
-6. [El modelo](#el-modelo)
-7. [Validación de los datos](#validación-de-los-datos)
-8. [Ejemplo: 120 h frente a Cancún](#ejemplo-120-h-frente-a-cancún)
-9. [API](#api)
-10. [Mapa del repositorio](#mapa-del-repositorio)
-11. [Pruebas y rendimiento medido](#pruebas-y-rendimiento-medido)
-12. [Despliegue en Vercel](#despliegue-en-vercel)
-13. [Límites honestos](#límites-honestos)
-14. [Preguntas abiertas para SEMAR y el profesor](#preguntas-abiertas-para-semar-y-el-profesor)
-15. [Siguientes pasos](#siguientes-pasos)
-16. [Créditos y atribuciones](#créditos-y-atribuciones)
+1. [Qué cambió en la v0.3.0](#qué-cambió-en-la-v030)
+2. [El único archivo de entrada](#el-único-archivo-de-entrada)
+3. [El modelo browniano](#el-modelo-browniano)
+4. [La interfaz y el recorrido guiado](#la-interfaz-y-el-recorrido-guiado)
+5. [Ejemplo: 120 h frente a Cancún](#ejemplo-120-h-frente-a-cancún)
+6. [Cómo correrlo en local (Windows / PowerShell)](#cómo-correrlo-en-local-windows--powershell)
+7. [Despliegue](#despliegue)
+8. [API](#api)
+9. [Mapa del repositorio](#mapa-del-repositorio)
+10. [Pruebas y rendimiento](#pruebas-y-rendimiento)
+11. [Límites honestos](#límites-honestos)
+12. [Preguntas para el profesor y SEMAR](#preguntas-para-el-profesor-y-semar)
+13. [Créditos y atribuciones](#créditos-y-atribuciones)
 
 ---
 
-## Qué cambió en la v0.2.0
+## Qué cambió en la v0.3.0
 
-| | v0.1 (prototipo visual) | v0.2.0 |
+| | v0.2.0 | v0.3.0 |
 |---|---|---|
-| Datos | 120 archivos **sintéticos** generados por un script | `salidadatos.txt` y `dirmarea.txt` **reales de SEMAR**, en `data/semar/` |
-| Viento | Sintético, horario | SEMAR, **una sola hora** (19 ago 2026 00 UTC), usado fijo durante 120 h; el lector ya acepta N horas |
-| Corrientes | Esquemáticas (inventadas) | **Ninguna**: u_c = 0. El término sigue implementado como entrada opcional (`data/semar/corrientes/`) |
-| Oleaje | Solo dirección, sintética | Altura y dirección de SEMAR en validación, registro y hover; **no mueve partículas** |
-| Modelo | `pms-lagrangiano-0.1.0` | `pms-lagrangiano-0.2.0`: X(t+Δt) = X + α·u_w·Δt + √(2·K_h·Δt)·ξ |
-| Interfaz | Capa de densidad, malla, 6 casillas, gráfica, KPIs, bitácora | Estado en una línea, flechas de viento estáticas, partículas, trayectoria, contorno P90 y 3 cifras de resultado |
+| Entrada | `salidadatos.txt` (viento) + `dirmarea.txt` (oleaje) | **Solo `dirmarea.txt`**; el viento se eliminó del repositorio y del código |
+| Modelo | `pms-lagrangiano-0.2.0`: arrastre del viento α·u_w + difusión | **`pms-browniano-0.3.0`**: deriva de Stokes de la ola + movimiento browniano |
+| Parámetros | α (arrastre del viento), K_h | **γ** (factor de la deriva por oleaje), **K_h** |
+| Malla | La del viento; el oleaje se interpolaba (estaba desplazado 0.08°) | La **nativa** de `dirmarea.txt`, sin interpolar mallas |
+| Interfaz | Panel oscuro a la izquierda y mapa | **«Carta náutica»**: tema claro, mapa a pantalla completa, **tres pasos** y **recorrido guiado** |
 
-`scripts/generar_datos_demo.py` se reemplazó por `scripts/generar_fixtures.py`, que ya no
-alimenta la app: solo genera archivos pequeños **en el formato real** para las pruebas.
+## El único archivo de entrada
 
-## Problema y contexto
+`data/semar/dirmarea.txt`: oleaje de viento entregado por SEMAR como muestra. Está en este
+repositorio **privado**; **no debe redistribuirse** sin autorización de SEMAR (ver
+[`data/semar/README.md`](data/semar/README.md)).
 
-El sargazo pelágico (*Sargassum natans* y *S. fluitans*) flota gracias a vesículas de gas
-y, desde 2011, forma el Gran Cinturón de Sargazo del Atlántico. Cuando llega a la costa del
-Caribe mexicano afecta arrecifes, pastos marinos, anidamiento de tortugas, calidad del agua,
-turismo e infraestructura. Anticipar su deriva ayuda a organizar el monitoreo y la
-respuesta, pero el arribo a una playa concreta es difícil de predecir: por eso PMS presenta
-**probabilidades** y no certezas.
+| Elemento | Formato |
+|---|---|
+| Separador | `;` |
+| Encabezado | `LON;LAT;dirolavto;alturaolavto` |
+| Bloques | 41, cada uno empieza con `01OCT2026 00 h` (fecha base, hora base, hora de pronóstico h = 0, 3, …, 120) |
+| Filas por bloque | 4 794: malla 94 × 51 de 0.16°, lon −98.00 … −83.12, lat 23 … 15 (de norte a sur, de oeste a este) |
+| `dirolavto` | Dirección **desde** la que viene la ola de viento (grados, 0 = norte) |
+| `alturaolavto` | Altura de la ola de viento (m) |
+| Relleno | `-9.99e+08` = sin dato (tierra) → NaN |
 
-Fuentes de referencia:
+**Dominio del modelo**: el recuadro de Yucatán alineado a esa malla, lon −92.08 … −84.08 y
+lat 16.92 … 23.00: 51 × 39 = 1 989 nodos, de los cuales 1 295 tienen ola.
 
-- **SEMAR – IOGMC**, boletines de seguimiento del sargazo (trayectorias a 24 y 48 h):
-  <https://diredimoat.semar.gob.mx/OpSargazo/BoletinesSargazo.html>
-- **USF – Sargassum Watch System (SaWS)**: <https://optics.marine.usf.edu/projects/saws.html>
-- **NOAA – GNOME Suite** (modelo lagrangiano de referencia): <https://response.restoration.noaa.gov/gnomesuite>
+**Hallazgos del archivo de muestra** (verificados por el validador y por
+`tests/test_validador.py::test_datos_reales_de_semar`):
 
-## Datos de SEMAR
+- Los **41 bloques son idénticos** byte por byte: el oleaje no cambia en el tiempo. El validador
+  lo reporta como advertencia y el modelo igual interpola entre bloques cada 3 h, así que
+  funcionará sin cambios cuando lleguen datos que sí varíen.
+- La fecha (1 oct 2026 00 UTC) es de muestra.
+- En el dominio, la altura va de 0.11 a 1.82 m (media 1.02 m). Frente a Cancún la ola viene
+  del ESE (~107°) con ~1.1 m.
+- La máscara de mar del archivo y la costa poligonal del modelo difieren en 50 nodos
+  (13 con ola sobre «tierra» del modelo, 37 sin ola sobre «mar» del modelo).
 
-Los archivos son datos de la Secretaría de Marina entregados como muestra. Están
-versionados en `data/semar/` porque **este repositorio es privado**; no deben
-redistribuirse sin autorización de SEMAR (detalle en [`data/semar/README.md`](data/semar/README.md)):
+**El validador** (`src/ingestion/validador.py`) no se detiene en el primer error y reporta
+cada hallazgo con la causa, el archivo y la acción. Revisa:
 
-| Archivo | Contenido | Obligatorio |
-|---|---|---|
-| `salidadatos.txt` | `LON;LAT;sfcPrimWaDir;sfcDirWindWa;U;V;WindsfcSp;WindsfcDir`, línea de fecha `19AUG2026 00`, 60 501 filas: malla completa 301 × 201 de 0.16° (lon −124…−76, lat 39…7, de norte a sur) | Sí |
-| `dirmarea.txt` | `LON;LAT;dirolavto;alturaolavto` (ola de viento: dirección «desde» y altura en m), 41 bloques `01OCT2026 00 h` con h = 0, 3, …, 120, cada uno con 4 794 filas: malla 94 × 51 (lon −98…−83.12, lat 23…15) | No |
-| `corrientes/*.txt` | `LON;LAT;UO;VO` (m/s, hacia donde fluye). Aún no existe | No |
+- encabezado y columnas, filas defectuosas y fecha legible (mapa propio de meses en inglés);
+- horas +0 a +120 cada 3 h, sin huecos ni desorden;
+- malla regular de 0.16°, rectangular, igual en todos los bloques, y cobertura del dominio;
+- relleno → NaN, con dirección y altura faltando juntas;
+- rangos: altura de 0 a 20 m y dirección de 0 a 360°;
+- advertencia por bloques idénticos;
+- comparación de la máscara de mar con la costa del modelo.
 
-`-9.99e+08` es el valor de relleno (sin dato, normalmente tierra) y se convierte en NaN.
+## El modelo browniano
 
-**Hallazgos de los archivos de muestra** (todos verificados por el validador y por
-`tests/test_validador.py::test_datos_reales_de_semar` cuando los datos están presentes):
+`pms-browniano-0.3.0`. Para cada partícula y cada paso Δt = 1 h:
 
-1. **Una sola hora de viento** (19 ago 2026 00 UTC). PMS la usa **fija** durante las 120 h.
-2. **El oleaje no varía en el tiempo**: los 41 bloques de `dirmarea.txt` son idénticos byte por byte.
-3. **Fechas distintas**: el oleaje es del 1 oct 2026 y el viento del 19 ago 2026.
-4. **Malla de oleaje desplazada 0.08° en longitud** (−92.08, −91.92, …): se interpola de forma
-   bilineal a la malla del modelo, ignorando NaN y promediando la dirección por seno y coseno.
-5. En el dominio del modelo (lon −92…−84, lat 16.92…23; 51 × 39 = 1 989 nodos) hay **1 314
-   nodos de mar con viento**; solo **1 045** tienen `sfcDirWindWa` (no hay mar de viento en
-   todos los nodos, y no es error).
-6. `WindsfcDir` coincide con atan2(−U, −V) con mediana de 0.02° → convención **«desde»**;
-   |WindsfcSp − √(U²+V²)| ≤ 0.010 m/s; `sfcDirWindWa` difiere ~11° de `WindsfcDir`, así que el
-   oleaje de viento usa la misma convención.
-7. Viento en el dominio: 2.18–11.89 m/s (media 6.3 m/s); ola de viento: 0.10–2.78 m.
-8. La máscara de mar de los datos y la costa poligonal del modelo difieren en 29 nodos
-   (10 con viento sobre «tierra» del modelo, 19 sin viento sobre «mar» del modelo).
+```
+X(t+Δt) = X(t) + u_ola(X,t)·Δt + √(2·K_h·Δt)·ξ ,     ξ ~ N(0, 1) en cada eje
 
-## Cómo correrlo en Windows (PowerShell)
+|u_ola| = γ · 2π³·H² / (g·T³)     hacia donde viaja la ola (dirolavto + 180°)
+T = 4.0·√H                        período SUPUESTO (el archivo no trae período)
+```
+
+Es la **deriva de Stokes** superficial de una ola en aguas profundas. Con el período
+supuesto se simplifica a |u_ola| ≈ γ · 0.0988·√H: con H = 1.25 m, T ≈ 4.5 s y
+|u_ola| ≈ **0.11 m/s** (unos 9.5 km por día).
+
+| Parámetro | Qué hace | Valor por defecto | Rango | Estado |
+|---|---|---|---|---|
+| **γ** | Escala la deriva de Stokes: 0 la apaga, 1 es la estimación base, 3 la triplica | 1 | 0–3 | Preliminar, sin calibrar |
+| **K_h** | Intensidad del movimiento browniano: cuánto se dispersan las partículas al azar | 10 m²/s | 0–100 | Preliminar, sin calibrar |
+| Radio inicial | Tamaño del conglomerado al soltarlo | 5 km | 0.5–50 | — |
+| Partículas | Cuántas partículas representan al conglomerado | 2 000 | 100–5 000 | — |
+| Horizonte | Horas simuladas | 120 h | 24–120 | — |
+| Semilla | Misma semilla y mismos ajustes dan el mismo resultado | 2026 | — | — |
+
+**El supuesto del período.** `dirmarea.txt` trae altura y dirección, pero no período. La
+deriva de Stokes depende fuertemente del período (∝ 1/T³). T = 4.0·√H es una relación
+empírica aproximada para mar de viento en desarrollo, documentada en `src/config.py`, en este
+README y en la interfaz (paso 2, «Avanzado», y recorrido guiado). Si SEMAR entrega el
+período, basta con usarlo en `src/model/campos.py`.
+
+**Implementación** (`src/model/`):
+
+- la altura se interpola de forma bilineal ignorando los nodos sin dato, y la dirección por
+  sus componentes seno y coseno;
+- la interpolación en el tiempo es lineal entre bloques;
+- el término determinista se integra por punto medio (RK2);
+- el paso de metros a grados corrige la longitud por cos(lat);
+- una partícula queda **varada** en el último punto en mar del segmento (bisección contra la
+  costa del modelo) y **fuera del dominio** si sale del recuadro;
+- la semilla hace reproducibles las corridas.
+
+**Salidas**:
+
+- centroide de las partículas a flote;
+- radio P90 a su alrededor;
+- zona probable P90: el menor conjunto de celdas de 0.16° con el 90 % de las partículas;
+- probabilidad de arribo por tramo de costa: Alta ≥ 30 %, Media ≥ 10 %, Baja ≥ 2 %, Muy baja;
+- registro JSON con la huella SHA-256 de `dirmarea.txt` y una bitácora.
+
+## La interfaz y el recorrido guiado
+
+Diseño propio de **carta náutica**:
+
+- papel crema, tinta azul marino, IBM Plex Sans para el texto y IBM Plex Mono para los datos;
+- mapa de OpenStreetMap con sepia suave, retícula de grados y rosa de los vientos.
+
+El mapa ocupa toda la pantalla y los controles flotan en **tres pasos**, uno a la vez, con
+una barra arriba para ir y volver:
+
+1. **Punto de liberación**: clic en el mar (o lat/lon); el círculo punteado es el radio.
+2. **Ajustes**: horizonte y, plegado en «Avanzado», radio, partículas, γ, K_h y semilla, con
+   una línea de explicación debajo de cada uno.
+3. **Resultado**: % varado al final, los 3 tramos de costa con mayor probabilidad (Alta/Media/
+   Baja) y el radio P90 a +120 h. Los parámetros, la huella y las advertencias están en
+   «Detalles».
+
+Además:
+
+- **Línea de tiempo**: reproducir/pausa, deslizador 0–120 h y hora en UTC y en Cancún (UTC−5).
+  Teclas: espacio, ← y →.
+- **Oleaje**: flechas **estáticas** en una submalla (largo ∝ altura), con un solo interruptor.
+- **Hover**: lat/lon con 3 decimales y la altura y dirección de la ola del nodo más cercano.
+- **Historial** plegado: fecha, punto y % varado; clic para reabrir.
+- **Estado** en una sola línea (validando / listo / calculando / error); el detalle aparece al
+  hacer clic. Si el archivo no es válido, un velo muestra la causa, el archivo y la acción.
+
+**Recorrido guiado.** Se abre solo la primera vez (se recuerda en `localStorage`) y siempre
+está disponible con el botón «Recorrido guiado». Oscurece la pantalla, ilumina el elemento
+del que habla y muestra una tarjeta con «Paso k de N» y los botones «Siguiente», «Atrás» y
+«Saltar». Teclas: Esc salta; → y Enter avanzan.
+
+Sus 11 pasos:
+
+1. bienvenida;
+2. los datos y las flechas de oleaje;
+3. fijar el punto: **espera a que el usuario haga clic en el mar**;
+4. el horizonte;
+5. γ y K_h;
+6. simular: **espera a que termine una simulación real frente a Cancún**;
+7. cómo leer partículas, trayectoria y zona P90;
+8. la línea de tiempo;
+9. el resultado y por qué es probabilidad;
+10. el historial;
+11. cierre.
+
+Tiene narración opcional en voz (Web Speech API, es-MX), apagada por defecto, con el botón
+«Voz».
+
+| Recorrido guiado | Datos inválidos (falta la hora +57) |
+|---|---|
+| ![Recorrido guiado](docs/captura_recorrido.png) | ![Error de datos](docs/captura_error.png) |
+
+Capturas en 1366×768 y 1920×1080 en [`docs/capturas/`](docs/capturas/).
+
+## Ejemplo: 120 h frente a Cancún
+
+Liberación en 21.120° N, 86.660° O (~8 km al este de la zona hotelera), con los valores por
+defecto (2 000 partículas, radio 5 km, γ = 1, K_h = 10 m²/s, semilla 2026):
+
+| Resultado | Valor |
+|---|---|
+| Varado al final (+120 h) | **100 %**: primeras partículas a +8 h, mediana +27 h, últimas a +61 h |
+| Cancún – Isla Mujeres | **96.5 % · Alta** (primer arribo a +8 h) |
+| Costa Mujeres – Isla Blanca | **3.5 % · Baja** (primer arribo a +24 h) |
+| Radio P90 | 5.3 km a +24 h y 4.5 km a +48 h; a +120 h no queda ninguna partícula a flote |
+| Centroide | 14.8 km recorridos hacia el NO |
+
+La ola viene del ESE frente a Cancún, así que la deriva de Stokes (~0.10 m/s) empuja el
+conglomerado hacia la costa. Sin viento ni corrientes (la Corriente de Yucatán supera 1 m/s
+hacia el norte), este resultado **no es un pronóstico operativo**.
+
+## Cómo correrlo en local (Windows / PowerShell)
 
 Requisitos: Python 3.12 o superior (probado con 3.14.0), Git y conexión a internet para el
-mapa base de OpenStreetMap.
+mapa base.
 
 ```powershell
 git clone https://github.com/renecano/sargazo_prototipo.git
 cd sargazo_prototipo
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1          # si se bloquea: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1            # si se bloquea: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 python -m pip install -r requirements-dev.txt
-python main.py                        # abre http://localhost:8000 (lee data\semar\)
+python main.py                          # abre http://localhost:8000 (lee data\semar\dirmarea.txt)
 ```
 
-Opciones: `python main.py --puerto 8080 --no-navegador --datos D:\otra\carpeta --simulaciones D:\sims`.
-Si faltan los archivos (por ejemplo, con `--datos` apuntando a otra carpeta) la app abre en
-el estado **Sin datos** y explica qué se necesita.
+Opciones: `--puerto 8080`, `--host 0.0.0.0`, `--no-navegador`, `--datos <carpeta>` y
+`--simulaciones <carpeta>`.
 
 Pruebas y utilidades:
 
 ```powershell
-python -m pytest                      # pruebas rápidas (no necesitan los datos de SEMAR)
-python -m pytest -m e2e               # pruebas de interfaz con Playwright (usa Microsoft Edge)
-python scripts/capturar_pantalla.py   # capturas de docs/
-python scripts/medir_rendimiento.py   # tiempos y memoria → docs/rendimiento.md
-python scripts/generar_fixtures.py --destino tmp\fixture --completo   # fixture en formato SEMAR
+python -m pytest                        # 102 pruebas rápidas
+python -m pytest -m e2e                 # 15 pruebas de interfaz con Playwright (usa Microsoft Edge)
+python scripts/capturar_pantalla.py     # capturas de docs/ en 1366×768 y 1920×1080
+python scripts/medir_rendimiento.py     # tiempos y memoria → docs/rendimiento.md
+python scripts/generar_fixtures.py --destino tmp\fixture --completo   # dirmarea.txt de prueba
 ```
 
-## Qué se ve en la pantalla
+## Despliegue
 
-El criterio de la v0.2.0: cada elemento visible sirve para decidir dónde liberar, simular o
-leer el resultado.
-
-- **Panel izquierdo**: título, fuente de los datos («Datos SEMAR · viento 19 ago 2026 00 UTC
-  (fijo)»), **estado en una línea** (sin datos / validando / listo / calculando / resultado /
-  error) con «Ver detalle» solo si hay errores o advertencias, punto de liberación (clic en el
-  mapa o lat/lon), horizonte (24–120 h) y **Simular**. «Opciones avanzadas» (radio,
-  partículas, α, K<sub>h</sub>, semilla) e **Historial** (fecha, punto, % varadas) están plegados.
-- **Mapa**: flechas **estáticas** de viento en una submalla (largo ∝ velocidad, con un solo
-  interruptor «Mostrar viento»), partículas a flote y varadas, trayectoria central y contorno
-  de la zona probable P90 en celdas de 0.16°.
-- **Hover** (requisito de SEMAR): latitud y longitud con 3 decimales, viento (m/s y dirección
-  «desde») y ola (altura y dirección «desde») del nodo de malla más cercano.
-- **Leyenda** de 4 elementos y el aviso «Pronóstico probabilístico; viento fijo de t = 0; sin
-  corrientes».
-- **Línea de tiempo**: reproducir/pausa a velocidad fija (6 h/s), deslizador 0–120 h, hora en
-  UTC y en Cancún (UTC−5); teclas espacio, ← y →. La pausa conserva hora y posiciones.
-- **Resultado**: % varadas al final, los 3 tramos de costa con mayor probabilidad de arribo
-  (Alta ≥ 30 %, Media ≥ 10 %, Baja ≥ 2 %, Muy baja) y el radio P90 a +120 h; parámetros,
-  huellas SHA-256 y advertencias en «Detalles».
-
-| Datos validados, listo para simular | Datos con un error (falta la hora +57 del oleaje) |
-|---|---|
-| ![Estado listo](docs/captura_listo.png) | ![Estado de error](docs/captura_error.png) |
-
-## El modelo
-
-`pms-lagrangiano-0.2.0`, enfoque de deriva superficial tipo GNOME, para cada partícula y
-cada paso Δt = 1 h:
-
-```
-X(t+Δt) = X(t) + [ u_c(X,t) + α·u_w(X,t) ]·Δt + √(2·K_h·Δt)·ξ ,   ξ ~ N(0, 1)
-con los datos actuales u_c = 0  →  X(t+Δt) = X(t) + α·u_w(X)·Δt + √(2·K_h·Δt)·ξ
-```
-
-| Símbolo | Significado | Valor | Estado |
-|---|---|---|---|
-| u<sub>w</sub> | Viento a 10 m de SEMAR, de *desde* a vector *hacia* (m/s) | `salidadatos.txt` | Una sola hora: estacionario |
-| u<sub>c</sub> | Corriente superficial | 0 | **Sin datos**: entrada opcional para CMEMS/HYCOM |
-| α | Arrastre del viento | 1 % (0–4 %) | **Preliminar**: supuesto del equipo, no proviene de SaWS |
-| K<sub>h</sub> | Difusión horizontal | 10 m²/s | **Preliminar**: referencia de GNOME para hidrocarburos |
-| Δt | Paso | 1 h | Fijo |
-
-- **Por qué sin corrientes.** Las corrientes esquemáticas de la v0.1 eran inventadas; en una
-  app con datos reales no deben aparecer datos simulados. Sin corrientes, el sargazo solo se
-  mueve por α·u<sub>w</sub> (≈ 5 cm/s con viento de 5 m/s) y la difusión, lo que **subestima
-  el transporte**: frente a Cancún la Corriente de Yucatán (más de 1 m/s) dominaría.
-- **Por qué el oleaje no mueve partículas.** La deriva de Stokes depende de la altura **y del
-  período** de la ola; `dirmarea.txt` no trae período, así que no hay una forma defendible de
-  calcularla. El oleaje se valida, se guarda en el registro y se muestra en el hover. Es una
-  decisión pendiente con el profesor.
-- **Implementación**: interpolación bilineal en espacio que **descarta los nodos sin dato**
-  (tierra) y renormaliza; lineal en el tiempo cuando haya varias horas; término determinista
-  con punto medio (RK2); metros → grados con corrección por cos(lat); partícula **varada** en
-  el último punto en mar del segmento (bisección); **fuera del dominio** si sale del recuadro;
-  semilla para reproducibilidad.
-- **Salidas**: centroide de las partículas a flote, radio P90 alrededor de él, zona probable
-  P90 (menor conjunto de celdas de 0.16° con el 90 % de las partículas) y probabilidad de
-  arribo por tramo de costa (fracción de partículas que varan en cada tramo).
-
-## Validación de los datos
-
-`src/ingestion/validador.py` revisa ambos archivos antes de permitir una simulación, no se
-detiene en el primer error y reporta cada hallazgo con la causa, el archivo y la acción:
-
-1. **Archivos**: falta `salidadatos.txt` → error; falta `dirmarea.txt` → advertencia; extensiones inesperadas.
-2. **Formato**: encabezado y columnas requeridas, filas defectuosas (con número de línea), datos antes de la fecha.
-3. **Fechas**: legibles (mapa propio de meses en inglés), bloques de viento en orden; advierte viento de una sola hora y fechas de viento y oleaje distintas.
-4. **Malla**: regular de 0.16°, rectangular, igual en todos los bloques, y cobertura del dominio.
-5. **Relleno**: `-9.99e+08` → NaN; las cuatro columnas de viento deben faltar juntas; cuenta los nodos de mar sin `sfcDirWindWa` (no es error).
-6. **Rangos físicos**: viento 0–75 m/s, U y V ±75 m/s, direcciones 0–360°, altura de ola 0–20 m.
-7. **Coherencia y convención**: |WindsfcSp − √(U²+V²)| ≤ 0.05 m/s y WindsfcDir vs atan2(−U, −V) (detecta la convención «hacia»).
-8. **Oleaje**: horas +0, +3, …, +120 sin huecos, misma malla en todos los bloques, advertencia si todos son idénticos, interpolación de la malla desplazada.
-9. **Máscara de mar vs costa del modelo**: cuántos nodos no coinciden.
-10. **Corrientes**: si no hay, advierte que u<sub>c</sub> = 0; si hay, malla y magnitud ≤ 3 m/s.
-
-Cada simulación guardada incluye la huella SHA-256 de `salidadatos.txt` y `dirmarea.txt`
-(y de las corrientes si existen), las advertencias de los datos y la versión del modelo.
-
-## Ejemplo: 120 h frente a Cancún
-
-Liberación en 21.120° N, 86.660° O (≈ 8 km al este de la zona hotelera), con los valores por
-defecto (2 000 partículas, radio 5 km, α = 1 %, K<sub>h</sub> = 10 m²/s, semilla 2026) y los
-datos de SEMAR:
-
-| Resultado | Valor |
-|---|---|
-| Varadas al final (+120 h) | **94.5 %** (5.5 % a flote, 0 % fuera del dominio) |
-| Cancún – Isla Mujeres | **84 % · Alta** (primeras partículas a +13 h, mediana +60 h) |
-| Puerto Morelos | **11 % · Media** (primeras a +60 h, mediana +99 h) |
-| Radio P90 | 5.7 km a +24 h, 6.1 km a +48 h, 5.7 km a +120 h |
-| Centroide | 21.3 km recorridos hacia el SO |
-
-El viento de SEMAR viene del ENE (≈ 55–58°, ~5 m/s) frente a Cancún y empuja el
-conglomerado hacia la costa. Con u<sub>c</sub> = 0 este resultado **no considera la Corriente
-de Yucatán** y no debe leerse como pronóstico operativo.
+- **Vercel** (<https://pms-sargazo.vercel.app>). El proyecto `pms-sargazo` despliega `main`
+  automáticamente en cada push. La función (`api/index.py`) incluye `src/` y
+  `data/semar/dirmarea.txt`. En Vercel el historial vive en `/tmp` (efímero) y la interfaz usa
+  los endpoints síncronos. **La demo es pública**: cualquiera con la URL ve el oleaje. Si
+  SEMAR no lo autoriza, hay que activar Deployment Protection o retirar el archivo.
+- **VPS Linux** (pendiente de acceso al servidor): [`docs/despliegue_vps.md`](docs/despliegue_vps.md)
+  cubre clon en `/opt/pms`, venv, servicio systemd `pms`, puerto 8000, logs, actualización,
+  reversa y desinstalación.
 
 ## API
 
 | Método y ruta | Uso |
 |---|---|
-| `GET /api/salud` | Estado del servidor, versiones, si hay datos y si hay trabajos en segundo plano |
-| `GET /api/validacion` · `POST /api/validacion` | Validación síncrona (usa caché) o en segundo plano con progreso |
-| `GET /api/campos` | Viento y oleaje en la malla del modelo, compactos, para flechas y hover |
+| `GET /api/salud` | Estado, versiones, si hay datos y si hay trabajos en segundo plano |
+| `GET /api/validacion` · `POST /api/validacion` | Validación síncrona (con caché) o en segundo plano con progreso |
+| `GET /api/campos` | Dirección y altura de ola por bloque en la malla del modelo, para las flechas y el hover |
 | `GET /api/costa` | Costa del modelo y tramos de arribo (GeoJSON) |
-| `POST /api/simulaciones` | Simula de forma síncrona, guarda y devuelve el registro |
+| `POST /api/simulaciones` | Simula (lat, lon, radio_km, particulas, gamma, kh_m2s, horizonte_h, semilla), guarda y devuelve el registro |
 | `POST /api/trabajos/simulacion` · `GET /api/trabajos/{id}` | Igual, en segundo plano, con progreso por hora |
 | `GET /api/simulaciones` · `GET /api/simulaciones/{id}` | Historial y registro completo |
 
-Los errores llegan como `{"detail": {"causa", "accion", "archivo"}}`: 409 datos no válidos,
-422 parámetros o punto en tierra, 404 id inexistente. Documentación interactiva en `/docs`.
+Los errores llegan como `{"detail": {"causa", "accion", "archivo"}}`:
+
+- 409: datos no válidos;
+- 422: parámetros fuera de rango o punto en tierra;
+- 404: id inexistente.
+
+Documentación interactiva en `/docs`.
 
 ## Mapa del repositorio
 
@@ -247,96 +272,91 @@ Los errores llegan como `{"detail": {"causa", "accion", "archivo"}}`: 409 datos 
 sargazo_prototipo/
 ├── main.py                       python main.py → http://localhost:8000
 ├── api/index.py · vercel.json    Función sin servidor para Vercel
-├── data/
-│   ├── semar/                    Datos de SEMAR (repositorio privado; no redistribuir)
-│   └── simulations/              Simulaciones guardadas (JSON)
+├── data/semar/                   dirmarea.txt (repositorio privado; no redistribuir) y su README
+├── data/simulations/             Simulaciones guardadas (JSON)
 ├── src/
-│   ├── config.py                 Dominio, malla, archivos de SEMAR, versiones
-│   ├── ingestion/                lector.py (formato SEMAR, relleno, interpolación) · validador.py
-│   ├── model/                    conversiones · campos · simulacion · costa · metricas
+│   ├── config.py                 Dominio, malla, archivo, γ, K_h y supuesto del período
+│   ├── ingestion/                lector.py (formato SEMAR, relleno, malla) · validador.py
+│   ├── model/                    campos (deriva de Stokes) · simulacion · costa · metricas · conversiones
 │   ├── api/                      app.py · servicios.py · almacen.py
-│   └── view/                     index.html · css/ · js/ · vendor/leaflet
+│   └── view/                     index.html · css/carta.css · js/ (main, recorrido, capas, datos, paneles…)
 ├── scripts/                      generar_fixtures.py · capturar_pantalla.py · medir_rendimiento.py
 ├── tests/                        Pruebas rápidas + tests/e2e/ (Playwright)
-├── docs/                         Capturas y rendimiento medido
+├── docs/                         Capturas, rendimiento y guía de despliegue en VPS
 └── .github/workflows/ci.yml      CI: Windows y Ubuntu, Python 3.12 y 3.14, + e2e
 ```
 
-## Pruebas y rendimiento medido
+## Pruebas y rendimiento
 
-`python -m pytest` corre **97 pruebas rápidas** (incluida una que verifica los hallazgos de
-los datos reales de `data/semar/`) y `python -m pytest -m e2e` corre **13 de interfaz**; todas
-en verde al cierre de esta versión. El resto de las pruebas usa fixtures generados en el
-formato real para poder sembrar errores.
+**102 pruebas rápidas** (`python -m pytest`) y **15 de interfaz** (`python -m pytest -m e2e`),
+todas en verde en local.
 
 | Archivo | Qué comprueba |
 |---|---|
-| `tests/test_lector.py` | Fechas `DDMMMAAAA HH [h]` (incluidas ilegibles), lectura de ambos formatos, relleno −9.99e+08 → NaN, 41 bloques, filas defectuosas, malla norte→sur, interpolación desplazada que ignora NaN, dirección por seno/coseno |
-| `tests/test_validador.py` | Fixture válido con sus advertencias; bloques idénticos y fechas distintas solo cuando lo son; oleaje desplazado interpolado correctamente; archivo faltante, fecha ilegible, columna ausente, rangos, incoherencia U/V, convención invertida, relleno inconsistente, malla no rectangular, hora de oleaje faltante, altura fuera de rango, máscara vs costa, corrientes opcionales, varias horas de viento; datos reales (si existen) |
-| `tests/test_modelo.py` | Solución analítica con viento y K<sub>h</sub> = 0, corriente opcional, **viento estacionario igual en t = 0 y t = 120**, interpolación temporal con varias horas, nodos de tierra ignorados, reproducibilidad, dispersión √(2·K<sub>h</sub>·t), ninguna partícula sobre tierra, dominio, métricas |
-| `tests/test_api.py` | Simulación → 200, guardada con la huella de ambos archivos e historial; trabajos con progreso; 409/422/404; estado sin datos |
-| `tests/e2e/test_interfaz.py` | Validación y detalle plegable, interfaz mínima, flechas estáticas y ocultables, clic para liberar, 120 h frente a Cancún, pausa que conserva hora y posición, teclas y hora UTC/Cancún, hover con viento y ola, historial, punto en tierra, datos inválidos y sin datos |
+| `tests/test_lector.py` | Fechas `DDMMMAAAA HH [h]` (incluidas ilegibles), 41 bloques, relleno → NaN, filas defectuosas, malla de norte a sur |
+| `tests/test_validador.py` | Fixture válido; bloques idénticos solo cuando lo son; cobertura del dominio; falta del archivo, fecha ilegible, columna ausente, hora faltante o desordenada, altura y dirección fuera de rango, relleno inconsistente, malla no rectangular o fuera del recuadro, máscara vs costa, otros archivos; archivo real |
+| `tests/test_modelo.py` | Deriva de Stokes contra la fórmula y contra el desplazamiento analítico con K_h = 0 (en la dirección correcta, con cos(lat)), γ, reproducibilidad, dispersión √(2·K_h·t) ± 5 %, interpolación entre bloques y por seno/coseno, nodos de tierra ignorados, ninguna partícula sobre tierra, salida de dominio, métricas |
+| `tests/test_api.py` | 200 y guardado con huella; reproducibilidad; trabajos con progreso; 409, 422 y 404; sin datos |
+| `tests/e2e/test_interfaz.py` | Recorrido guiado (se abre una vez, «Saltar», completo de principio a fin), estado y detalle, los tres pasos, clic para liberar, flechas fijas, 120 h frente a Cancún, pausa, teclas, hover con ola, historial, punto en tierra, datos inválidos, sin datos |
 
-Rendimiento con los datos de SEMAR (Windows 11, 8 GB de RAM con 1.1 GB libres al medir;
-detalle en [`docs/rendimiento.md`](docs/rendimiento.md)): validar ambos archivos **0.38 s**;
-simular 2 000 partículas × 120 h **0.21 s** y 5 000 **0.30 s**; registro JSON 1.3 MB (2 000)
-o 3.1 MB (5 000).
+**Rendimiento en local** (Windows 11, 8 GB de RAM; detalle en [`docs/rendimiento.md`](docs/rendimiento.md)):
 
-## Despliegue en Vercel
+| Operación | Tiempo |
+|---|---|
+| Validar `dirmarea.txt` | 0.27 s |
+| 2 000 partículas × 120 h frente a Cancún | 0.13 s |
+| 2 000 partículas × 120 h en mar abierto | 0.33 s |
+| 5 000 partículas × 120 h en mar abierto | 0.62 s |
+| Registro JSON (2 000 partículas) | 1.3 MB |
 
-El proyecto de Vercel `pms-sargazo` está conectado a GitHub y despliega `main` en
-<https://pms-sargazo.vercel.app> en cada push. Como los datos de SEMAR están en el
-repositorio (privado), el despliegue los incluye: `vercel.json` empaqueta `data/semar/**` en
-la función. **La demo sí es pública**: cualquiera con la URL puede ver el viento y el oleaje
-en la interfaz y en `/api/campos`. Si SEMAR no autoriza esa exposición, hay que activar la
-protección de despliegues de Vercel (Deployment Protection) o retirar los datos.
+**En Vercel**, medido desde Windows (incluye la red):
 
-En Vercel el historial vive en `/tmp` (efímero) y la interfaz usa los endpoints síncronos.
+| Operación | Tiempo |
+|---|---|
+| Validación (primera vez en la instancia) | 0.9 s |
+| Validación (en caché) | 0.27 s |
+| Campos de oleaje | 0.47 s |
+| Simulación de 120 h frente a Cancún | 0.95 s |
+| La app queda «lista» en el navegador | ~1.8 s |
 
 ## Límites honestos
 
-- **Viento de una sola hora**, usado fijo 120 h: no hay evolución del viento.
-- **Sin corrientes**: falta el principal mecanismo de transporte frente a Quintana Roo; las
-  distancias recorridas y la proporción de varado no son realistas.
-- **Oleaje de muestra**: no varía en las 41 horas, su fecha no coincide con la del viento y no
-  entra al movimiento (sin período no hay deriva de Stokes).
-- **Parámetros sin calibrar** (α y K<sub>h</sub>) y **sin validación contra observaciones**.
-- **Costa aproximada** (decenas de vértices) que difiere de la máscara de SEMAR en 29 nodos;
+- **Datos de muestra**: los 41 bloques de `dirmarea.txt` son idénticos (el oleaje no cambia en
+  120 h) y su fecha es de muestra.
+- **Sin viento ni corrientes**: solo se usa la deriva por oleaje. Falta la Corriente de Yucatán
+  y el arrastre directo del viento, que frente a Quintana Roo dominarían el transporte.
+- **Período de ola supuesto** (T = 4.0·√H): la deriva de Stokes depende de T³; un período real
+  distinto cambia mucho la velocidad.
+- **Parámetros sin calibrar** (γ y K_h) y **sin validación contra observaciones** (boletines de
+  SEMAR o detecciones de SaWS).
+- **Costa aproximada** (decenas de vértices), que difiere de la máscara del archivo en 50 nodos;
   la malla de 0.16° (~17 km) no resuelve procesos costeros.
-- **Dominio limitado** al recuadro de Yucatán; liberación única en t = 0; sin biología.
-- **Infraestructura mínima**: JSON en disco, sin usuarios ni autenticación, sin carga de
-  archivos desde la interfaz. Hay CI y despliegue automático a Vercel desde `main`, pero no
-  entornos dev/prod separados, y la demo pública muestra datos de SEMAR.
+- **Dominio limitado** al recuadro de Yucatán y liberación única en t = 0.
+- **Infraestructura mínima**: JSON en disco, sin usuarios ni autenticación. La demo de Vercel
+  es pública y su historial es efímero. El CI de GitHub no corre hoy porque la cuenta no
+  tiene minutos de Actions; las pruebas se corren en local.
 
-## Preguntas abiertas para SEMAR y el profesor
+## Preguntas para el profesor y SEMAR
 
-1. ¿Pueden entregar el **pronóstico de viento horario completo** (120 h) y no solo t = 0?
-2. ¿`dirmarea.txt` de muestra debía variar en el tiempo? ¿Por qué su fecha (1 oct) no coincide
-   con la del viento (19 ago)? ¿Por qué se llama «mareas» si trae oleaje de viento?
-3. ¿Hay **período de ola** (o espectro) para estimar la deriva de Stokes?
-4. ¿Qué fuente de **corrientes** usan en sus boletines (CMEMS, HYCOM u otra) y con qué
-   resolución temporal?
-5. ¿La malla de `dirmarea.txt` desplazada 0.08° es intencional (centros de celda)?
-6. ¿Qué valores de α (arrastre del viento) usan para sargazo?
-7. ¿Autorizan mostrar los datos (o una versión derivada) en una demo pública como la de Vercel?
-
-## Siguientes pasos
-
-1. Corrientes CMEMS/HYCOM en `data/semar/corrientes/` (la ingesta y el modelo ya las aceptan).
-2. Pronóstico de viento de 120 h (el lector ya interpola entre varias horas).
-3. Decidir con el profesor si se incluye la deriva de Stokes cuando haya período de ola.
-4. Calibrar α y K<sub>h</sub> contra los boletines de SEMAR a 24/48 h y medir el error de distancia.
-5. Persistencia real, autenticación y despliegue autorizado.
+1. ¿Hay **período de ola** (o espectro) para no suponer T = 4.0·√H?
+2. ¿Los 41 bloques idénticos de `dirmarea.txt` son solo de muestra? ¿Cuándo habrá un
+   pronóstico que cambie en el tiempo?
+3. ¿Es correcto usar solo la ola de viento, o debe sumarse el mar de fondo (swell)?
+4. ¿Qué rango de γ (fracción de la deriva de Stokes que siente el sargazo) es razonable?
+5. ¿Se reincorporan viento y corrientes (CMEMS/HYCOM) en una siguiente versión?
+6. ¿SEMAR autoriza mostrar el oleaje en una demo pública como la de Vercel?
+7. ¿Contra qué boletines o detecciones validamos las trayectorias a 24 y 48 h?
 
 ## Créditos y atribuciones
 
-**Equipo 2** — Marco Aurelio Tamez Robles · Claudia Vanessa Hermosillo Díaz ·
-René Emiliano Cano Fuentes · Alan Yael García Velázquez · José Luis Socorro Martínez ·
+**Equipo 2**: Marco Aurelio Tamez Robles, Claudia Vanessa Hermosillo Díaz,
+René Emiliano Cano Fuentes, Alan Yael García Velázquez, José Luis Socorro Martínez y
 José Ángel Vargas Carranza.
 
-- Datos de viento y oleaje: **Secretaría de Marina (SEMAR)**, archivos de muestra, no publicados.
+- Datos de oleaje: **Secretaría de Marina (SEMAR)**, archivo de muestra; no redistribuir.
 - Mapa base © [colaboradores de OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL).
 - [Leaflet](https://leafletjs.com) 1.9.4 (BSD-2-Clause), incluido en `src/view/vendor/leaflet/`.
-- Tipografía [Inter](https://rsms.me/inter/) vía Google Fonts (SIL Open Font License).
+- Tipografías [IBM Plex Sans y IBM Plex Mono](https://www.ibm.com/plex/) vía Google Fonts (SIL Open Font License).
+- Referencias: SEMAR IOGMC (boletines de sargazo), USF SaWS y NOAA GNOME.
 
 Código bajo licencia [MIT](LICENSE).
