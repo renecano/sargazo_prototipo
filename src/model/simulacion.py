@@ -129,38 +129,45 @@ def _deriva(campos, lon, lat, t, gamma):
     return gamma * u, gamma * v
 
 
-def simular(campos, p: Parametros, en_tierra: FuncionTierra = costa.en_tierra,
-            dominio: Dominio = (LON_MIN, LON_MAX, LAT_MIN, LAT_MAX),
-            progreso: Progreso | None = None) -> Resultado:
-    t0 = time.perf_counter()
-    validar_punto(p.lon, p.lat, en_tierra, dominio)
-    rng = np.random.default_rng(p.semilla)
-    n, horas = p.particulas, p.horizonte_h
-    gamma = p.gamma
-    dt = PASO_SEGUNDOS
-    sigma = np.sqrt(2.0 * p.kh_m2s * dt)
+@dataclass
+class Trayectorias:
+    lon: np.ndarray            # [H+1, N]
+    lat: np.ndarray            # [H+1, N]
+    estado: np.ndarray         # [N] estado final: A_FLOTE, VARADA, FUERA
+    hora_varada: np.ndarray    # [N] hora en que vara (−1 si no)
+    hora_fuera: np.ndarray     # [N] hora en que sale del dominio (−1 si no)
 
+
+def integrar(campos, lon0: np.ndarray, lat0: np.ndarray, horas: int, gamma: float, kh_m2s: float,
+             rng: np.random.Generator, en_tierra: FuncionTierra = costa.en_tierra,
+             dominio: Dominio = (LON_MIN, LON_MAX, LAT_MIN, LAT_MAX), t_inicio_h: float = 0.0,
+             progreso: Progreso | None = None) -> Trayectorias:
+    """Avanza partículas desde (lon0, lat0) durante `horas` pasos de Δt = 1 h.
+
+    `campos` es cualquier objeto con velocidades(lon, lat, t_horas) → (u, v) en m/s; t se
+    mide desde el inicio de los campos, así que la integración empieza en `t_inicio_h`.
+    Es el núcleo de `simular` y lo reutiliza la validación (validacion/) con otras
+    posiciones iniciales y otros campos, sin cambiar la física.
+    """
+    n = np.size(lon0)
+    dt = PASO_SEGUNDOS
+    sigma = np.sqrt(2.0 * kh_m2s * dt)
     lon = np.empty((horas + 1, n))
     lat = np.empty((horas + 1, n))
-    lon[0], lat[0], reubicadas = posiciones_iniciales(p, rng, en_tierra)
+    lon[0], lat[0] = lon0, lat0
     estado = np.zeros(n, dtype=np.int8)
     hora_varada = np.full(n, -1, dtype=np.int16)
     hora_fuera = np.full(n, -1, dtype=np.int16)
-    bitacora = [
-        f"Modelo {VERSION_MODELO}; semilla {p.semilla}; γ = {p.gamma:g}; K_h = {p.kh_m2s:g} m²/s; Δt = 1 h.",
-        f"Deriva de Stokes de la ola de viento con período supuesto T = {COEF_PERIODO:g}·√H; sin viento ni corrientes.",
-        f"{n} partículas en un radio de {p.radio_km:g} km alrededor de ({p.lat:.3f}, {p.lon:.3f})"
-        + (f"; {reubicadas} se re-sortearon por caer en tierra." if reubicadas else "."),
-    ]
 
     for k in range(horas):
         lon[k + 1], lat[k + 1] = lon[k], lat[k]
         activas = np.flatnonzero(estado == A_FLOTE)
         if activas.size:
+            t = t_inicio_h + k
             x, y = lon[k, activas], lat[k, activas]
-            u1, v1 = _deriva(campos, x, y, k, gamma)
+            u1, v1 = _deriva(campos, x, y, t, gamma)
             dlon, dlat = metros_a_grados(u1 * dt / 2, v1 * dt / 2, y)
-            u2, v2 = _deriva(campos, x + dlon, y + dlat, k + 0.5, gamma)
+            u2, v2 = _deriva(campos, x + dlon, y + dlat, t + 0.5, gamma)
             ruido = rng.standard_normal((2, activas.size))
             dx = u2 * dt + sigma * ruido[0]
             dy = v2 * dt + sigma * ruido[1]
@@ -199,15 +206,37 @@ def simular(campos, p: Parametros, en_tierra: FuncionTierra = costa.en_tierra,
 
             lon[k + 1, activas], lat[k + 1, activas] = nx, ny
 
-        if (k + 1) % 24 == 0 or k + 1 == horas:
-            bitacora.append(
-                f"+{k + 1} h: {100 * np.mean(estado == A_FLOTE):.1f} % a flote, "
-                f"{100 * np.mean(estado == VARADA):.1f} % varadas, "
-                f"{100 * np.mean(estado == FUERA):.1f} % fuera del dominio."
-            )
         if progreso:
             progreso(k + 1, horas, f"Hora +{k + 1} de {horas}")
+    return Trayectorias(lon, lat, estado, hora_varada, hora_fuera)
 
-    duracion = time.perf_counter() - t0
-    bitacora.append(f"Cálculo terminado en {duracion:.2f} s.")
-    return Resultado(p, lon, lat, estado, hora_varada, hora_fuera, reubicadas, tuple(dominio), bitacora, duracion)
+
+def simular(campos, p: Parametros, en_tierra: FuncionTierra = costa.en_tierra,
+            dominio: Dominio = (LON_MIN, LON_MAX, LAT_MIN, LAT_MAX),
+            progreso: Progreso | None = None) -> Resultado:
+    t0 = time.perf_counter()
+    validar_punto(p.lon, p.lat, en_tierra, dominio)
+    rng = np.random.default_rng(p.semilla)
+    n, horas = p.particulas, p.horizonte_h
+    lon0, lat0, reubicadas = posiciones_iniciales(p, rng, en_tierra)
+    bitacora = [
+        f"Modelo {VERSION_MODELO}; semilla {p.semilla}; γ = {p.gamma:g}; K_h = {p.kh_m2s:g} m²/s; Δt = 1 h.",
+        f"Deriva de Stokes de la ola de viento con período supuesto T = {COEF_PERIODO:g}·√H; sin viento ni corrientes.",
+        f"{n} partículas en un radio de {p.radio_km:g} km alrededor de ({p.lat:.3f}, {p.lon:.3f})"
+        + (f"; {reubicadas} se re-sortearon por caer en tierra." if reubicadas else "."),
+    ]
+    tr = integrar(campos, lon0, lat0, horas, p.gamma, p.kh_m2s, rng, en_tierra, dominio, progreso=progreso)
+    r = Resultado(p, tr.lon, tr.lat, tr.estado, tr.hora_varada, tr.hora_fuera, reubicadas, tuple(dominio), bitacora)
+    for h in range(24, horas + 1, 24):
+        bitacora.append(_linea_estado(r.estado_en(h), h))
+    if horas % 24:
+        bitacora.append(_linea_estado(r.estado_en(horas), horas))
+    r.duracion_s = time.perf_counter() - t0
+    bitacora.append(f"Cálculo terminado en {r.duracion_s:.2f} s.")
+    return r
+
+
+def _linea_estado(estado: np.ndarray, h: int) -> str:
+    return (f"+{h} h: {100 * np.mean(estado == A_FLOTE):.1f} % a flote, "
+            f"{100 * np.mean(estado == VARADA):.1f} % varadas, "
+            f"{100 * np.mean(estado == FUERA):.1f} % fuera del dominio.")
