@@ -47,8 +47,9 @@ contorno de la zona probable P90, hover con la ola del nodo más cercano y líne
 
 ## El único archivo de entrada
 
-`data/semar/dirmarea.txt`: oleaje de viento entregado por SEMAR como muestra. Está en este
-repositorio **privado**; **no debe redistribuirse** sin autorización de SEMAR (ver
+`data/semar/dirmarea.txt`: oleaje de viento entregado por SEMAR como muestra. El repositorio
+es **público**, así que el archivo también lo es; está **pendiente confirmar la autorización de
+SEMAR** para difundirlo (ver
 [`data/semar/README.md`](data/semar/README.md)).
 
 | Elemento | Formato |
@@ -272,7 +273,7 @@ Documentación interactiva en `/docs`.
 sargazo_prototipo/
 ├── main.py                       python main.py → http://localhost:8000
 ├── api/index.py · vercel.json    Función sin servidor para Vercel
-├── data/semar/                   dirmarea.txt (repositorio privado; no redistribuir) y su README
+├── data/semar/                   dirmarea.txt de SEMAR (autorización de difusión por confirmar) y su README
 ├── data/simulations/             Simulaciones guardadas (JSON)
 ├── src/
 │   ├── config.py                 Dominio, malla, archivo, γ, K_h y supuesto del período
@@ -289,7 +290,8 @@ sargazo_prototipo/
 ## Pruebas y rendimiento
 
 **102 pruebas rápidas** (`python -m pytest`) y **15 de interfaz** (`python -m pytest -m e2e`),
-todas en verde en local.
+todas en verde en local y en el CI de GitHub Actions (Windows y Ubuntu, Python 3.12
+y 3.14, más e2e): [corrida en verde](https://github.com/renecano/sargazo_prototipo/actions/runs/41160399072).
 
 | Archivo | Qué comprueba |
 |---|---|
@@ -339,8 +341,7 @@ de la función, así que no fue necesario optimizar la lectura del archivo.
   la malla de 0.16° (~17 km) no resuelve procesos costeros.
 - **Dominio limitado** al recuadro de Yucatán y liberación única en t = 0.
 - **Infraestructura mínima**: JSON en disco, sin usuarios ni autenticación. La demo de Vercel
-  es pública y su historial es efímero. El CI de GitHub no corre hoy porque la cuenta no
-  tiene minutos de Actions; las pruebas se corren en local.
+  es pública y su historial es efímero.
 
 ## Preguntas para el profesor y SEMAR
 

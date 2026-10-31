@@ -1,10 +1,10 @@
 # Datos de SEMAR
 
 El único archivo de entrada de PMS es `dirmarea.txt`, oleaje de viento entregado por la
-Secretaría de Marina (SEMAR) como muestra. Se versiona en este repositorio **privado** para
-que la app y su despliegue lo encuentren; **no debe redistribuirse** fuera del equipo sin
-autorización de SEMAR. Si el repositorio vuelve a ser público, hay que sacarlo antes
-(también del historial). `.gitattributes` lo guarda byte a byte para que su huella SHA-256
+Secretaría de Marina (SEMAR) como muestra. Se versiona en este repositorio para que la app y
+su despliegue lo encuentren. **El repositorio es público**, así que el archivo también lo es:
+hay que confirmar con SEMAR que autoriza su difusión; si no, hay que retirarlo del
+repositorio y también del historial. `.gitattributes` lo guarda byte a byte para que su huella SHA-256
 no cambie.
 
 | Archivo | Contenido |

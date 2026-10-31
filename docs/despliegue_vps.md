@@ -29,7 +29,7 @@ sudo git clone https://github.com/renecano/sargazo_prototipo.git /opt/pms
 sudo chown -R pms:pms /opt/pms
 ```
 
-El repositorio es privado: el `git clone` pedirá un usuario de GitHub con acceso y un
+Si el repositorio vuelve a ser privado, el `git clone` pedirá un usuario de GitHub con acceso y un
 *token* personal (GitHub → Settings → Developer settings → Personal access tokens, con
 permiso de solo lectura del repositorio). No guardes el token en el servidor; para
 actualizaciones automáticas usa una *deploy key* de solo lectura.

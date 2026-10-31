@@ -5,7 +5,7 @@ Vercel enruta todas las peticiones a esta función (ver vercel.json). Diferencia
   - El disco es de solo lectura salvo /tmp: las simulaciones se guardan en
     /tmp/pms-simulaciones y son efímeras (se pierden al reciclarse la instancia).
   - El único archivo de entrada, data/semar/dirmarea.txt, viaja dentro del paquete de la
-    función (vercel.json → includeFiles); está en el repositorio privado, así que los
+    función (vercel.json → includeFiles); está en el repositorio, así que los
     despliegues desde GitHub lo incluyen.
   - Modelo pms-browniano-0.3.0: deriva de Stokes de la ola de viento + movimiento browniano.
 """
