@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -74,7 +75,20 @@ def escribir_todo(d: Insumos, salida: Path, registrar=print) -> dict:
 
     # --- Tablas -----------------------------------------------------------------
     sel = d.seleccion
-    casos_filas = [c.fila() for c in sel.casos] + ([sel.caso_semar.fila()] if sel.caso_semar else [])
+    por_id = {r["caso"]["id"]: r for r in resultados + ([d.resultado_semar] if d.resultado_semar else [])}
+
+    def fila_caso(c):
+        r = por_id.get(c.id)
+        f = (r or {}).get("forzamientos", {})
+        fuentes = f.get("fuentes", {})
+        sp = f.get("stokes_y_periodo", {})
+        return {**c.fila(), "con_resultado": r is not None, "fuente_oleaje": fuentes.get("oleaje", ""),
+                "oleaje_resolucion_grados": fuentes.get("oleaje_resolucion_grados", ""),
+                "fuente_corriente": fuentes.get("corriente", ""), "fuente_viento": fuentes.get("viento", ""),
+                "stokes_producto_entre_formula": sp.get("producto_entre_formula_T_supuesto_mediana", ""),
+                "stokes_producto_entre_formula_T_real": sp.get("producto_entre_formula_T_real_mediana", ""),
+                "T_real_entre_T_supuesto": sp.get("T_real_entre_T_supuesto_mediana", "")}
+    casos_filas = [fila_caso(c) for c in sel.casos] + ([fila_caso(sel.caso_semar)] if sel.caso_semar else [])
     rp._escribir_csv(salida / "casos.csv", casos_filas)
     descartes = {MOTIVOS[k]: v for k, v in sel.descartes.items()}
     rp._escribir_csv(salida / "metricas_por_caso.csv", filas + (d.resultado_semar or {}).get("filas", []))
@@ -98,7 +112,10 @@ def escribir_todo(d: Insumos, salida: Path, registrar=print) -> dict:
     hay_mcc = rp.figura_mcc([v for v in mcc if v["conjunto"] == "evaluacion"], figuras / "mcc_vs_modelo.png")
     rp.figura_inventario(d.dias, casos_filas, figuras / "inventario.png")
     rp.figura_mascaras(d.mascaras, figuras / "mascaras.png")
-    rp.figura_calibracion(d.tabla_calibracion, d.gamma, d.kh, figuras / "calibracion.png")
+    if d.gamma is not None:
+        rp.figura_calibracion(d.tabla_calibracion, d.gamma, d.kh, figuras / "calibracion.png")
+    else:
+        (figuras / "calibracion.png").unlink(missing_ok=True)       # no mostrar una calibración vieja
     tierra = ~d.mascaras.mar_modelo
     figs_caso = []
     for r in resultados + ([d.resultado_semar] if d.resultado_semar else []):
@@ -115,19 +132,33 @@ def escribir_todo(d: Insumos, salida: Path, registrar=print) -> dict:
     con_resultado = {r["caso"]["id"] for r in resultados}
     n_eval = len([c for c in sel.casos if c.conjunto == "evaluacion" and c.id in con_resultado])
     n_cal = len([c for c in sel.casos if c.conjunto == "calibracion" and c.id in con_resultado])
-    faltan = [c.id for c in sel.casos if c.id not in con_resultado]
-    sin_extra = sorted({f["caso"] for f in filas if f["conjunto"] == "evaluacion" and f["experimento"] == "E4"
-                        and not f.get("disponible")})
-    d.extra.update(faltan=faltan, sin_extra=sin_extra,
+    faltan_cal = [c.id for c in sel.casos if c.conjunto == "calibracion" and c.id not in con_resultado]
+    faltan_eva = [c.id for c in sel.casos if c.conjunto == "evaluacion" and c.id not in con_resultado]
+
+    def sin_e4(conjunto):
+        return sorted({f["caso"] for f in filas if f["conjunto"] == conjunto and f["experimento"] == "E4"
+                       and not f.get("disponible")})
+
+    def sin_e5(conjunto):
+        return sorted({f["caso"] for f in filas if f["conjunto"] == conjunto and f["experimento"] == "E5-1"
+                       and not f.get("disponible")})
+    d.extra.update(faltan_cal=faltan_cal, faltan_eva=faltan_eva,
+                   sin_e4_cal=sin_e4("calibracion"), sin_e4_eva=sin_e4("evaluacion"),
+                   sin_e5_cal=sin_e5("calibracion"), sin_e5_eva=sin_e5("evaluacion"),
                    n_eval_sel=len([c for c in sel.casos if c.conjunto == "evaluacion"]),
                    n_cal_sel=len([c for c in sel.casos if c.conjunto == "calibracion"]))
     v = {e: {k: rp.veredicto(next((f[k] for f in principal if f["experimento"] == e), None))
              for k in cfg.HORIZONTES_D} for e in rp.ORDEN}
     resumen = {
         "version_app": VERSION_APP, "version_modelo": VERSION_MODELO, "generado": d.generado,
-        "casos": {"total": len(sel.casos), "calibracion": n_cal, "evaluacion": n_eval,
+        "casos": {"seleccionados": {"calibracion": d.extra["n_cal_sel"], "evaluacion": d.extra["n_eval_sel"]},
+                  "con_resultado": {"calibracion": n_cal, "evaluacion": n_eval},
+                  "faltan": {"calibracion": faltan_cal, "evaluacion": faltan_eva},
                   "candidatos": sel.candidatos, "dias_revisados": sel.dias_revisados, "descartes": descartes},
-        "calibracion": {"gamma": d.gamma, "kh": d.kh},
+        "calibracion": ({"estado": "completa", "gamma": d.gamma, "kh": d.kh, "casos": len(
+                            {f["caso"] for f in d.filas_calibracion})}
+                        if d.gamma is not None else {"estado": "pendiente", "gamma": None, "kh": None,
+                                                     "casos": len({f["caso"] for f in d.filas_calibracion})}),
         "veredictos_fss25": v,
         "tabla_principal": [{"experimento": f["experimento"], **{f"+{k}d": f[k] for k in cfg.HORIZONTES_D}}
                             for f in principal],
@@ -143,8 +174,43 @@ def escribir_todo(d: Insumos, salida: Path, registrar=print) -> dict:
     (salida / "index.html").write_text(_html(d, principal, v, figs_caso, hay_mcc, n_cal, n_eval, cos, mccr),
                                        encoding="utf-8", newline="\n")
     _actualizar_readme(principal, v, n_cal, n_eval, d)
+    verificar_consistencia(salida, RAIZ / "docs" / "validacion.md")
     registrar(f"   {len(figs_caso)} figuras de caso; docs/validacion.md, docs/validacion/index.html y README actualizados")
     return resumen
+
+
+def verificar_consistencia(salida: Path, ruta_md: Path) -> None:
+    """Falla si el reporte se contradice: conteos que no cuadran con casos.csv, o parámetros de
+    E3 calibrados sin todos los casos de calibración (o con 0 casos)."""
+    import csv
+    resumen = json.loads((salida / "resumen.json").read_text(encoding="utf-8"))
+    with (salida / "casos.csv").open(encoding="utf-8") as fh:
+        casos = list(csv.DictReader(fh))
+    md = ruta_md.read_text(encoding="utf-8")
+    errores = []
+    c = resumen["casos"]
+    for conj in ("calibracion", "evaluacion"):
+        filas = [x for x in casos if x["conjunto"] == conj]
+        con = [x for x in filas if x["con_resultado"] == "True"]
+        if c["seleccionados"][conj] != len(filas):
+            errores.append(f"{conj}: resumen dice {c['seleccionados'][conj]} seleccionados y casos.csv tiene {len(filas)}")
+        if c["con_resultado"][conj] != len(con):
+            errores.append(f"{conj}: resumen dice {c['con_resultado'][conj]} con resultado y casos.csv {len(con)}")
+        if sorted(c["faltan"][conj]) != sorted(x["id"] for x in filas if x["con_resultado"] != "True"):
+            errores.append(f"{conj}: la lista de casos faltantes no coincide con casos.csv")
+    cal = resumen["calibracion"]
+    n_cal_sel = c["seleccionados"]["calibracion"]
+    if cal["gamma"] is not None and (n_cal_sel == 0 or cal["casos"] != n_cal_sel):
+        errores.append(f"E3 tiene parámetros calibrados con {cal['casos']} de {n_cal_sel} casos de calibración")
+    if cal["gamma"] is None and cal["estado"] != "pendiente":
+        errores.append("E3 sin parámetros pero no marcado como pendiente")
+    n_eva = c["con_resultado"]["evaluacion"]
+    if f"Medido en {n_eva} casos de evaluación" not in md:
+        errores.append(f"docs/validacion.md no dice «Medido en {n_eva} casos de evaluación»")
+    if cal["gamma"] is None and re.search(r"E3 \| PMS con γ = [\d.]+", md):
+        errores.append("docs/validacion.md muestra γ de E3 aunque la calibración está pendiente")
+    if errores:
+        raise ValueError("Reporte de validación inconsistente:\n- " + "\n- ".join(errores))
 
 
 # ---------------------------------------------------------------------------
@@ -220,8 +286,9 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
     cs = d.comparacion_semar["comparacion"]
     c0 = cs[0]
     exp_mejor, _ = _mejor_experimental(principal)
-    periodos = [r["forzamientos"].get("periodo", {}) for r in d.resultados if r]
-    razones = [p["real_entre_supuesto_mediana"] for p in periodos if p and p.get("real_entre_supuesto_mediana")]
+    sp = [r["forzamientos"].get("stokes_y_periodo", {}) for r in d.resultados if r]
+    sp = [x for x in sp if x]
+    razones = [x["T_real_entre_T_supuesto_mediana"] for x in sp]
     semar_caso = d.resultado_semar
     L = []
     w = L.append
@@ -240,12 +307,23 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
     w("")
     w(_tabla_resumen_md(principal))
     w("")
-    if d.extra["faltan"] or d.extra["sin_extra"]:
-        w(f"**Incompleto**: de {d.extra['n_eval_sel']} casos de evaluación seleccionados hay resultados de {n_eval}"
-          + (f"; faltan {', '.join(d.extra['faltan'])}" if d.extra["faltan"] else "")
-          + (f"; sin corriente o viento (E4 y E5 no calculados): {', '.join(d.extra['sin_extra'])}"
-             if d.extra["sin_extra"] else "")
-          + ". Motivo: cuota diaria de Open-Meteo; al volver a correr `scripts/validar.py` se completan.")
+    x = d.extra
+    if x["faltan_cal"] or x["faltan_eva"] or x["sin_e4_eva"] or x["sin_e5_eva"] or d.gamma is None:
+        w("**Incompleto.**")
+        w("")
+        w(f"- Calibración: resultados de {n_cal} de {x['n_cal_sel']} casos"
+          + (f"; faltan {len(x['faltan_cal'])}: {', '.join(x['faltan_cal'])}" if x["faltan_cal"] else "")
+          + (". E3 queda **pendiente** hasta tener todos los casos de calibración" if d.gamma is None else "") + ".")
+        w(f"- Evaluación: resultados de {n_eval} de {x['n_eval_sel']} casos"
+          + (f"; faltan {len(x['faltan_eva'])}: {', '.join(x['faltan_eva'])}" if x["faltan_eva"] else "") + ".")
+        if x["sin_e4_eva"]:
+            w(f"- Sin corriente (E4 y E5 no calculados) en {len(x['sin_e4_eva'])} casos de evaluación: "
+              f"{', '.join(x['sin_e4_eva'])}.")
+        if x["sin_e5_eva"]:
+            w(f"- Sin viento (E5 no calculado) en {len(x['sin_e5_eva'])} casos de evaluación: "
+              f"{', '.join(x['sin_e5_eva'])}.")
+        w("")
+        w("Al volver a correr `scripts/validar.py` se completan con lo que falte.")
         w("")
     w("FSS: 1 = coincidencia perfecta, 0 = ninguna. Entre corchetes, intervalo de confianza del 95 % por "
       f"bootstrap de casos ({cfg.REMUESTREOS_BOOTSTRAP} remuestreos). Δ vs E0: diferencia pareada caso a caso "
@@ -272,9 +350,18 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
     w("| Qué | Fuente | Uso |")
     w("|---|---|---|")
     w(f"| Sargazo observado | AFAI diario de USF (C. Hu), NOAA AOML ERDDAP `{cfg.DATASET_AFAI_1D}`, 0.015° | Verdad |")
-    w("| Oleaje de viento | Open-Meteo, MeteoFrance MFWAM (`meteofrance_wave`), 0.08° | dirmarea.txt real (E1–E3, E5) |")
-    w("| Corriente superficial | Open-Meteo, MeteoFrance SMOC (`meteofrance_currents`), 0.08° | E4, E5 (experimental) |")
-    w("| Viento a 10 m | Open-Meteo histórico, ERA5 (`era5`), 0.25° | E5 (experimental) |")
+    w("| Ola de viento | Copernicus Marine, MFWAM: `cmems_mod_glo_wav_anfc_0.083deg_PT3H-i` (0.083°, desde nov 2022); "
+      "antes, reanálisis `cmems_mod_glo_wav_my_0.2deg_PT3H-i` (0.2°) | dirmarea.txt real (E1–E3, E5) |")
+    w("| Corriente superficial | Copernicus Marine, SMOC: `cmems_mod_glo_phy_anfc_merged-uv_PT1H-i` (0.083°, 1 h) "
+      "| E4 (total), E5 (sin Stokes) |")
+    w("| Viento a 10 m | Open-Meteo histórico, ERA5 (`era5`), 0.25° | E5 |")
+    w("")
+    w("*Generated using E.U. Copernicus Marine Service Information; https://doi.org/10.48670/moi-00017, https://doi.org/10.48670/moi-00022, https://doi.org/10.48670/moi-00016.*")
+    w("")
+    w("Qué fuente usó cada caso: columnas `fuente_oleaje`, `oleaje_resolucion_grados`, `fuente_corriente` y "
+      "`fuente_viento` de [`casos.csv`](validacion/casos.csv). Hasta la versión anterior de este módulo el oleaje y "
+      "la corriente venían de Open-Meteo, que cobra cada punto como una llamada; la validación quedó bloqueada por "
+      "su cuota diaria y se rehizo completa con Copernicus Marine, sin mezclar fuentes.")
     w("")
     w("La detección de Sentinel-3 OLCI (Debue et al., ESSD 2026) quedó como segunda opinión pendiente: ver fuentes.")
     w("")
@@ -321,18 +408,31 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
     w("")
     w("### Oleaje real en el formato de SEMAR")
     w("")
-    w("`scripts/generar_dirmarea.py` descarga la ola de viento de MFWAM (altura, dirección «desde») y escribe un "
-      "`dirmarea.txt` idéntico en formato al de SEMAR: misma malla de 94 × 51 nodos, mismas columnas LON;LAT "
-      "byte a byte, 41 bloques +0…+120 h, mismo relleno `-9.99e+08` en tierra. El validador del producto lo acepta "
-      "sin cambios. Open-Meteo cuenta cada punto como una llamada (10 000 al día gratis), así que se descarga un "
-      "nodo de cada dos (0.32°) y se interpola a 0.16°; los nodos fuera del recuadro del modelo quedan con relleno. "
-      "Para llegar a +7 días se encadenan dos archivos (fecha base t0 y t0 + 5 d), cada uno validado por el producto.")
+    w("`scripts/generar_dirmarea.py` toma la ola de viento de MFWAM de Copernicus Marine a su resolución nativa "
+      "(VHM0_WW, VMDR_WW «desde»), la interpola de forma bilineal a los nodos de 0.16° y escribe un `dirmarea.txt` "
+      "idéntico en formato al de SEMAR: misma malla de 94 × 51 nodos, mismas columnas LON;LAT byte a byte, 41 "
+      "bloques +0…+120 h, mismo relleno `-9.99e+08` en tierra (los nodos fuera del recuadro del modelo quedan con "
+      "relleno). El validador del producto lo acepta sin cambios. Para llegar a +7 días se encadenan dos archivos "
+      "(fecha base t0 y t0 + 5 d), cada uno validado por el producto. La corriente de SMOC se usa a su resolución "
+      "nativa (0.083°, horaria), sin pasar por la malla de 0.16°.")
     w("")
-    if razones:
-        w(f"**Período de la ola.** El producto supone T = 4.0·√H porque `dirmarea.txt` no trae período. Con el "
-          f"período real de MFWAM en {len(razones)} casos, la mediana de T_real / T_supuesto por caso va de "
-          f"{min(razones):.2f} a {max(razones):.2f} (mediana {np.median(razones):.2f}): el supuesto está cerca del "
-          "período de la ola de viento de MFWAM.")
+    if sp:
+        c_sup = [x["producto_entre_formula_T_supuesto_mediana"] for x in sp]
+        c_real = [x["producto_entre_formula_T_real_mediana"] for x in sp]
+        ang = [x["dif_direccion_mediana"] for x in sp]
+        w(f"**Período y deriva de Stokes, verificados con el producto de oleaje** ({len(sp)} casos, nodos del modelo "
+          "cada 3 h de t0 a t0 + 7 d; mediana por caso y, entre paréntesis, el rango entre casos):")
+        w("")
+        w(f"- T_real (VTM01_WW) / T_supuesto (4.0·√H): {np.median(razones):.2f} ({min(razones):.2f}–{max(razones):.2f}).")
+        w(f"- Deriva de Stokes del producto (VSDX, VSDY; espectro completo, con mar de fondo) / fórmula del modelo "
+          f"con T supuesto: {np.median(c_sup):.2f} ({min(c_sup):.2f}–{max(c_sup):.2f}); con el T real de la ola de "
+          f"viento: {np.median(c_real):.2f} ({min(c_real):.2f}–{max(c_real):.2f}).")
+        w(f"- Diferencia de dirección entre la deriva del producto y la del modelo: {np.median(ang):.0f}° "
+          f"({min(ang):.0f}°–{max(ang):.0f}°).")
+        w("")
+        w("Un cociente distinto de 1 dice cuánto se aleja la deriva del modelo (solo ola de viento, fórmula de aguas "
+          "profundas) de la que calcula el propio modelo de oleaje con todo el espectro; por caso en "
+          "[`casos.csv`](validacion/casos.csv).")
         w("")
     w("### Casos")
     w("")
@@ -366,17 +466,23 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
     w("| E0 | Nada: persistencia |")
     w(f"| E1 | Solo browniano (γ = 0, K_h = {cfg.KH_V03:g} m²/s) |")
     w(f"| E2 | PMS v0.3 tal cual: deriva de Stokes de la ola real (γ = 1, K_h = {cfg.KH_V03:g}) |")
-    w(f"| E3 | PMS con γ = {d.gamma:g} y K_h = {d.kh:g}, elegidos con los {n_cal} casos de calibración "
-      f"(rejilla γ ∈ {list(cfg.REJILLA_GAMMA)}, K_h ∈ {list(cfg.REJILLA_KH)}, máximo FSS {esc} km medio) |")
-    w("| E4 | Corriente superficial SMOC + browniano (experimental) |")
-    w("| E5 | Corriente + 1 %, 2 % o 3 % del viento a 10 m + ola (γ = 1) (experimental) |")
+    if d.gamma is None:
+        w(f"| E3 | **Pendiente**: γ y K_h se calibran solo cuando están los {d.extra['n_cal_sel']} casos de "
+          f"calibración (hay {len({f['caso'] for f in d.filas_calibracion})}) |")
+    else:
+        w(f"| E3 | PMS con γ = {d.gamma:g} y K_h = {d.kh:g}, elegidos con los {n_cal} casos de calibración "
+          f"(rejilla γ ∈ {list(cfg.REJILLA_GAMMA)}, K_h ∈ {list(cfg.REJILLA_KH)}, máximo FSS {esc} km medio) |")
+    w("| E4 | Corriente superficial total de SMOC (euleriana + marea + deriva de Stokes) + browniano (experimental) |")
+    w("| E5 | Corriente de SMOC sin Stokes (euleriana + marea) + 1 %, 2 % o 3 % del viento a 10 m + ola del modelo "
+      "(γ = 1) (experimental) |")
     w("")
-    w("**Ojo con E5**: según Open-Meteo, la corriente de SMOC ya es «Eulerian, Waves and Tides», es decir, incluye "
-      "la deriva de Stokes del oleaje; sumarle la ola cuenta esa deriva dos veces. Se corrió como se pidió y se "
-      "reporta con esa advertencia.")
+    w("SMOC entrega por separado la corriente euleriana (uo, vo), la marea (utide, vtide) y la deriva de Stokes "
+      "(vsdx, vsdy), y utotal = uo + utide + vsdx. Por eso E4 usa la corriente total y E5 la corriente sin Stokes: "
+      "en E5 la deriva por oleaje la pone la ola del modelo y no se cuenta dos veces.")
     w("")
-    w("![Calibración](validacion/figuras/calibracion.png)")
-    w("")
+    if d.gamma is not None:
+        w("![Calibración](validacion/figuras/calibracion.png)")
+        w("")
     w("### Métricas")
     w("")
     w(f"- **FSS** (Roberts & Lean, 2008) a {', '.join(f'{e} km' for e in cfg.ESCALAS_FSS_KM)} (ventanas de "
@@ -515,24 +621,28 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
       "sensores y en aguas someras hay falsos positivos (mitigados con la máscara de brillantes persistentes). Sin "
       "máscara de sombra de nube.")
     w("- **Resolución**: píxel de ~1.6 km (el sargazo forma filamentos de decenas de metros); malla del modelo de "
-      "0.16°; forzamientos descargados a 0.32° (ola y corriente) y 0.48° (viento) e interpolados.")
+      "0.16°; ola de Copernicus Marine a 0.083° (0.2° en el reanálisis antes de nov 2022) interpolada a 0.16° "
+      "para el `dirmarea.txt`; corriente a 0.083°; viento de Open-Meteo a 0.48° interpolado.")
     w("- **Ola sin período real en el producto**: el producto supone T = 4·√H; aquí se comparó con el período de "
       "MFWAM (ver arriba), pero el modelo sigue usando el supuesto.")
     w("- **Sin corrientes en el producto**: E4 y E5 son experimentos de este módulo, no del producto. La corriente de "
       "SMOC ya incluye la deriva por oleaje y la marea.")
-    w("- **Forzamientos «históricos» de Open-Meteo**: MFWAM y SMOC son archivos de pronósticos de corto plazo, no "
-      "reanálisis; ERA5 sí es reanálisis.")
+    w("- **Forzamientos de análisis y pronóstico**: MFWAM y SMOC de análisis/pronóstico son la mejor estimación "
+      "operativa de cada día, no un reanálisis; antes de nov 2022 la ola sale del reanálisis a 0.2°, más grueso.")
     w(f"- **Pocos casos**: {n_eval} de evaluación; los intervalos de confianza lo reflejan.")
     w("")
     w("## Cómo reproducir")
     w("")
     w("```powershell")
     w("python -m pip install -r requirements-validacion.txt")
+    w("copernicusmarine login            # solo la primera vez")
     w("python scripts/validar.py          # descarga a data/validacion/ (no se sube a git) y escribe docs/validacion/")
     w("```")
     w("")
-    w("Open-Meteo gratuito permite 10 000 llamadas al día y cada punto cuenta (~900 por caso): si se agota, el script "
-      "lo dice y al volver a correrlo sigue donde se quedó.")
+    w("Copernicus Marine pide cuenta gratuita: la primera vez se corre `copernicusmarine login` en la terminal y las "
+      "credenciales quedan en la carpeta del usuario, nunca en el repositorio. El viento de Open-Meteo usa ~170 "
+      "llamadas por caso de su cuota gratuita diaria; todo lo descargado queda en la caché y el script continúa "
+      "donde se quedó.")
     w("")
     return "\n".join(L)
 
@@ -600,7 +710,7 @@ def _html(d: Insumos, principal, v, figs_caso, hay_mcc, n_cal, n_eval, cos, mccr
 <p class="nota">Validación de PMS v{e(VERSION_APP)} ({e(VERSION_MODELO)}) contra el sargazo visto por satélite (AFAI de USF, NOAA AOML), 2022–2026. Generado el {e(d.generado)} por <code>scripts/validar.py</code>.</p>
 <p class="conclusion">{e(_conclusion(v, principal))}</p>
 <h2>FSS a {esc} km en {n_eval} casos de evaluación</h2>
-<p class="nota">1 = coincidencia perfecta; 0 = ninguna. IC 95 % por bootstrap de casos. Δ vs E0 = diferencia pareada contra suponer que el sargazo no se mueve. γ y K_h de E3 se eligieron con {n_cal} casos de calibración anteriores a 2025.</p>
+<p class="nota">1 = coincidencia perfecta; 0 = ninguna. IC 95 % por bootstrap de casos. Δ vs E0 = diferencia pareada contra suponer que el sargazo no se mueve. {"γ y K_h de E3 se eligieron con " + str(n_cal) + " casos de calibración anteriores a 2025." if d.gamma is not None else "E3 está pendiente: faltan casos de calibración."}</p>
 <div class="tabla"><table>
 <thead><tr><th>Experimento</th>{''.join(f'<th>+{k} días</th>' for k in cfg.HORIZONTES_D)}</tr></thead>
 <tbody>
@@ -614,8 +724,8 @@ def _html(d: Insumos, principal, v, figs_caso, hay_mcc, n_cal, n_eval, cos, mccr
 <h2>Cómo se hizo</h2>
 <figure><img src="figuras/inventario.png" alt="Inventario de imágenes y casos elegidos"></figure>
 <figure><img src="figuras/mascaras.png" alt="Máscaras de mar evaluado"></figure>
-<figure><img src="figuras/calibracion.png" alt="Calibración de gamma y K_h"></figure>
-<footer>Fuentes: AFAI de USF (C. Hu) vía NOAA AOML ERDDAP; oleaje MFWAM y corriente SMOC (Météo-France / Copernicus Marine) y viento ERA5 (ECMWF) vía Open-Meteo (CC BY 4.0). Método, limitaciones y todas las tablas: <code>docs/validacion.md</code> y <code>docs/validacion/</code> en el repositorio.</footer>
+{"<figure><img src='figuras/calibracion.png' alt='Calibración de gamma y K_h'></figure>" if d.gamma is not None else "<p class='nota'>E3 (calibración de γ y K_h) está pendiente: se calibra solo con todos los casos de calibración.</p>"}
+<footer>Fuentes: AFAI de USF (C. Hu) vía NOAA AOML ERDDAP; oleaje MFWAM y corriente SMOC de Copernicus Marine Service (Mercator Ocean International) — Generated using E.U. Copernicus Marine Service Information; https://doi.org/10.48670/moi-00017, https://doi.org/10.48670/moi-00022, https://doi.org/10.48670/moi-00016; viento ERA5 (ECMWF) vía Open-Meteo (CC BY 4.0). Método, limitaciones y todas las tablas: <code>docs/validacion.md</code> y <code>docs/validacion/</code> en el repositorio.</footer>
 </main>
 </body>
 </html>
@@ -630,7 +740,8 @@ def _actualizar_readme(principal, v, n_cal, n_eval, d: Insumos):
         f"**{_conclusion(v, principal)}**",
         "",
         f"FSS a {cfg.ESCALA_CALIBRACION_KM} km (1 = perfecto) en {n_eval} casos de evaluación 2025–2026 "
-        f"(γ y K_h de E3 calibrados con {n_cal} casos anteriores), media e IC 95 %:",
+        + (f"(γ y K_h de E3 calibrados con {n_cal} casos anteriores), media e IC 95 %:" if d.gamma is not None else
+           "(E3 pendiente: faltan casos de calibración), media e IC 95 %:"),
         "",
         rp.markdown_tabla(principal),
         "",
