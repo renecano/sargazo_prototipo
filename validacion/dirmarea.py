@@ -14,8 +14,9 @@ Formato (idéntico al archivo de SEMAR):
   decimales sin ceros a la derecha; `-9.99e+08` donde no hay dato.
 
 Qué nodos llevan dato: solo los nodos de mar del archivo de SEMAR dentro del recuadro del
-modelo (el resto queda con relleno: el modelo no los lee). Los valores salen de la submalla
-descargada de Open-Meteo, interpolada de forma bilineal (dirección por seno y coseno).
+modelo (el resto queda con relleno: el modelo no los lee). Los valores salen de la ola de
+viento de Copernicus Marine (MFWAM) a su resolución nativa, interpolada de forma bilineal a
+los nodos de 0.16° (dirección por seno y coseno).
 """
 from __future__ import annotations
 
@@ -153,31 +154,9 @@ def a_malla_fina(valores_nodos: np.ndarray, ii: np.ndarray, jj: np.ndarray, paso
     return tuple(salida)
 
 
-def horas_bloques() -> list[int]:
-    return list(range(0, HORIZONTE_H + 1, PASO_OLEAJE_H))
-
-
-def oleaje_en_malla(serie, ii, jj, paso, destino, fecha_base: date, horas: list[int] | None = None):
-    """Altura y dirección «desde» de la ola de viento en cada bloque, sobre la malla fina."""
-    horas = horas or horas_bloques()
-    base_dt = datetime(fecha_base.year, fecha_base.month, fecha_base.day, tzinfo=timezone.utc)
-    h_var, d_var = "wind_wave_height", "wind_wave_direction"
-    altura, direccion = [], []
-    for h in horas:
-        k = serie.indice_hora(base_dt + timedelta(hours=h))
-        a = serie.valores[h_var][k]
-        rad = np.radians(serie.valores[d_var][k])
-        ok = np.isfinite(a) & np.isfinite(rad)
-        vals = np.stack([np.where(ok, a, np.nan), np.where(ok, np.sin(rad), np.nan), np.where(ok, np.cos(rad), np.nan)])
-        fa, fs, fc = a_malla_fina(vals, ii, jj, paso, destino)
-        altura.append(fa)
-        direccion.append(np.mod(np.degrees(np.arctan2(fs, fc)), 360.0))
-    return np.array(altura), np.array(direccion)
-
-
 def nodos_descarga(base: Plantilla, paso: int, mar: np.ndarray | None = None):
-    """Nodos de mar de SEMAR en la submalla, en el recuadro del modelo más un margen de una
-    celda de submalla (para interpolar bien en los bordes del recuadro)."""
+    """Nodos de mar de SEMAR en una submalla (un nodo de cada `paso`), en el recuadro del modelo
+    más una celda de margen. Solo para el viento de Open-Meteo, que cobra cada punto."""
     from scipy import ndimage
 
     from validacion.openmeteo import submalla
@@ -186,26 +165,57 @@ def nodos_descarga(base: Plantilla, paso: int, mar: np.ndarray | None = None):
     return submalla(base.lons, base.lats, mar & zona, paso)
 
 
+def horas_bloques() -> list[int]:
+    return list(range(0, HORIZONTE_H + 1, PASO_OLEAJE_H))
+
+
+def oleaje_desde_rejilla(rej, destino: np.ndarray, fecha_base: date, base: Plantilla,
+                         horas: list[int] | None = None):
+    """Altura y dirección «desde» de la ola de viento de una rejilla de Copernicus Marine en los
+    nodos `destino` de la malla de dirmarea.txt, para cada bloque (+0…+120 h desde fecha_base).
+
+    Bilineal desde la resolución nativa (0.083° o 0.2°) ignorando nodos sin dato; la dirección
+    por seno y coseno, como el modelo."""
+    from validacion.copernicus import a_puntos
+    horas = horas or horas_bloques()
+    base_dt = datetime(fecha_base.year, fecha_base.month, fecha_base.day, tzinfo=timezone.utc)
+    di, dj = np.nonzero(destino)
+    x, y = base.lons[dj], base.lats[di]
+    altura = np.full((len(horas), NLAT, NLON), np.nan)
+    direccion = np.full((len(horas), NLAT, NLON), np.nan)
+    for b, h in enumerate(horas):
+        k = rej.indice(base_dt + timedelta(hours=h))
+        hs = rej.valores["VHM0_WW"][k]
+        rad = np.radians(rej.valores["VMDR_WW"][k])
+        ok = np.isfinite(hs) & np.isfinite(rad)
+        a, sn, cs = a_puntos([np.where(ok, hs, np.nan), np.where(ok, np.sin(rad), np.nan),
+                              np.where(ok, np.cos(rad), np.nan)], rej.lons, rej.lats, x, y)
+        altura[b, di, dj] = a
+        direccion[b, di, dj] = np.mod(np.degrees(np.arctan2(sn, cs)), 360.0)
+    return altura, direccion
+
+
 def generar(fecha_base: date, destino: Path, cache: Path | None = None, registrar=print,
-            serie=None) -> tuple[Path, dict]:
-    """Descarga (o lee de la caché) el oleaje de viento real de MFWAM y escribe
+            rejilla=None) -> tuple[Path, dict]:
+    """Descarga (o lee de la caché) la ola de viento de Copernicus Marine y escribe
     destino/dirmarea.txt con la fecha base `fecha_base` 00 UTC y bloques +0…+120 h."""
     from validacion import config as cfg
-    from validacion.openmeteo import OLEAJE, descargar_serie
+    from validacion import copernicus
     base = plantilla()
     mar = mascara_semar(base)
-    ii, jj, lons, lats = nodos_descarga(base, OLEAJE.paso, mar)
-    if serie is None:
-        hasta = fecha_base + timedelta(days=HORIZONTE_H // 24)
-        serie = descargar_serie(OLEAJE, lons, lats, fecha_base, hasta, cache or cfg.DIR_CACHE, registrar)
+    if rejilla is None:
+        desde = datetime(fecha_base.year, fecha_base.month, fecha_base.day, tzinfo=timezone.utc)
+        hasta = desde + timedelta(hours=HORIZONTE_H)
+        ds = copernicus.elegir_oleaje(desde, hasta, cache or cfg.DIR_CACHE)
+        rejilla = copernicus.descargar(ds, copernicus.VARS_OLEAJE, desde, hasta, cache or cfg.DIR_CACHE, registrar)
     destino_nodos = mar & recuadro_modelo(base)
-    altura, direccion = oleaje_en_malla(serie, ii, jj, OLEAJE.paso, destino_nodos, fecha_base)
+    altura, direccion = oleaje_desde_rejilla(rejilla, destino_nodos, fecha_base, base)
     ruta = escribir(Path(destino) / "dirmarea.txt", fecha_base, horas_bloques(), altura, direccion, base)
     resumen = {
         "fecha_base_utc": f"{fecha_base.isoformat()}T00:00Z",
-        "fuente": f"Open-Meteo, modelo {serie.modelo} (MeteoFrance MFWAM), ola de viento",
-        "puntos_descargados": int(lons.size), "paso_submalla": OLEAJE.paso,
+        "fuente": f"Copernicus Marine, dataset {rejilla.dataset} (ola de viento VHM0_WW, VMDR_WW)",
+        "resolucion_nativa_grados": round(rejilla.resolucion, 4),
         "nodos_con_dato": int(np.isfinite(altura[0]).sum()), "nodos_mar_semar_en_recuadro": int(destino_nodos.sum()),
-        "descargado_utc": serie.descargado,
+        "descargado_utc": rejilla.descargado,
     }
     return ruta, resumen

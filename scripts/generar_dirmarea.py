@@ -1,9 +1,9 @@
-"""Genera un dirmarea.txt con el oleaje de viento REAL de una fecha (Open-Meteo / MFWAM).
+"""Genera un dirmarea.txt con la ola de viento REAL de una fecha (Copernicus Marine / MFWAM).
 
 Mismo formato que el archivo de SEMAR (ver validacion/dirmarea.py), de modo que el
 validador y el modelo del producto lo leen sin cambios.
 
-Uso (PowerShell):
+Uso (PowerShell; la primera vez, `copernicusmarine login` para guardar la cuenta fuera del repo):
     python scripts/generar_dirmarea.py --fecha 2026-10-01 --destino data/validacion/dirmarea_2026-10-01
     python main.py --datos data/validacion/dirmarea_2026-10-01      # la app con ese oleaje
 """

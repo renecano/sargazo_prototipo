@@ -1,20 +1,13 @@
-"""Forzamientos reales desde Open-Meteo (sin llave, uso no comercial, CC BY 4.0).
+"""Viento a 10 m desde Open-Meteo (sin llave, uso no comercial, CC BY 4.0) para el experimento E5.
 
-- Oleaje de viento: MeteoFrance MFWAM (`models=meteofrance_wave`, 0.08°, desde oct 2021):
-  wind_wave_height, wind_wave_direction (DESDE donde viene, como dirolavto) y
-  wind_wave_period.
-- Corriente superficial: MeteoFrance SMOC (`models=meteofrance_currents`, 0.08°, desde
-  ene 2022): ocean_current_velocity y ocean_current_direction (HACIA donde va). Según la
-  documentación de Open-Meteo es la corriente "Eulerian, Waves and Tides": ya incluye la
-  deriva de Stokes del oleaje y la marea.
-- Viento a 10 m: ERA5 (`archive-api`, `models=era5`, 0.25°): wind_speed_10m y
-  wind_direction_10m (DESDE donde sopla).
-
-Open-Meteo cuenta cada punto de una petición como una llamada (verificado: dos peticiones
-de 700 y 1 295 puntos en el mismo minuto dan HTTP 429) y el uso gratuito permite 600 por
-minuto, 5 000 por hora y 10 000 por día. Por eso los forzamientos se piden en una
-submalla de la malla de 0.16° de dirmarea.txt (un nodo de cada `paso`) y luego se
-interpolan; cada descarga se guarda en la caché y no se vuelve a pedir.
+ERA5 (`archive-api`, `models=era5`, 0.25°): wind_speed_10m y wind_direction_10m (DESDE donde
+sopla). El oleaje y la corriente vienen de Copernicus Marine (validacion/copernicus.py); hasta la
+versión anterior de este módulo también salían de Open-Meteo (MFWAM y SMOC), pero Open-Meteo
+cuenta cada punto como una llamada (verificado: dos peticiones de 700 y 1 295 puntos en el mismo
+minuto dan HTTP 429) y el uso gratuito permite 600 por minuto, 5 000 por hora y 10 000 por día: la
+validación quedó bloqueada por esa cuota. El viento se sigue pidiendo aquí porque son pocos
+puntos: una submalla de la malla de 0.16° de dirmarea.txt (un nodo de cada 3), interpolada
+después; cada descarga se guarda en la caché y no se vuelve a pedir.
 """
 from __future__ import annotations
 
@@ -31,7 +24,6 @@ import numpy as np
 
 from validacion import config as cfg
 
-MARINA = "https://marine-api.open-meteo.com/v1/marine"
 HISTORICO = "https://archive-api.open-meteo.com/v1/archive"
 MAX_PUNTOS_PETICION = 500
 MAX_PUNTOS_MINUTO = 550
@@ -47,13 +39,9 @@ class Grupo:
     extra: tuple = ()
 
 
-OLEAJE = Grupo("oleaje", MARINA, "meteofrance_wave",
-               ("wind_wave_height", "wind_wave_direction", "wind_wave_period"), 2)
-CORRIENTE = Grupo("corriente", MARINA, "meteofrance_currents",
-                  ("ocean_current_velocity", "ocean_current_direction"), 2)
 VIENTO = Grupo("viento", HISTORICO, "era5", ("wind_speed_10m", "wind_direction_10m"), 3,
                (("wind_speed_unit", "ms"),))
-GRUPOS = {g.nombre: g for g in (OLEAJE, CORRIENTE, VIENTO)}
+GRUPOS = {g.nombre: g for g in (VIENTO,)}
 
 # Conversión a unidades SI según las unidades que declara la respuesta.
 A_SI = {"m": 1.0, "s": 1.0, "°": 1.0, "m/s": 1.0, "km/h": 1 / 3.6, "kn": 0.514444}

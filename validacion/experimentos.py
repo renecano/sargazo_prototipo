@@ -4,8 +4,9 @@
   E1  Solo browniano: γ = 0, K_h = 10 m²/s.
   E2  PMS v0.3 tal cual: γ = 1, K_h = 10 m²/s, ola de dirmarea.txt real.
   E3  PMS con γ y K_h calibrados SOLO con los casos de calibración.
-  E4  Experimental: corriente superficial (SMOC) + browniano.
-  E5  Experimental: corriente + α·viento a 10 m (α = 1, 2 y 3 %) + ola (γ = 1).
+  E4  Experimental: corriente superficial total de SMOC (euleriana + marea + Stokes) + browniano.
+  E5  Experimental: corriente de SMOC sin Stokes (euleriana + marea) + α·viento a 10 m
+      (α = 1, 2 y 3 %) + ola del modelo (γ = 1): la deriva por oleaje se cuenta una sola vez.
 
 Todos usan las mismas partículas iniciales (sembradas en proporción a los píxeles con
 sargazo en t0), la misma semilla y el mismo integrador del producto (src.model.simulacion.integrar).
@@ -26,17 +27,17 @@ from src.model.campos import CamposOleaje
 from src.model.simulacion import A_FLOTE, VARADA, integrar
 from validacion import afai, metricas
 from validacion import config as cfg
-from validacion.campos import CamposEncadenados, CamposSuma, utc, vectoriales_desde_serie
+from validacion import copernicus
+from validacion.campos import CamposEncadenados, CamposSuma, CamposVectoriales, utc, vectoriales_desde_serie
 from validacion.dirmarea import (
-    escribir, horas_bloques, mascara_semar, nodos_descarga, oleaje_en_malla, plantilla, recuadro_modelo,
+    escribir, horas_bloques, mascara_semar, nodos_descarga, oleaje_desde_rejilla, plantilla, recuadro_modelo,
 )
-from validacion.openmeteo import CORRIENTE, OLEAJE, VIENTO, CuotaAgotada, descargar_serie
+from validacion.openmeteo import VIENTO, CuotaAgotada, descargar_serie
 
 DOMINIO = (LON_MIN, LON_MAX, LAT_MIN, LAT_MAX)
 HORAS = 24 * max(cfg.HORIZONTES_D)
-# Se descarga t0 … t0 + 10 días (11 días, una sola "llamada" por punto en Open-Meteo): el segundo
-# dirmarea.txt (fecha base t0 + 5 d) necesita sus 120 h completas aunque la simulación termine
-# en t0 + 7 d 18 UTC.
+# Se descarga t0 … t0 + 10 días: el segundo dirmarea.txt (fecha base t0 + 5 d) necesita sus
+# 120 h completas aunque la simulación termine en t0 + 7 d 18 UTC.
 DIAS_DESCARGA = 10
 MIN_PIXELES_COSTA = 3                              # evento de costa: ≥ 3 píxeles (o su equivalente simulado)
 MIN_OBSERVABLE_COSTA = 0.30                        # tramo evaluable si ≥ 30 % de su banda está despejada
@@ -53,16 +54,20 @@ class Experimento:
     mover: bool = True
 
 
-def experimentos(gamma_cal: float, kh_cal: float) -> list[Experimento]:
+def experimentos(gamma_cal: float | None, kh_cal: float | None) -> list[Experimento]:
+    """Lista de experimentos. Sin calibración completa (gamma_cal None) E3 queda pendiente y no
+    se corre: nunca se usan parámetros de una calibración parcial."""
     lista = [
         Experimento("E0", "Persistencia", mover=False),
         Experimento("E1", "Solo browniano", gamma=0.0),
         Experimento("E2", "PMS v0.3 (γ = 1, K_h = 10)", gamma=cfg.GAMMA_V03, kh=cfg.KH_V03),
-        Experimento("E3", f"PMS calibrado (γ = {gamma_cal:g}, K_h = {kh_cal:g})", gamma=gamma_cal, kh=kh_cal),
-        Experimento("E4", "Corriente + browniano", corriente=1.0),
     ]
+    if gamma_cal is not None:
+        lista.append(Experimento("E3", f"PMS calibrado (γ = {gamma_cal:g}, K_h = {kh_cal:g})",
+                                 gamma=gamma_cal, kh=kh_cal))
+    lista.append(Experimento("E4", "Corriente SMOC total + browniano", corriente=1.0))
     for a in cfg.FACTORES_VIENTO:
-        lista.append(Experimento(f"E5-{a * 100:.0f}", f"Corriente + viento {a * 100:.0f} % + ola",
+        lista.append(Experimento(f"E5-{a * 100:.0f}", f"Corriente sin Stokes + viento {a * 100:.0f} % + ola",
                                  gamma=1.0, corriente=1.0, viento=a))
     return lista
 
@@ -72,28 +77,75 @@ def experimentos(gamma_cal: float, kh_cal: float) -> list[Experimento]:
 # ---------------------------------------------------------------------------
 @dataclass
 class Forzamientos:
-    oleaje: CamposEncadenados
-    corriente: object | None
+    oleaje: object                        # CamposEncadenados de dos dirmarea.txt (o el de SEMAR)
+    corriente_total: object | None        # SMOC utotal/vtotal: euleriana + marea + Stokes (E4)
+    corriente_sin_stokes: object | None   # SMOC uo + utide (E5: la ola va aparte)
     viento: object | None
     resumen: dict
     con_extra: bool = True
 
+    @property
+    def corriente(self):
+        return self.corriente_total
+
+
+def _campos_rejilla(rej, u: np.ndarray, v: np.ndarray, inicio) -> CamposVectoriales:
+    """(u, v) [tiempo, lat, lon] de una rejilla de Copernicus como campos del integrador, a su
+    resolución nativa, con el tiempo en horas desde `inicio`."""
+    horas = np.array([(t - inicio).total_seconds() / 3600.0 for t in rej.tiempos])
+    return CamposVectoriales(float(rej.lons[0]), float(rej.lats[0]), float(rej.lons[1] - rej.lons[0]),
+                             float(rej.lats[1] - rej.lats[0]), horas, u.astype(np.float64), v.astype(np.float64))
+
+
+def _verificar_stokes(rej, destino, base, desde) -> dict:
+    """Compara la deriva de Stokes del producto de oleaje (VSDX/VSDY, espectro completo) con la
+    fórmula del modelo (ola de viento con T supuesto = 4·√H y con el T real VTM01_WW) en los
+    nodos del modelo, cada 3 h de t0 a t0 + 7 d."""
+    from src.config import COEF_PERIODO, COEF_STOKES, GRAVEDAD
+    di, dj = np.nonzero(destino)
+    x, y = base.lons[dj], base.lats[di]
+    cocientes, cocientes_t, angulos, periodos = [], [], [], []
+    for k, t in enumerate(rej.tiempos):
+        if t > desde + timedelta(days=max(cfg.HORIZONTES_D)):
+            break
+        h, d, tm, sx, sy = copernicus.a_puntos(
+            [rej.valores[v][k] for v in ("VHM0_WW", "VMDR_WW", "VTM01_WW", "VSDX", "VSDY")], rej.lons, rej.lats, x, y)
+        ok = np.isfinite(h) & np.isfinite(sx) & np.isfinite(tm) & (h > 0.1) & (tm > 0.5)
+        if not ok.any():
+            continue
+        producto = np.hypot(sx[ok], sy[ok])
+        cocientes.append(producto / (COEF_STOKES * np.sqrt(h[ok])))
+        cocientes_t.append(producto / (2 * np.pi ** 3 * h[ok] ** 2 / (GRAVEDAD * tm[ok] ** 3)))
+        periodos.append(tm[ok] / (COEF_PERIODO * np.sqrt(h[ok])))
+        # Dirección de la deriva del producto vs. la del modelo (hacia donde va la ola de viento).
+        hacia = np.radians(d[ok] + 180.0)
+        dif = np.degrees(np.arctan2(sx[ok], sy[ok]) - np.arctan2(np.sin(hacia), np.cos(hacia)))
+        angulos.append(np.abs((dif + 180) % 360 - 180))
+    if not cocientes:
+        return {}
+    c, ct, a, pr = (np.concatenate(z) for z in (cocientes, cocientes_t, angulos, periodos))
+    return {"producto_entre_formula_T_supuesto_mediana": round(float(np.median(c)), 3),
+            "producto_entre_formula_T_real_mediana": round(float(np.median(ct)), 3),
+            "dif_direccion_mediana": round(float(np.median(a)), 1),
+            "T_real_entre_T_supuesto_mediana": round(float(np.median(pr)), 3)}
+
 
 def preparar_forzamientos(caso, cache: Path = cfg.DIR_CACHE, registrar=print, con_extra: bool = True) -> Forzamientos:
-    """Oleaje real en dos dirmarea.txt encadenados (validados por el producto) y, si se pide,
-    corriente y viento. Si Open-Meteo agota la cuota, los extras quedan en None."""
+    """Ola de viento real de Copernicus Marine escrita en dos dirmarea.txt encadenados (validados
+    por el producto) y, si se pide, corriente SMOC (Copernicus Marine) y viento ERA5 (Open-Meteo)."""
     base = plantilla()
     mar = mascara_semar(base)
-    desde = caso.t0
-    hasta = caso.t0 + timedelta(days=DIAS_DESCARGA)
-    ii, jj, lons, lats = nodos_descarga(base, OLEAJE.paso, mar)
-    serie = descargar_serie(OLEAJE, lons, lats, desde, hasta, cache, registrar)
     destino = mar & recuadro_modelo(base)
+    desde = utc(caso.t0)
+    hasta = utc(caso.t0 + timedelta(days=DIAS_DESCARGA))
+    ds_ola = copernicus.elegir_oleaje(desde, hasta, cache)
+    rej = copernicus.descargar(ds_ola, copernicus.VARS_OLEAJE, desde, hasta, cache, registrar)
     dir_caso = cache / "casos" / caso.id
-    tramos, resumen = [], {"oleaje": {}}
-    for k, inicio_d in enumerate((0, 5)):
+    tramos = []
+    resumen = {"fuentes": {"oleaje": ds_ola, "oleaje_resolucion_grados": round(rej.resolucion, 4)}, "oleaje": {}}
+    for inicio_d in (0, 5):
         fecha_base = caso.t0 + timedelta(days=inicio_d)
-        alt, direc = oleaje_en_malla(serie, ii, jj, OLEAJE.paso, destino, fecha_base)
+        alt, direc = oleaje_desde_rejilla(rej, destino, fecha_base, base)
         carpeta = dir_caso / f"dirmarea_{fecha_base.isoformat()}"
         escribir(carpeta / "dirmarea.txt", fecha_base, horas_bloques(), alt, direc, base)
         reporte, conjunto = validar_conjunto(carpeta)
@@ -103,55 +155,60 @@ def preparar_forzamientos(caso, cache: Path = cfg.DIR_CACHE, registrar=print, co
         tramos.append((24.0 * inicio_d, CamposOleaje(conjunto)))
         resumen["oleaje"][fecha_base.isoformat()] = {
             "altura_media_m": round(float(np.nanmean(alt)), 3), "altura_max_m": round(float(np.nanmax(alt)), 3)}
-    # Período real vs. el supuesto del producto (T = 4·√H) en los nodos descargados, t0 … t0 + 7 d.
-    h = serie.valores["wind_wave_height"][: 24 * 8]
-    t = serie.valores["wind_wave_period"][: 24 * 8]
-    ok = np.isfinite(h) & np.isfinite(t) & (h > 0.05)
-    resumen["periodo"] = {
-        "real_medio_s": round(float(t[ok].mean()), 2) if ok.any() else None,
-        "supuesto_medio_s": round(float((4.0 * np.sqrt(h[ok])).mean()), 2) if ok.any() else None,
-        "real_entre_supuesto_mediana": round(float(np.median(t[ok] / (4.0 * np.sqrt(h[ok])))), 3) if ok.any() else None,
-    }
+    resumen["stokes_y_periodo"] = _verificar_stokes(rej, destino, base, desde)
     oleaje = CamposEncadenados(tramos)
+    del rej
 
-    corriente = viento = None
+    total = sin_stokes = viento = None
     if con_extra:
-        zona = destino
-        for grupo, conv in ((CORRIENTE, "hacia"), (VIENTO, "desde")):
-            try:
-                gi, gj, glon, glat = nodos_descarga(base, grupo.paso, mar)
-                # El histórico de ERA5 tiene unos días de retraso: no se piden fechas futuras.
-                fin = min(hasta, date.today() - timedelta(days=1)) if grupo is VIENTO else hasta
-                if fin < caso.t0 + timedelta(days=8):
-                    resumen[grupo.nombre] = f"sin datos: ERA5 aún no cubre hasta {caso.t0 + timedelta(days=8)}"
-                    continue
-                s = descargar_serie(grupo, glon, glat, desde, fin, cache, registrar)
-                vel = s.valores[list(s.valores)[0]][: 24 * DIAS_DESCARGA]
-                if not np.isfinite(vel).any() or np.isnan(vel[: 24 * 8]).all(axis=1).any():
-                    resumen[grupo.nombre] = "sin datos para todo el periodo"
-                    continue
-                campos = vectoriales_desde_serie(s, gi, gj, grupo.paso, zona, base.lons, base.lats,
-                                                 utc(caso.t0), 24 * 8 - 1, conv)
-                velocidad = np.hypot(campos.u, campos.v)
-                resumen[grupo.nombre] = {"media_ms": round(float(np.nanmean(velocidad)), 3),
-                                         "p95_ms": round(float(np.nanpercentile(velocidad, 95)), 3)}
-                if grupo is CORRIENTE:
-                    corriente = campos
+        try:
+            ds_cor = copernicus.elegir_corriente(desde, hasta, cache)
+            rc = copernicus.descargar(ds_cor, copernicus.VARS_CORRIENTE, desde, hasta, cache, registrar)
+            total = _campos_rejilla(rc, rc.valores["utotal"], rc.valores["vtotal"], desde)
+            sin_stokes = _campos_rejilla(rc, rc.valores["uo"] + rc.valores["utide"],
+                                         rc.valores["vo"] + rc.valores["vtide"], desde)
+            rapidez = np.hypot(rc.valores["utotal"], rc.valores["vtotal"])
+            resumen["fuentes"]["corriente"] = ds_cor
+            resumen["corriente"] = {"media_ms": round(float(np.nanmean(rapidez)), 3),
+                                    "p95_ms": round(float(np.nanpercentile(rapidez, 95)), 3)}
+            del rc, rapidez
+        except copernicus.SinCobertura as e:
+            resumen["corriente"] = f"sin datos: {e}"
+        try:
+            gi, gj, glon, glat = nodos_descarga(base, VIENTO.paso, mar)
+            # El histórico de ERA5 tiene unos días de retraso: no se piden fechas futuras.
+            fin = min(caso.t0 + timedelta(days=DIAS_DESCARGA), date.today() - timedelta(days=1))
+            if fin < caso.t0 + timedelta(days=8):
+                resumen["viento"] = f"sin datos: ERA5 aún no cubre hasta {caso.t0 + timedelta(days=8)}"
+            else:
+                sv = descargar_serie(VIENTO, glon, glat, caso.t0, fin, cache, registrar)
+                if np.isnan(sv.valores["wind_speed_10m"][: 24 * 8]).all(axis=1).any():
+                    resumen["viento"] = "sin datos para todo el periodo"
                 else:
-                    viento = campos
-            except CuotaAgotada as e:
-                resumen[grupo.nombre] = f"no descargado: {e}"
-                registrar(f"  {caso.id}: {e}")
-    return Forzamientos(oleaje, corriente, viento, resumen, con_extra)
+                    viento = vectoriales_desde_serie(sv, gi, gj, VIENTO.paso, destino, base.lons, base.lats,
+                                                     desde, 24 * 8 - 1, "desde")
+                    resumen["fuentes"]["viento"] = "Open-Meteo era5"
+                    r = np.hypot(viento.u, viento.v)
+                    resumen["viento"] = {"media_ms": round(float(np.nanmean(r)), 3),
+                                         "p95_ms": round(float(np.nanpercentile(r, 95)), 3)}
+        except CuotaAgotada as e:
+            resumen["viento"] = f"no descargado: {e}"
+            registrar(f"  {caso.id}: {e}")
+    return Forzamientos(oleaje, total, sin_stokes, viento, resumen, con_extra)
 
 
 def campos_de(exp: Experimento, f: Forzamientos):
-    """Campos (u, v) del experimento y el γ con el que los multiplica el integrador."""
+    """Campos (u, v) del experimento y el γ con el que los multiplica el integrador.
+
+    E4 usa la corriente total de SMOC (ya trae Stokes y marea). E5 usa la corriente sin Stokes
+    (euleriana + marea) más el viento y la ola del modelo, para no contar la deriva por oleaje
+    dos veces."""
     if exp.corriente == 0 and exp.viento == 0:
         return f.oleaje, exp.gamma
-    if f.corriente is None or (exp.viento and f.viento is None):
+    corriente = f.corriente_sin_stokes if exp.viento else f.corriente_total
+    if corriente is None or (exp.viento and f.viento is None):
         return None, None
-    comp = [(exp.corriente, f.corriente)]
+    comp = [(exp.corriente, corriente)]
     if exp.viento:
         comp.append((exp.viento, f.viento))
     if exp.gamma:

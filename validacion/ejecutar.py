@@ -90,11 +90,27 @@ def elegir_calibracion(filas: list[dict]) -> tuple[float, float, list[dict]]:
     return mejor["gamma"], mejor["kh"], tabla
 
 
+def calibracion_completa(cal, cache: Path = cfg.DIR_CACHE):
+    """(γ, K_h, tabla, filas, faltantes). E3 solo se calibra con TODOS los casos de calibración:
+    si falta alguno, γ y K_h son None (E3 pendiente) y no se reporta una calibración parcial."""
+    filas, faltan = [], []
+    for c in cal:
+        ruta = cache / "casos" / c.id / "calibracion.json"
+        if ruta.is_file():
+            filas += json.loads(ruta.read_text(encoding="utf-8"))
+        else:
+            faltan.append(c.id)
+    if faltan or not cal:
+        return None, None, [], filas, faltan
+    gamma, kh, tabla = elegir_calibracion(filas)
+    return gamma, kh, tabla, filas, []
+
+
 # ---------------------------------------------------------------------------
 # Experimentos de un caso
 # ---------------------------------------------------------------------------
 def _disponibles(forz) -> dict:
-    return {"oleaje": True, "corriente": forz.corriente is not None, "viento": forz.viento is not None}
+    return {"oleaje": True, "corriente": forz.corriente_total is not None, "viento": forz.viento is not None}
 
 
 def procesar_caso(caso, ctx: Contexto, det, archivo_afai, forz, lista: list[Experimento], cache: Path,
@@ -153,7 +169,7 @@ def procesar_caso(caso, ctx: Contexto, det, archivo_afai, forz, lista: list[Expe
         "caso": {**caso.fila()},
         "experimentos": firma,
         "forzamientos": forz.resumen,
-        "forzamientos_completos": forz.corriente is not None and forz.viento is not None,
+        "forzamientos_completos": forz.corriente_total is not None and forz.viento is not None,
         "disponibles": _disponibles(forz),
         "particulas": int(siembra.lon.size), "pixeles_t0": siembra.pixeles,
         "filas": filas, "costa": filas_costa, "mcc": filas_mcc,
@@ -169,28 +185,36 @@ def procesar_caso(caso, ctx: Contexto, det, archivo_afai, forz, lista: list[Expe
 
 
 def comparar_semar(cache: Path, registrar) -> dict:
-    """¿Coincide el dirmarea.txt de SEMAR con el oleaje real (MFWAM) del 01/10/2026?"""
+    """¿Coincide el dirmarea.txt de SEMAR con la ola de viento real (Copernicus Marine, MFWAM) del
+    01/10/2026? Se compara en los nodos de mar del archivo de SEMAR dentro del recuadro del modelo."""
     from src.config import DIR_SEMAR
-    from validacion.dirmarea import mascara_semar, nodos_descarga, plantilla, recuadro_modelo
-    from validacion.openmeteo import OLEAJE, descargar_serie
     from src.ingestion.validador import validar_conjunto
     from src.model.campos import CamposOleaje
+    from validacion import copernicus
+    from validacion.dirmarea import mascara_semar, plantilla, recuadro_modelo
     base = plantilla()
-    mar = mascara_semar(base)
-    ii, jj, lons, lats = nodos_descarga(base, OLEAJE.paso, mar)
+    destino = mascara_semar(base) & recuadro_modelo(base)
+    di, dj = np.nonzero(destino)
+    lons, lats = base.lons[dj], base.lats[di]
     f = cfg.FECHA_DIRMAREA_SEMAR
-    serie = descargar_serie(OLEAJE, lons, lats, f, f + timedelta(days=experimentos.DIAS_DESCARGA), cache, registrar)
+    desde = experimentos.utc(f)
+    hasta = experimentos.utc(f + timedelta(days=experimentos.DIAS_DESCARGA))
+    ds = copernicus.elegir_oleaje(desde, hasta, cache)
+    rej = copernicus.descargar(ds, copernicus.VARS_OLEAJE, desde, hasta, cache, registrar)
     _, conj = validar_conjunto(DIR_SEMAR)
     semar = CamposOleaje(conj)
-    dentro = recuadro_modelo(base)[ii, jj]
     filas = []
     for h in (0, 24, 48, 72, 96, 120):
-        k = serie.tiempos.index(experimentos.utc(f) + timedelta(hours=h))
-        hs, ds = semar.ola(lons[dentro], lats[dentro], h)
-        hr = serie.valores["wind_wave_height"][k][dentro]
-        dr = serie.valores["wind_wave_direction"][k][dentro]
+        k = rej.indice(desde + timedelta(hours=h))
+        hs, ds_semar = semar.ola(lons, lats, h)
+        hr, dr = copernicus.a_puntos([rej.valores["VHM0_WW"][k], rej.valores["VMDR_WW"][k]], rej.lons, rej.lats,
+                                     lons, lats)
         ok = np.isfinite(hs) & np.isfinite(hr) & np.isfinite(dr)
-        dif_dir = np.abs((ds[ok] - dr[ok] + 180) % 360 - 180)
+        dif_dir = np.abs((ds_semar[ok] - dr[ok] + 180) % 360 - 180)
+
+        def media_circular(g):
+            r = np.radians(g)
+            return float(np.degrees(np.arctan2(np.sin(r).mean(), np.cos(r).mean())) % 360)
         filas.append({"hora": h, "nodos": int(ok.sum()),
                       "altura_semar_media_m": float(hs[ok].mean()), "altura_real_media_m": float(hr[ok].mean()),
                       "sesgo_altura_m": float((hs[ok] - hr[ok]).mean()),
@@ -198,11 +222,9 @@ def comparar_semar(cache: Path, registrar) -> dict:
                       "correlacion_altura": float(np.corrcoef(hs[ok], hr[ok])[0, 1]) if ok.sum() > 2 else float("nan"),
                       "dif_direccion_mediana": float(np.median(dif_dir)),
                       "dif_direccion_p90": float(np.percentile(dif_dir, 90)),
-                      "direccion_semar_media": float(np.degrees(np.arctan2(np.sin(np.radians(ds[ok])).mean(),
-                                                                            np.cos(np.radians(ds[ok])).mean())) % 360),
-                      "direccion_real_media": float(np.degrees(np.arctan2(np.sin(np.radians(dr[ok])).mean(),
-                                                                           np.cos(np.radians(dr[ok])).mean())) % 360)})
-    return {"fecha": f.isoformat(), "fuente_real": "Open-Meteo meteofrance_wave (MFWAM), ola de viento",
+                      "direccion_semar_media": media_circular(ds_semar[ok]),
+                      "direccion_real_media": media_circular(dr[ok])})
+    return {"fecha": f.isoformat(), "fuente_real": f"Copernicus Marine {ds} (MFWAM), ola de viento VHM0_WW/VMDR_WW",
             "comparacion": filas}
 
 

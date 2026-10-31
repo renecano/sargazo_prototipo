@@ -1,7 +1,7 @@
 # Fuentes de la validación (v0.4.0)
 
 Todas se verificaron consultándolas directamente el **31/10/2026** (metadatos, ejes de tiempo y una
-descarga de prueba). Ninguna pide llave. Las descargas completas viven en la caché local
+descarga de prueba). Solo Copernicus Marine pide cuenta (gratuita); sus credenciales nunca entran al repositorio. Las descargas completas viven en la caché local
 `data/validacion/` (fuera de git y de Vercel); en el repositorio solo quedan los recortes pequeños de
 `tests/fixtures/` y los resultados de `docs/validacion/`, cada uno con su fuente.
 
@@ -72,40 +72,64 @@ puede combinar sensores (sus palabras clave mencionan MODIS y VIIRS) con horas d
 se corrió la validación, así que no hay comparación con OLCI. Queda como siguiente paso; el código de
 métricas no depende del sensor.
 
-## c) Oleaje real: Open-Meteo Marine API
+## c) Oleaje y corriente reales: Copernicus Marine Service
+
+Origen de MFWAM y SMOC, sin cuota por punto y a resolución completa. Se accede con el toolbox
+oficial **`copernicusmarine` 2.5.0** (Python API `open_dataset` sobre los servicios ARCO; está en
+`requirements-validacion.txt`). Requiere una cuenta gratuita: la primera vez se corre
+`copernicusmarine login` en la terminal y el toolbox guarda las credenciales en la carpeta del usuario
+(`~/.copernicusmarine/`), **nunca en el repositorio ni en los logs**. IDs, cobertura y variables se
+verificaron con `copernicusmarine describe` el **31/10/2026**; la cobertura se vuelve a consultar en cada
+corrida (`validacion/copernicus.py`, caché en `data/validacion/copernicus/catalogo.json`).
+
+| | Ola de viento (análisis y pronóstico) | Ola de viento (reanálisis) | Corriente SMOC |
+|---|---|---|---|
+| Producto | GLOBAL_ANALYSISFORECAST_WAV_001_027, «Global Ocean Waves Analysis and Forecast» | GLOBAL_MULTIYEAR_WAV_001_032, «Global Ocean Waves Reanalysis» | GLOBAL_ANALYSISFORECAST_PHY_001_024, «Global Ocean Physics Analysis and Forecast» |
+| DOI | [10.48670/moi-00017](https://doi.org/10.48670/moi-00017) | [10.48670/moi-00022](https://doi.org/10.48670/moi-00022) | [10.48670/moi-00016](https://doi.org/10.48670/moi-00016) |
+| Dataset | `cmems_mod_glo_wav_anfc_0.083deg_PT3H-i` (versión 202411) | `cmems_mod_glo_wav_my_0.2deg_PT3H-i` (versión 202411) | `cmems_mod_glo_phy_anfc_merged-uv_PT1H-i` (versión 202211) |
+| Cobertura (31/10/2026) | 01/11/2022 03:00 → 10/11/2026 00:00 UTC | 01/01/1980 → 31/08/2026 21:00 UTC | 01/11/2020 → 09/11/2026 23:00 UTC |
+| Resolución | 0.083° (1/12°), cada 3 h | 0.2°, cada 3 h | 0.083° (1/12°), cada hora, superficie (0.49 m) |
+| Variables usadas | `VHM0_WW` (altura de la ola de viento, m), `VMDR_WW` (dirección media DESDE la que viene, °), `VTM01_WW` (período medio, s), `VSDX`/`VSDY` (deriva de Stokes del espectro completo, m/s) | las mismas | `uo`/`vo` (euleriana), `utide`/`vtide` (marea), `utotal`/`vtotal` (= uo + utide + vsdx; verificado, diferencia máxima 0.001 m/s) |
+| Uso | `dirmarea.txt` real de cada caso (E1–E3, E5) y verificación del período y de la fórmula de Stokes del modelo | lo mismo para casos con fechas antes de nov 2022 | E4 = corriente total; E5 = corriente sin Stokes (uo + utide), porque la ola del modelo ya pone la deriva por oleaje |
+| Productor | Mercator Ocean International | Mercator Ocean International | Mercator Ocean International |
+
+**Qué fuente usó cada caso**: se elige por cobertura (`copernicus.elegir_oleaje`): el análisis y pronóstico de
+0.083° si cubre toda la ventana del caso (t0 … t0 + 10 d) y, si no, el reanálisis de 0.2°. Cada caso guarda su
+dataset y su resolución en las columnas `fuente_oleaje`, `oleaje_resolucion_grados` y `fuente_corriente` de
+`docs/validacion/casos.csv`. Se descarga solo el recorte del recuadro del modelo (más 0.35° de margen para
+interpolar en los bordes), a la resolución nativa y sin submuestrear. La ola se interpola de forma bilineal a los
+nodos de 0.16° del `dirmarea.txt` (formato del producto); la corriente se usa a 0.083°.
+
+**Licencia y atribución**: «Licence to use the Copernicus Marine Service products»: gratuita, mundial, no
+exclusiva y perpetua; permite modificar y distribuir productos derivados «for any purpose». Obliga a dar
+crédito visible donde se muestran los datos: **«Generated using E.U. Copernicus Marine Service Information;
+https://doi.org/10.48670/moi-00017, https://doi.org/10.48670/moi-00022, https://doi.org/10.48670/moi-00016»**
+(está en `docs/validacion.md`, en la página `/validacion` y en el README).
+
+**Limitaciones**: MFWAM y SMOC de análisis y pronóstico son la mejor estimación operativa de cada día, no un
+reanálisis; antes de nov 2022 la ola sale del reanálisis, más grueso (0.2°). La deriva de Stokes del producto
+(VSDX/VSDY) incluye el mar de fondo; la del modelo solo la ola de viento. Bajar un caso cuesta ~4 min (una
+variable a la vez para no pasar de ~100 MB de memoria).
+
+## d) Solo para E5: viento a 10 m (Open-Meteo)
 
 | | |
 |---|---|
-| URL | `https://marine-api.open-meteo.com/v1/marine` (sin llave, uso no comercial) |
-| Modelo | `models=meteofrance_wave`: MeteoFrance **MFWAM**, global 0.08°, cada 3 h (Open-Meteo lo entrega horario), disponible desde oct 2021 |
-| Variables | `wind_wave_height` (m), `wind_wave_direction` (°, **desde** donde viene, igual que `dirolavto`), `wind_wave_period` (s) |
-| Uso | `scripts/generar_dirmarea.py` y `validacion/dirmarea.py` escriben `dirmarea.txt` con la ola de viento real; el período solo se usa para comparar con el supuesto T = 4·√H |
-| Alternativa revisada | `models=era5_ocean` (ERA5, 0.5°, desde 1940): no ofrece la partición de ola de viento en Open-Meteo, por eso no se usa |
+| URL | `https://archive-api.open-meteo.com/v1/archive` (sin llave, uso no comercial) |
+| Modelo | `models=era5`: **ERA5** (ECMWF), 0.25°, horario; ~5 días de retraso |
+| Variables | `wind_speed_10m` (m/s con `wind_speed_unit=ms`), `wind_direction_10m` (°, **desde**) |
+| Puntos | submalla de 0.48° (un nodo de cada tres de la malla de 0.16°): ~170 puntos por caso, interpolados después |
+| Licencia y atribución | Open-Meteo bajo **CC BY 4.0**; atribuir a ECMWF / Copernicus Climate Change Service (ERA5) y a Open-Meteo |
 
-## d) Solo para experimentos: corriente superficial y viento a 10 m
+## Fuente previa (documentada, ya no se usa): oleaje y corriente de Open-Meteo
 
-| | Corriente | Viento |
-|---|---|---|
-| URL | `https://marine-api.open-meteo.com/v1/marine` | `https://archive-api.open-meteo.com/v1/archive` |
-| Modelo | `models=meteofrance_currents`: MeteoFrance **SMOC**, 0.08°, horario, desde ene 2022 | `models=era5`: **ERA5** (ECMWF), 0.25°, horario; ~5 días de retraso |
-| Variables | `ocean_current_velocity` (km/h → m/s), `ocean_current_direction` (°, **hacia** donde va) | `wind_speed_10m` (m/s con `wind_speed_unit=ms`), `wind_direction_10m` (°, **desde**) |
-| Nota | Open-Meteo la define como «Velocity of ocean current considering Eulerian, Waves and Tides»: ya incluye deriva por oleaje y marea | Reanálisis |
-
-**Licencia y atribución (c y d)**: datos de Open-Meteo bajo **CC BY 4.0** (uso no comercial gratuito);
-Open-Meteo pide atribuir a los proveedores de cada modelo: Météo-France / Copernicus Marine (MFWAM, SMOC)
-y ECMWF / Copernicus Climate Change Service (ERA5).
-
-**Cuota y resolución**: el uso gratuito permite 600 llamadas por minuto, 5 000 por hora y 10 000 por día,
-y **cada punto de una petición cuenta como una llamada** (verificado el 31/10/2026: una petición de 700
-puntos pasó y la siguiente de 1 295 en el mismo minuto recibió HTTP 429 «Minutely API request limit
-exceeded»). Por eso se descarga una submalla de la malla de 0.16° de `dirmarea.txt`: un nodo de cada dos
-(0.32°, 366 puntos) para ola y corriente, y uno de cada tres (0.48°, 172 puntos) para viento, solo en los
-nodos de mar del archivo de SEMAR dentro del recuadro del modelo (más una celda de margen); después se
-interpola de forma bilineal a 0.16°. Cada caso pide t0…t0 + 10 días (una sola llamada por punto).
-
-**Limitaciones**: MFWAM y SMOC en Open-Meteo son archivos de pronósticos de corto plazo, no reanálisis; la
-corriente de SMOC es poco confiable cerca de la costa (lo advierte Open-Meteo); la submalla suaviza los
-remolinos de menos de ~35 km.
+Hasta la primera corrida de la v0.4.0, la ola de viento (`models=meteofrance_wave`, MFWAM) y la corriente
+(`models=meteofrance_currents`, SMOC) se pedían a la Marine API de Open-Meteo. Open-Meteo cuenta **cada punto de
+una petición como una llamada** (verificado el 31/10/2026: una petición de 700 puntos pasó y la siguiente de 1 295
+en el mismo minuto recibió HTTP 429 «Minutely API request limit exceeded») y el uso gratuito permite 600 llamadas
+por minuto, 5 000 por hora y 10 000 por día. Aun pidiendo una submalla de 0.32° (366 puntos por variable y caso),
+la cuota diaria se agotó con 0 casos de evaluación completos. **Todos los casos se rehicieron con Copernicus
+Marine**: ningún resultado mezcla datos de 0.32° interpolados de Open-Meteo con datos de 0.083°.
 
 ## Archivo de referencia de SEMAR
 
