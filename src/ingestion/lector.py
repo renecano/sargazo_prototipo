@@ -1,11 +1,11 @@
-"""Lectura tolerante de los archivos de SEMAR.
+"""Lectura tolerante del archivo de oleaje de SEMAR (dirmarea.txt).
 
-Ambos archivos (salidadatos.txt y dirmarea.txt) comparten la misma estructura:
+Estructura:
 
-    LON;LAT;col3;col4;...          ← línea 1: nombres de columna, separador ";"
-    19AUG2026 00                   ← línea de fecha DDMMMAAAA HH [hora de pronóstico] [h]
-    -124;39.;323.96;...            ← filas del bloque
-    01OCT2026 00 3                 ← (opcional) otra línea de fecha abre otro bloque
+    LON;LAT;dirolavto;alturaolavto ← línea 1: nombres de columna, separador ";"
+    01OCT2026 00 0                 ← línea de fecha DDMMMAAAA HH [hora de pronóstico] [h]
+    -98;23.;116.25;0.84            ← filas del bloque (de norte a sur, de oeste a este)
+    01OCT2026 00 3                 ← otra línea de fecha abre el siguiente bloque
     ...
 
 El valor -9.99e+08 (o cualquiera menor que UMBRAL_RELLENO) significa "sin dato" y se
@@ -191,94 +191,40 @@ def construir_malla(lon: np.ndarray, lat: np.ndarray) -> Malla:
 
 
 # ---------------------------------------------------------------------------
-# Interpolación bilineal que ignora NaN
-# ---------------------------------------------------------------------------
-def interpolar_bilineal(lons_o, lats_o, campos: list[np.ndarray], lons_d, lats_d) -> list[np.ndarray]:
-    """Interpola campos [ny_o, nx_o] de una malla regular a otra.
-
-    Los pesos de los nodos sin dato (NaN) se descartan y se renormalizan los demás; si
-    ningún vecino tiene dato, el resultado es NaN. Todos los campos deben compartir la
-    máscara de NaN (p. ej. seno y coseno de una dirección).
-    """
-    lons_o, lats_o = np.asarray(lons_o, float), np.asarray(lats_o, float)
-    X, Y = np.meshgrid(np.asarray(lons_d, float), np.asarray(lats_d, float))
-    fj = (X - lons_o[0]) / (lons_o[1] - lons_o[0])
-    fi = (Y - lats_o[0]) / (lats_o[1] - lats_o[0])
-    fuera = (fj < -1e-9) | (fj > lons_o.size - 1 + 1e-9) | (fi < -1e-9) | (fi > lats_o.size - 1 + 1e-9)
-    j0 = np.clip(np.floor(fj).astype(int), 0, lons_o.size - 2)
-    i0 = np.clip(np.floor(fi).astype(int), 0, lats_o.size - 2)
-    wj = np.clip(fj - j0, 0, 1)
-    wi = np.clip(fi - i0, 0, 1)
-    esquinas = [(i0, j0, (1 - wi) * (1 - wj)), (i0, j0 + 1, (1 - wi) * wj),
-                (i0 + 1, j0, wi * (1 - wj)), (i0 + 1, j0 + 1, wi * wj)]
-    salida = []
-    for campo in campos:
-        suma = np.zeros(X.shape)
-        pesos = np.zeros(X.shape)
-        for i, j, w in esquinas:
-            v = campo[i, j]
-            valido = np.isfinite(v) & (w > 0)
-            suma += np.where(valido, w * np.nan_to_num(v), 0.0)
-            pesos += np.where(valido, w, 0.0)
-        resultado = np.where(pesos > 1e-12, suma / np.maximum(pesos, 1e-12), np.nan)
-        resultado[fuera] = np.nan
-        salida.append(resultado)
-    return salida
-
-
-def interpolar_direccion(lons_o, lats_o, direccion: np.ndarray, lons_d, lats_d) -> np.ndarray:
-    """Interpola una dirección en grados por sus componentes seno y coseno (no promedia grados:
-    350° y 10° dan 0°, no 180°)."""
-    rad = np.radians(direccion)
-    s, c = interpolar_bilineal(lons_o, lats_o, [np.sin(rad), np.cos(rad)], lons_d, lats_d)
-    return np.mod(np.degrees(np.arctan2(s, c)), 360.0)
-
-
-# ---------------------------------------------------------------------------
 # Conjunto validado, listo para el modelo
 # ---------------------------------------------------------------------------
 @dataclass
 class ConjuntoDatos:
-    """Campos de SEMAR validados y recortados a la malla del modelo [tiempo, lat, lon]."""
+    """Oleaje de SEMAR validado y recortado al dominio del modelo, en su malla nativa.
+
+    Arreglos [bloque, lat, lon] con lat ascendente; NaN = sin dato (tierra).
+    """
     lons: np.ndarray
     lats: np.ndarray
-    tiempos_viento: list[datetime]
-    viento_u: np.ndarray            # m/s hacia el este, NaN en tierra
-    viento_v: np.ndarray            # m/s hacia el norte
-    viento_vel: np.ndarray          # WindsfcSp
-    viento_dir: np.ndarray          # WindsfcDir, grados "desde"
-    mar: np.ndarray                 # bool [lat, lon]: nodo con dato de viento
-    ola_horas: np.ndarray           # horas de pronóstico del oleaje (vacío si no hay archivo)
-    ola_dir: np.ndarray | None      # [horas, lat, lon] grados "desde", interpolado a la malla del modelo
-    ola_altura: np.ndarray | None   # [horas, lat, lon] m
-    ola_fecha_base: datetime | None
-    corriente_u: np.ndarray | None  # [lat, lon] m/s, o None si no hay corrientes
-    corriente_v: np.ndarray | None
-    archivos: dict[str, str]        # nombre → SHA-256
+    fecha_base: datetime
+    horas: np.ndarray               # horas de pronóstico de cada bloque (+0, +3, …, +120)
+    altura: np.ndarray              # alturaolavto, m
+    direccion: np.ndarray           # dirolavto, grados DESDE donde viene la ola
+    mar: np.ndarray                 # bool [lat, lon]: nodo con dato de ola
+    archivo: str
+    huella_sha256: str
+    bloques_identicos: bool
     advertencias: list[str] = field(default_factory=list)
 
     @property
     def inicio(self) -> datetime:
-        return self.tiempos_viento[0]
-
-    @property
-    def horas_viento(self) -> np.ndarray:
-        return np.array([(t - self.inicio).total_seconds() / 3600 for t in self.tiempos_viento])
-
-    @property
-    def viento_estacionario(self) -> bool:
-        return len(self.tiempos_viento) == 1
+        return self.fecha_base + timedelta(hours=float(self.horas[0]))
 
     def resumen(self) -> dict:
         return {
             "fuente": "SEMAR",
-            "archivos": [{"nombre": n, "huella_sha256": h} for n, h in self.archivos.items()],
+            "archivo": self.archivo,
+            "huella_sha256": self.huella_sha256,
+            "fecha_base_utc": self.fecha_base.strftime("%Y-%m-%dT%H:%MZ"),
             "inicio_utc": self.inicio.strftime("%Y-%m-%dT%H:%MZ"),
-            "viento_horas": len(self.tiempos_viento),
-            "viento_estacionario": self.viento_estacionario,
-            "oleaje_horas": int(self.ola_horas.size),
-            "oleaje_fecha_base_utc": self.ola_fecha_base.strftime("%Y-%m-%dT%H:%MZ") if self.ola_fecha_base else None,
-            "corrientes": self.corriente_u is not None,
+            "bloques": int(self.horas.size),
+            "horas": [int(h) for h in self.horas],
+            "bloques_identicos": self.bloques_identicos,
             "puntos_malla": int(self.lons.size * self.lats.size),
             "puntos_mar": int(self.mar.sum()),
             "advertencias": list(self.advertencias),
