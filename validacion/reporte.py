@@ -33,8 +33,8 @@ AZULES = ListedColormap(["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", 
 
 NOMBRES = {
     "E0": "E0 Persistencia", "E1": "E1 Solo browniano", "E2": "E2 PMS v0.3", "E3": "E3 PMS calibrado",
-    "E4": "E4 Corriente + browniano", "E5-1": "E5 Corriente + viento 1 % + ola",
-    "E5-2": "E5 Corriente + viento 2 % + ola", "E5-3": "E5 Corriente + viento 3 % + ola",
+    "E4": "E4 Corriente SMOC total + browniano", "E5-1": "E5 Corriente sin Stokes + viento 1 % + ola",
+    "E5-2": "E5 Corriente sin Stokes + viento 2 % + ola", "E5-3": "E5 Corriente sin Stokes + viento 3 % + ola",
     "E2-SEMAR": "E2 con el dirmarea.txt de SEMAR",
 }
 ORDEN = ["E0", "E1", "E2", "E3", "E4", "E5-1", "E5-2", "E5-3"]

@@ -288,9 +288,10 @@ def correr(exp: Experimento, siembra: Siembra, f: Forzamientos) -> Corrida | Non
 
 
 def desplazamiento_modelo(exp: Experimento, f: Forzamientos, lon, lat, t_inicio_h: float, horas: int = 24):
-    """Desplazamiento determinista (K_h = 0) de puntos sueltos durante `horas`."""
+    """Posición final (lon, lat) de puntos sueltos tras `horas` de deriva determinista (K_h = 0).
+    En la persistencia (E0) los puntos no se mueven."""
     if not exp.mover:
-        return np.zeros(np.size(lon)), np.zeros(np.size(lon))
+        return np.array(lon, dtype=float), np.array(lat, dtype=float)
     campos, gamma = campos_de(exp, f)
     if campos is None:
         return None

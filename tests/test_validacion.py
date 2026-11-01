@@ -629,3 +629,12 @@ def test_reporte_publicado_es_consistente():
     if not (salida / "resumen.json").is_file():
         pytest.skip("Aún no hay resultados de validación en docs/validacion/")
     documento.verificar_consistencia(salida, salida.parent / "validacion.md")
+
+
+def test_desplazamiento_mcc_de_la_persistencia_es_cero():
+    """E0 no mueve los puntos: su posición final es la inicial (no el origen 0, 0)."""
+    lon, lat = np.array([-86.5, -85.9]), np.array([20.8, 21.3])
+    fin = experimentos.desplazamiento_modelo(experimentos.Experimento("E0", "", mover=False), None, lon, lat, 18.0)
+    assert np.array_equal(fin[0], lon) and np.array_equal(fin[1], lat)
+    d = metricas.vector_km((lon[0], lat[0]), (fin[0][0], fin[1][0]))
+    assert np.hypot(*d) == 0.0
