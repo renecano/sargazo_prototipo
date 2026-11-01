@@ -1,9 +1,10 @@
-"""Prueba de interfaz de punta a punta con Playwright (Edge o Chromium), versión 0.3.0.
+"""Prueba de interfaz de punta a punta con Playwright (Edge o Chromium), versión 0.4.0.
 
 Levanta la app real sobre un dirmarea.txt de fixture (dominio completo, formato real de
 SEMAR, valores sintéticos) y recorre: recorrido guiado (Saltar, no reabrirse, completo),
 los tres pasos, clic para liberar, simulación de 120 h frente a Cancún, pausa que conserva
-hora y posición, teclas, hover con ola, historial, punto en tierra, datos inválidos y sin datos.
+hora y posición, teclas, hover con ola, historial, punto en tierra, datos inválidos, sin datos
+y la página /validacion (enlace discreto en la leyenda, tabla y figuras).
 
     pytest -m e2e
 """
@@ -347,3 +348,39 @@ def test_estado_sin_datos(navegador, tmp_path):
         ctx.close()
     finally:
         servidor.should_exit = True
+
+
+def test_pagina_validacion_desde_el_enlace_de_la_leyenda(navegador, app_url):
+    """El enlace discreto de la leyenda abre /validacion con conclusión, tabla y figuras."""
+    from src.config import DIR_VALIDACION
+    if not (DIR_VALIDACION / "index.html").is_file():
+        pytest.skip("Aún no hay resultados de validación en docs/validacion/")
+    ctx = navegador.new_context(viewport={"width": 1366, "height": 768})
+    pagina = ctx.new_page()
+    errores = []
+    pagina.on("pageerror", lambda e: errores.append(str(e)))
+    pagina.add_init_script("localStorage.setItem('pms.recorrido.visto.v3', '1')")
+    pagina.goto(app_url)
+    enlace = pagina.locator(".validacion-enlace a")
+    enlace.wait_for(state="visible")
+    assert "Validación" in enlace.inner_text()
+    enlace.click()
+    pagina.wait_for_url(re.compile(r"/validacion$"))
+    assert pagina.locator("h1").inner_text() == "¿El modelo se mueve como el sargazo real?"
+    assert pagina.locator(".conclusion").inner_text().strip()
+    filas = pagina.locator("table tbody tr")
+    assert filas.count() >= 5 and "E0 Persistencia" in filas.first.inner_text()
+    imagenes = pagina.locator("img")
+    assert imagenes.count() >= 4
+    for k in range(min(imagenes.count(), 6)):
+        img = imagenes.nth(k)
+        img.scroll_into_view_if_needed()
+        pagina.wait_for_function("(i) => i.complete && i.naturalWidth > 0", arg=img.element_handle())
+    ancho = pagina.evaluate("document.documentElement.scrollWidth")
+    assert ancho <= 1366
+    pagina.set_viewport_size({"width": 390, "height": 800})
+    assert pagina.evaluate("document.documentElement.scrollWidth") <= 390
+    pagina.locator(".volver").click()
+    pagina.wait_for_url(re.compile(r"/$"))
+    assert not errores
+    ctx.close()

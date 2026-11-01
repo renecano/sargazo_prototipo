@@ -113,10 +113,25 @@ def test_trabajo_inexistente_404(cliente):
 
 def test_interfaz_y_salud(cliente):
     salud = cliente.get("/api/salud").json()
-    assert salud["estado"] == "ok" and salud["version_app"] == "0.3.0" and salud["version_modelo"] == "pms-browniano-0.3.0"
+    assert salud["estado"] == "ok" and salud["version_app"] == "0.4.0" and salud["version_modelo"] == "pms-browniano-0.3.0"
     assert salud["datos_disponibles"] is True and salud["trabajos_en_segundo_plano"] is True
     html = cliente.get("/")
     assert html.status_code == 200 and "Predicción de Movimiento del Sargazo" in html.text and "Recorrido guiado" in html.text
     for ruta in ("/static/js/main.js", "/static/js/recorrido.js"):
         js = cliente.get(ruta)
         assert js.status_code == 200 and "javascript" in js.headers["content-type"]
+
+
+def test_pagina_validacion_y_sus_figuras(cliente):
+    """La página /validacion sale de docs/validacion/ (scripts/validar.py) con sus figuras."""
+    from src.config import DIR_VALIDACION
+    if not (DIR_VALIDACION / "index.html").is_file():
+        pytest.skip("Aún no hay resultados de validación en docs/validacion/")
+    r = cliente.get("/validacion")
+    assert r.status_code == 200 and "¿El modelo se mueve como el sargazo real?" in r.text
+    # Las rutas relativas se resuelven contra <base href="/validacion/"> (la página se sirve sin "/" final).
+    assert '<base href="/validacion/">' in r.text
+    for src in __import__("re").findall(r"src=['\"]([^'\"]+)", r.text):
+        assert cliente.get("/validacion/" + src).status_code == 200, src
+    assert cliente.get("/validacion/figuras/fss_por_horizonte.png").headers["content-type"] == "image/png"
+    assert cliente.get("/validacion/fss_resumen.csv").status_code == 200
