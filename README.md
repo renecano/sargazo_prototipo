@@ -1,13 +1,14 @@
 # PMS · Predicción de Movimiento del Sargazo
 
-**v0.3.0 · demo en línea: <https://pms-sargazo.vercel.app>**
+**v0.4.0 · demo en línea: <https://pms-sargazo.vercel.app> · validación: <https://pms-sargazo.vercel.app/validacion>**
 
 PMS estima hacia dónde podría derivar un conglomerado de sargazo frente a la Península de
 Yucatán durante los próximos 5 días (120 h). Lo hace con un **modelo de partículas
 brownianas** que mueve cada partícula con la **deriva de Stokes de la ola de viento** de
 SEMAR más un movimiento aleatorio. El resultado es una **probabilidad**, no una certeza: el
-archivo de oleaje es de muestra, el modelo no incluye viento ni corrientes y sus
-parámetros no están calibrados.
+archivo de oleaje es de muestra y el modelo no incluye viento ni corrientes. **La validación
+v0.4.0 contra el sargazo visto por satélite muestra que todavía no predice el movimiento mejor
+que suponer que el sargazo se queda quieto** (ver abajo).
 
 ![PMS: resultado de 120 h frente a Cancún, pausado en +12 h, con el hover de la ola](docs/captura_resultado.png)
 
@@ -19,23 +20,73 @@ contorno de la zona probable P90, hover con la ola del nodo más cercano y líne
 
 ## Contenido
 
-1. [Qué cambió en la v0.3.0](#qué-cambió-en-la-v030)
-2. [El único archivo de entrada](#el-único-archivo-de-entrada)
-3. [El modelo browniano](#el-modelo-browniano)
-4. [La interfaz y el recorrido guiado](#la-interfaz-y-el-recorrido-guiado)
-5. [Ejemplo: 120 h frente a Cancún](#ejemplo-120-h-frente-a-cancún)
-6. [Cómo correrlo en local (Windows / PowerShell)](#cómo-correrlo-en-local-windows--powershell)
-7. [Despliegue](#despliegue)
-8. [API](#api)
-9. [Mapa del repositorio](#mapa-del-repositorio)
-10. [Pruebas y rendimiento](#pruebas-y-rendimiento)
-11. [Límites honestos](#límites-honestos)
-12. [Preguntas para el profesor y SEMAR](#preguntas-para-el-profesor-y-semar)
-13. [Créditos y atribuciones](#créditos-y-atribuciones)
+1. [¿El modelo se mueve como el sargazo real?](#el-modelo-se-mueve-como-el-sargazo-real)
+2. [Qué cambió en la v0.4.0](#qué-cambió-en-la-v040)
+3. [El único archivo de entrada](#el-único-archivo-de-entrada)
+4. [El modelo browniano](#el-modelo-browniano)
+5. [La interfaz y el recorrido guiado](#la-interfaz-y-el-recorrido-guiado)
+6. [Ejemplo: 120 h frente a Cancún](#ejemplo-120-h-frente-a-cancún)
+7. [Cómo correrlo en local (Windows / PowerShell)](#cómo-correrlo-en-local-windows--powershell)
+8. [Despliegue](#despliegue)
+9. [API](#api)
+10. [Mapa del repositorio](#mapa-del-repositorio)
+11. [Pruebas y rendimiento](#pruebas-y-rendimiento)
+12. [Límites honestos](#límites-honestos)
+13. [Siguiente paso](#siguiente-paso)
+14. [Preguntas para el profesor y SEMAR](#preguntas-para-el-profesor-y-semar)
+15. [Créditos y atribuciones](#créditos-y-atribuciones)
 
 ---
 
-## Qué cambió en la v0.3.0
+## ¿El modelo se mueve como el sargazo real?
+
+El profesor preguntó cómo sabemos que el comportamiento del modelo es real. La v0.4.0 lo mide:
+toma días de 2022–2026 con sargazo visto por satélite (AFAI de USF en NOAA AOML), siembra
+partículas donde estaba, las mueve con el modelo usando el oleaje real de esas fechas
+(MFWAM de Copernicus Marine, escrito como `dirmarea.txt` en el formato de SEMAR) y compara
+contra lo que el satélite vio 3, 5 y 7 días después. La referencia mínima es suponer que el sargazo **no se
+mueve** (persistencia, E0).
+
+<!-- validacion:inicio (generado por scripts/validar.py; no editar a mano) -->
+**Con datos satelitales 2022–2026, el modelo v0.3 (solo oleaje) no se distingue de suponer que el sargazo no se mueve; ni agregando corrientes (E4 Corriente SMOC total + browniano) se supera a la persistencia.**
+
+FSS a 25 km (1 = perfecto) en 11 casos de evaluación 2025–2026 (γ y K_h de E3 calibrados con 14 casos anteriores), media e IC 95 %:
+
+| Experimento | +3 d | +5 d | +7 d |
+|---|---|---|---|
+| E0 Persistencia | 0.375 [0.291–0.452] | 0.354 [0.272–0.424] | 0.364 [0.308–0.411] |
+| E1 Solo browniano | 0.379 [0.294–0.455]<br>Δ vs E0 +0.004 [-0.001, +0.010] | 0.357 [0.275–0.429]<br>Δ vs E0 +0.003 [-0.004, +0.012] | 0.371 [0.313–0.420]<br>Δ vs E0 +0.007 [+0.001, +0.014] |
+| E2 PMS v0.3 | 0.377 [0.296–0.449]<br>Δ vs E0 +0.002 [-0.017, +0.024] | 0.332 [0.254–0.404]<br>Δ vs E0 -0.022 [-0.045, +0.001] | 0.345 [0.280–0.410]<br>Δ vs E0 -0.019 [-0.055, +0.018] |
+| E3 PMS calibrado | 0.378 [0.293–0.454]<br>Δ vs E0 +0.003 [-0.004, +0.009] | 0.352 [0.270–0.423]<br>Δ vs E0 -0.002 [-0.009, +0.006] | 0.363 [0.307–0.409]<br>Δ vs E0 -0.001 [-0.006, +0.005] |
+| E4 Corriente SMOC total + browniano | 0.359 [0.270–0.437]<br>Δ vs E0 -0.016 [-0.077, +0.049] | 0.283 [0.215–0.346]<br>Δ vs E0 -0.071 [-0.134, -0.006] | 0.254 [0.190–0.315]<br>Δ vs E0 -0.110 [-0.165, -0.049] |
+| E5 Corriente sin Stokes + viento 1 % + ola | 0.342 [0.261–0.416]<br>Δ vs E0 -0.033 [-0.091, +0.025] | 0.269 [0.200–0.333]<br>Δ vs E0 -0.085 [-0.144, -0.020] | 0.226 [0.162–0.289]<br>Δ vs E0 -0.138 [-0.187, -0.084] |
+| E5 Corriente sin Stokes + viento 2 % + ola | 0.297 [0.227–0.366]<br>Δ vs E0 -0.078 [-0.125, -0.034] | 0.255 [0.186–0.317]<br>Δ vs E0 -0.099 [-0.152, -0.041] | 0.199 [0.137–0.259]<br>Δ vs E0 -0.165 [-0.209, -0.122] |
+| E5 Corriente sin Stokes + viento 3 % + ola | 0.282 [0.213–0.351]<br>Δ vs E0 -0.093 [-0.145, -0.045] | 0.227 [0.169–0.280]<br>Δ vs E0 -0.126 [-0.173, -0.077] | 0.182 [0.122–0.244]<br>Δ vs E0 -0.182 [-0.228, -0.136] |
+
+Reporte completo con método, casos y limitaciones: [docs/validacion.md](docs/validacion.md) · página en la app: `/validacion`.
+<!-- validacion:fin -->
+
+## Qué cambió en la v0.4.0
+
+- **Validación** contra el sargazo observado por satélite: paquete `validacion/`,
+  `python scripts/validar.py` (todo desde cero con un comando), resultados en
+  [`docs/validacion/`](docs/validacion/), reporte en [`docs/validacion.md`](docs/validacion.md)
+  (lo genera el script; verifica sus propios conteos),
+  fuentes en [`docs/fuentes_validacion.md`](docs/fuentes_validacion.md) y página `/validacion`
+  enlazada desde la leyenda.
+- **Forzamientos de Copernicus Marine** (toolbox `copernicusmarine`, cuenta gratuita con
+  `copernicusmarine login`; las credenciales no entran al repositorio): ola de viento MFWAM a
+  0.083° (reanálisis de 0.2° antes de nov 2022) y corriente SMOC a 0.083°. El viento de E5 viene
+  de ERA5 vía Open-Meteo. Una primera corrida con oleaje y corriente de Open-Meteo quedó bloqueada
+  por su cuota diaria y se rehizo completa con Copernicus.
+- **`scripts/generar_dirmarea.py`**: escribe un `dirmarea.txt` con la ola de viento real de una
+  fecha, en el mismo formato que el de SEMAR (`python main.py --datos <carpeta>` lo usa).
+- **El producto no cambia**: sigue usando solo `dirmarea.txt` y el modelo `pms-browniano-0.3.0`.
+  `simular()` ahora delega en `integrar()` (posiciones iniciales y hora de inicio libres) con
+  resultados idénticos byte a byte.
+- **CI en verde** de nuevo ahora que el repositorio es público.
+
+### Qué cambió en la v0.3.0
 
 | | v0.2.0 | v0.3.0 |
 |---|---|---|
@@ -229,11 +280,21 @@ Opciones: `--puerto 8080`, `--host 0.0.0.0`, `--no-navegador`, `--datos <carpeta
 Pruebas y utilidades:
 
 ```powershell
-python -m pytest                        # 102 pruebas rápidas
-python -m pytest -m e2e                 # 15 pruebas de interfaz con Playwright (usa Microsoft Edge)
+python -m pytest                        # pruebas rápidas, sin red
+python -m pytest -m e2e                 # pruebas de interfaz con Playwright (usa Microsoft Edge)
 python scripts/capturar_pantalla.py     # capturas de docs/ en 1366×768 y 1920×1080
 python scripts/medir_rendimiento.py     # tiempos y memoria → docs/rendimiento.md
 python scripts/generar_fixtures.py --destino tmp\fixture --completo   # dirmarea.txt de prueba
+```
+
+Validación contra el sargazo observado (descarga a `data/validacion/`, fuera de git; ~2 h la
+primera vez, minutos después con la caché):
+
+```powershell
+copernicusmarine login                  # solo la primera vez; pide usuario y contraseña de Copernicus Marine
+python scripts/validar.py               # todo desde cero → docs/validacion/ y docs/validacion.md
+python scripts/validar.py --solo-reporte                    # rehace tablas y figuras desde la caché
+python scripts/generar_dirmarea.py --fecha 2026-10-01       # dirmarea.txt con ola real de una fecha
 ```
 
 ## Despliegue
@@ -281,15 +342,20 @@ sargazo_prototipo/
 │   ├── model/                    campos (deriva de Stokes) · simulacion · costa · metricas · conversiones
 │   ├── api/                      app.py · servicios.py · almacen.py
 │   └── view/                     index.html · css/carta.css · js/ (main, recorrido, capas, datos, paneles…)
-├── scripts/                      generar_fixtures.py · capturar_pantalla.py · medir_rendimiento.py
-├── tests/                        Pruebas rápidas + tests/e2e/ (Playwright)
-├── docs/                         Capturas, rendimiento y guía de despliegue en VPS
+├── validacion/                   Validación v0.4.0: afai · inventario · casos · dirmarea · openmeteo · campos ·
+│                                 experimentos · metricas · ejecutar · reporte · documento
+├── data/validacion/              Caché de descargas de la validación (fuera de git y de Vercel)
+├── scripts/                      validar.py · generar_dirmarea.py · generar_fixtures.py · capturar_pantalla.py ·
+│                                 medir_rendimiento.py
+├── tests/                        Pruebas rápidas + tests/fixtures (recorte de ERDDAP) + tests/e2e/ (Playwright)
+├── docs/                         validacion.md · validacion/ (tablas, figuras, página) · fuentes_validacion.md ·
+│                                 capturas, rendimiento y guía de despliegue en VPS
 └── .github/workflows/ci.yml      CI: Windows y Ubuntu, Python 3.12 y 3.14, + e2e
 ```
 
 ## Pruebas y rendimiento
 
-**102 pruebas rápidas** (`python -m pytest`) y **15 de interfaz** (`python -m pytest -m e2e`),
+**149 pruebas rápidas** (`python -m pytest`, sin red) y **16 de interfaz** (`python -m pytest -m e2e`),
 todas en verde en local y en el CI de GitHub Actions (Windows y Ubuntu, Python 3.12
 y 3.14, más e2e): [corrida en verde](https://github.com/renecano/sargazo_prototipo/actions/runs/41160399072).
 
@@ -298,8 +364,9 @@ y 3.14, más e2e): [corrida en verde](https://github.com/renecano/sargazo_protot
 | `tests/test_lector.py` | Fechas `DDMMMAAAA HH [h]` (incluidas ilegibles), 41 bloques, relleno → NaN, filas defectuosas, malla de norte a sur |
 | `tests/test_validador.py` | Fixture válido; bloques idénticos solo cuando lo son; cobertura del dominio; falta del archivo, fecha ilegible, columna ausente, hora faltante o desordenada, altura y dirección fuera de rango, relleno inconsistente, malla no rectangular o fuera del recuadro, máscara vs costa, otros archivos; archivo real |
 | `tests/test_modelo.py` | Deriva de Stokes contra la fórmula y contra el desplazamiento analítico con K_h = 0 (en la dirección correcta, con cos(lat)), γ, reproducibilidad, dispersión √(2·K_h·t) ± 5 %, interpolación entre bloques y por seno/coseno, nodos de tierra ignorados, ninguna partícula sobre tierra, salida de dominio, métricas |
-| `tests/test_api.py` | 200 y guardado con huella; reproducibilidad; trabajos con progreso; 409, 422 y 404; sin datos |
-| `tests/e2e/test_interfaz.py` | Recorrido guiado (se abre una vez, «Saltar», completo de principio a fin), estado y detalle, los tres pasos, clic para liberar, flechas fijas, 120 h frente a Cancún, pausa, teclas, hover con ola, historial, punto en tierra, datos inválidos, sin datos |
+| `tests/test_api.py` | 200 y guardado con huella; reproducibilidad; trabajos con progreso; 409, 422 y 404; sin datos; página `/validacion` y sus figuras |
+| `tests/test_validacion.py` | Lector de ERDDAP con un recorte real (`tests/fixtures`); detección (franja, nubes y su borde, umbral adaptativo, regiones y franja de la costura); `generar_dirmarea` con formato idéntico al de SEMAR y aceptado por el validador y el modelo; Open-Meteo sin red (unidades, caché, cuota); campos encadenados y convenciones de corriente y viento; FSS analítico (1, 0, 2/3, 1 − d/n); MCC recupera desplazamientos sintéticos (también con nubes); Liu-Weisberg, bootstrap y contingencia; persistencia da FSS = 1 si nada se mueve; siembra; integrador del producto; selección de casos reproducible y sin traslape; veredicto contra E0 |
+| `tests/e2e/test_interfaz.py` | Recorrido guiado (se abre una vez, «Saltar», completo de principio a fin), estado y detalle, los tres pasos, clic para liberar, flechas fijas, 120 h frente a Cancún, pausa, teclas, hover con ola, historial, punto en tierra, datos inválidos, sin datos; enlace de la leyenda a `/validacion` con tabla y figuras cargadas, sin desbordar en 1366 px ni en 390 px |
 
 **Rendimiento en local** (Windows 11, 8 GB de RAM; detalle en [`docs/rendimiento.md`](docs/rendimiento.md)):
 
@@ -329,30 +396,54 @@ de la función, así que no fue necesario optimizar la lectura del archivo.
 
 ## Límites honestos
 
-- **Datos de muestra**: los 41 bloques de `dirmarea.txt` son idénticos (el oleaje no cambia en
-  120 h) y su fecha es de muestra.
-- **Sin viento ni corrientes**: solo se usa la deriva por oleaje. Falta la Corriente de Yucatán
-  y el arrastre directo del viento, que frente a Quintana Roo dominarían el transporte.
-- **Período de ola supuesto** (T = 4.0·√H): la deriva de Stokes depende de T³; un período real
-  distinto cambia mucho la velocidad.
-- **Parámetros sin calibrar** (γ y K_h) y **sin validación contra observaciones** (boletines de
-  SEMAR o detecciones de SaWS).
+- **El modelo v0.3 no le gana a suponer que el sargazo no se mueve.** En la validación v0.4.0
+  (casos de evaluación 2025–2026, FSS a 25 km) la diferencia contra la persistencia no es
+  distinguible de cero en ningún horizonte; la calibración eligió el mínimo movimiento de la
+  rejilla (γ = 0). Hoy PMS no aporta información sobre hacia dónde se mueve el sargazo más allá
+  de dónde ya está. Tabla y reporte: [arriba](#el-modelo-se-mueve-como-el-sargazo-real) y
+  [`docs/validacion.md`](docs/validacion.md).
+- **Agregar corrientes, tal como se probó, empeora.** La corriente SMOC (con y sin viento) se
+  acerca a la rapidez y la dirección del desplazamiento observado con el MCC, pero el FSS cae frente a la persistencia a +5 y
+  +7 días y una parte de las partículas sale del recuadro con la Corriente de Yucatán. No basta
+  con sumar la corriente: falta entender por qué la posición predicha se aleja de la observada.
+- **La «verdad» satelital es ruidosa.** El AFAI de AOML tiene ruido del orden del umbral de la
+  literatura, dos regiones de procesamiento con una costura y muchas nubes: se corrigió con un
+  umbral adaptado al ruido, el fondo por región y máscaras, pero un FSS «útil» (~0.5) no lo
+  alcanza ni la persistencia.
+- **Datos de muestra**: los 41 bloques de `dirmarea.txt` de SEMAR son idénticos (el oleaje no
+  cambia en 120 h). Comparado con la ola de viento real de ese día, su altura queda alta y la
+  diferencia crece con las horas (ver el caso del 01/10/2026 en el reporte).
+- **Período de ola supuesto** (T = 4.0·√H): contra el producto de oleaje de Copernicus el
+  supuesto quedó cerca del período real de la ola de viento y la deriva de Stokes de la fórmula
+  cerca de la del espectro completo (ver «Período y deriva de Stokes» en el reporte), así que no
+  es la causa principal del desempeño.
 - **Costa aproximada** (decenas de vértices), que difiere de la máscara del archivo en 50 nodos;
   la malla de 0.16° (~17 km) no resuelve procesos costeros.
 - **Dominio limitado** al recuadro de Yucatán y liberación única en t = 0.
 - **Infraestructura mínima**: JSON en disco, sin usuarios ni autenticación. La demo de Vercel
   es pública y su historial es efímero.
 
+## Siguiente paso
+
+1. **No usar PMS para decidir** hasta que una versión le gane a la persistencia con casos de
+   evaluación; presentarlo como prototipo validado *negativamente*, con su evidencia.
+2. **Diagnosticar por qué la corriente empeora**: comparar por caso el desplazamiento MCC con la
+   corriente SMOC en el mismo punto, revisar la Corriente de Yucatán y el borde del recuadro
+   (ampliar el dominio para no perder partículas), y probar la corriente euleriana sola.
+3. **Mejorar la verdad**: segunda opinión con la detección Sentinel-3 OLCI (Debue et al., 2026)
+   cuando su servidor responda, y más casos (temporadas con menos nube, criterios por zona).
+4. **Calibrar con más libertad** solo con casos de calibración: factor de la corriente, del
+   viento y de la ola a la vez, y volver a evaluar en casos nuevos.
+
 ## Preguntas para el profesor y SEMAR
 
-1. ¿Hay **período de ola** (o espectro) para no suponer T = 4.0·√H?
-2. ¿Los 41 bloques idénticos de `dirmarea.txt` son solo de muestra? ¿Cuándo habrá un
+1. ¿Los 41 bloques idénticos de `dirmarea.txt` son solo de muestra? ¿Cuándo habrá un
    pronóstico que cambie en el tiempo?
-3. ¿Es correcto usar solo la ola de viento, o debe sumarse el mar de fondo (swell)?
-4. ¿Qué rango de γ (fracción de la deriva de Stokes que siente el sargazo) es razonable?
-5. ¿Se reincorporan viento y corrientes (CMEMS/HYCOM) en una siguiente versión?
-6. ¿SEMAR autoriza mostrar el oleaje en una demo pública como la de Vercel?
-7. ¿Contra qué boletines o detecciones validamos las trayectorias a 24 y 48 h?
+2. ¿SEMAR tiene corrientes o deriva observada (boyas, trayectorias de sargazo) para validar
+   mejor que con el satélite?
+3. ¿Contra qué boletines o detecciones de SEMAR comparamos los arribos a costa?
+4. ¿Es correcto usar solo la ola de viento, o debe sumarse el mar de fondo (swell)?
+5. ¿SEMAR autoriza mostrar el oleaje en una demo pública como la de Vercel?
 
 ## Créditos y atribuciones
 
@@ -360,7 +451,11 @@ de la función, así que no fue necesario optimizar la lectura del archivo.
 René Emiliano Cano Fuentes, Alan Yael García Velázquez, José Luis Socorro Martínez y
 José Ángel Vargas Carranza.
 
-- Datos de oleaje: **Secretaría de Marina (SEMAR)**, archivo de muestra; no redistribuir.
+- Datos de oleaje: **Secretaría de Marina (SEMAR)**, archivo de muestra; difusión pendiente de autorización.
+- Validación: AFAI de la **University of South Florida** (C. Hu) vía **NOAA AOML** Atlantic OceanWatch
+  ERDDAP; oleaje **MFWAM** y corriente **SMOC** de **Copernicus Marine Service** (Mercator Ocean
+  International): *Generated using E.U. Copernicus Marine Service Information; https://doi.org/10.48670/moi-00017, https://doi.org/10.48670/moi-00022, https://doi.org/10.48670/moi-00016*; viento **ERA5** (ECMWF / Copernicus) vía [Open-Meteo](https://open-meteo.com)
+  (CC BY 4.0). Detalle en [`docs/fuentes_validacion.md`](docs/fuentes_validacion.md).
 - Mapa base © [colaboradores de OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL).
 - [Leaflet](https://leafletjs.com) 1.9.4 (BSD-2-Clause), incluido en `src/view/vendor/leaflet/`.
 - Tipografías [IBM Plex Sans y IBM Plex Mono](https://www.ibm.com/plex/) vía Google Fonts (SIL Open Font License).
