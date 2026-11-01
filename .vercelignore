@@ -12,6 +12,6 @@ data/simulations
 *.pdf
 ejemplo.jpeg
 .env.local
-data/validacion
-validacion
-scripts
+/data/validacion
+/validacion
+/scripts
