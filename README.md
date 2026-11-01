@@ -357,7 +357,7 @@ sargazo_prototipo/
 
 **149 pruebas rápidas** (`python -m pytest`, sin red) y **16 de interfaz** (`python -m pytest -m e2e`),
 todas en verde en local y en el CI de GitHub Actions (Windows y Ubuntu, Python 3.12
-y 3.14, más e2e): [corrida en verde](https://github.com/renecano/sargazo_prototipo/actions/runs/41160399072).
+y 3.14, más e2e): [corrida en verde](https://github.com/renecano/sargazo_prototipo/actions/runs/41260679850).
 
 | Archivo | Qué comprueba |
 |---|---|
