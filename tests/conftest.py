@@ -11,6 +11,13 @@ from scripts.generar_fixtures import crear_fixture
 from src.config import ARCHIVO_OLEAJE, DIR_SEMAR
 
 HAY_DATOS_REALES = (DIR_SEMAR / ARCHIVO_OLEAJE).is_file()
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--url-base", default=None,
+        help="Corre las pruebas e2e contra un PMS ya desplegado (p. ej. http://66.179.210.78:8000) "
+             "en vez de levantar uno local. Las pruebas que necesitan datos rotos o vacíos se omiten.")
 solo_con_datos_reales = pytest.mark.skipif(not HAY_DATOS_REALES, reason="data/semar/dirmarea.txt no está disponible")
 
 

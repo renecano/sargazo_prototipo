@@ -7,6 +7,10 @@ hora y posición, teclas, hover con ola, historial, punto en tierra, datos invá
 y la página /validacion (enlace discreto en la leyenda, tabla y figuras).
 
     pytest -m e2e
+    pytest -m e2e --url-base http://66.179.210.78:8000      # contra un servidor ya desplegado
+
+Contra un servidor externo las simulaciones de prueba quedan en su historial: bórralas
+después (ver docs/despliegue_vps.md).
 """
 from __future__ import annotations
 
@@ -51,15 +55,25 @@ def _levantar(dir_semar, dir_sims):
 
 
 @pytest.fixture(scope="module")
-def datos(tmp_path_factory):
-    return crear_fixture(tmp_path_factory.mktemp("e2e") / "semar", completo=True)
+def url_externa(request):
+    url = request.config.getoption("--url-base")
+    return url.rstrip("/") if url else None
 
 
 @pytest.fixture(scope="module")
-def app_url(datos, tmp_path_factory):
+def app_url(url_externa, tmp_path_factory):
+    if url_externa:
+        yield url_externa
+        return
+    datos = crear_fixture(tmp_path_factory.mktemp("e2e") / "semar", completo=True)
     servidor, url = _levantar(datos, tmp_path_factory.mktemp("sims"))
     yield url
     servidor.should_exit = True
+
+
+def _solo_local(url_externa):
+    if url_externa:
+        pytest.skip("Necesita levantar un servidor local con datos rotos o vacíos; no aplica a --url-base")
 
 
 @pytest.fixture(scope="module")
@@ -315,7 +329,8 @@ def test_recorrido_guiado_completo(navegador, app_url):
 
 # --- Datos inválidos y sin datos ------------------------------------------------------------
 
-def test_datos_invalidos_muestran_error(navegador, tmp_path):
+def test_datos_invalidos_muestran_error(navegador, tmp_path, url_externa):
+    _solo_local(url_externa)
     malo = crear_fixture(tmp_path / "semar")
     editar_lineas(malo / ARCHIVO_OLEAJE, lambda l: [l[0], "01OCTU2026 00 0"] + l[2:])   # fecha ilegible
     servidor, url = _levantar(malo, tmp_path / "sims")
@@ -336,7 +351,8 @@ def test_datos_invalidos_muestran_error(navegador, tmp_path):
         servidor.should_exit = True
 
 
-def test_estado_sin_datos(navegador, tmp_path):
+def test_estado_sin_datos(navegador, tmp_path, url_externa):
+    _solo_local(url_externa)
     servidor, url = _levantar(tmp_path / "vacio", tmp_path / "sims")
     try:
         ctx = navegador.new_context(viewport={"width": 1366, "height": 768})
@@ -350,10 +366,10 @@ def test_estado_sin_datos(navegador, tmp_path):
         servidor.should_exit = True
 
 
-def test_pagina_validacion_desde_el_enlace_de_la_leyenda(navegador, app_url):
+def test_pagina_validacion_desde_el_enlace_de_la_leyenda(navegador, app_url, url_externa):
     """El enlace discreto de la leyenda abre /validacion con conclusión, tabla y figuras."""
     from src.config import DIR_VALIDACION
-    if not (DIR_VALIDACION / "index.html").is_file():
+    if not url_externa and not (DIR_VALIDACION / "index.html").is_file():
         pytest.skip("Aún no hay resultados de validación en docs/validacion/")
     ctx = navegador.new_context(viewport={"width": 1366, "height": 768})
     pagina = ctx.new_page()
