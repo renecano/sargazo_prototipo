@@ -1,6 +1,6 @@
 # PMS · Predicción de Movimiento del Sargazo
 
-**v0.4.0 · demo en línea: <https://pms-sargazo.vercel.app> · validación: <https://pms-sargazo.vercel.app/validacion>**
+**v0.4.0 · entrega para SEMAR: <http://66.179.210.78:8000> · demo: <https://pms-sargazo.vercel.app> · validación: <http://66.179.210.78:8000/validacion>**
 
 PMS estima hacia dónde podría derivar un conglomerado de sargazo frente a la Península de
 Yucatán durante los próximos 5 días (120 h). Lo hace con un **modelo de partículas
@@ -304,9 +304,12 @@ python scripts/generar_dirmarea.py --fecha 2026-10-01       # dirmarea.txt con o
   `data/semar/dirmarea.txt`. En Vercel el historial vive en `/tmp` (efímero) y la interfaz usa
   los endpoints síncronos. **La demo es pública**: cualquiera con la URL ve el oleaje. Si
   SEMAR no lo autoriza, hay que activar Deployment Protection o retirar el archivo.
-- **VPS Linux** (pendiente de acceso al servidor): [`docs/despliegue_vps.md`](docs/despliegue_vps.md)
-  cubre clon en `/opt/pms`, venv, servicio systemd `pms`, puerto 8000, logs, actualización,
-  reversa y desinstalación.
+- **VPS de entrega para SEMAR: <http://66.179.210.78:8000>** (Ubuntu 26.04, Python 3.14, servicio
+  systemd `pms` en el puerto 8000, v0.4.0). Instalado y verificado el 03/11/2026 siguiendo
+  [`docs/despliegue_vps.md`](docs/despliegue_vps.md): clon en `/opt/pms` fijo en `v0.4.0`, venv solo
+  con `requirements.txt`, `MemoryMax=450M` (pico medido con el máximo de la interfaz: 116 MB),
+  logs, actualización, reversa y desinstalación. Sin HTTPS ni autenticación: para exponerlo fuera
+  de una red de confianza, detrás de un proxy con HTTPS.
 
 ## API
 
