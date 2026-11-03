@@ -226,7 +226,11 @@ En el servidor de entrega, en este orden:
    (decisión del 03/11/2026). La suite completa pasa en local y contra Vercel; para correrla contra
    un servidor: `python -m pytest -m e2e --url-base http://<ip-del-servidor>:8000` (crea
    simulaciones en el historial del servidor: bórralas después).
-5. **Actualizar y revertir**: ver la nota de abajo.
+5. **Actualizar y revertir**, con los comandos de las secciones 6 y 7 tal cual: actualizar llevó el
+   servidor de `6401852` (v0.4.0) a `c4d0797` (3 commits de documentación y pruebas) con el servicio
+   sano; revertir lo regresó a `6401852` con el servicio sano. El servidor quedó en **v0.4.0**
+   (`git describe --tags` → `v0.4.0`), activo y habilitado. Ahí se comprobó el ajuste de la
+   sección 6: `git rev-parse` como `root` da «detected dubious ownership».
 
 ### Notas del servidor de entrega
 
