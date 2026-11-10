@@ -5,7 +5,7 @@
 import { api, esperarTrabajo } from './api.js';
 import { Campos, CLASES_DENSIDAD, Costa, Simulacion } from './datos.js';
 import {
-  ALFA_DENSIDAD, CapaCanvas, CapaCarta, dibujarDensidad, dibujarOleajeFijo, dibujarParticulas, dibujarReticula, dibujarRotulos, medirEscala,
+  ALFA_DENSIDAD, CapaCanvas, CapaCarta, dibujarDensidad, estelasCompletas, dibujarOleajeFijo, dibujarParticulas, dibujarReticula, dibujarRotulos, medirEscala,
   paleta, PX_POR_METRO,
 } from './capas.js';
 import { OleajeAnimado } from './oleaje.js';
@@ -92,7 +92,7 @@ const capaOleaje = new CapaCanvas({
   pane: 'oleaje', nombre: 'oleaje',
   dibujar: (ctx, c) => { if (animando()) { oleaje.sembrar(); oleaje.avanzar(0); } else dibujarOleajeFijo(ctx, c, est); },
 }).addTo(mapa);
-const capaParticulas = new CapaCanvas({ pane: 'particulas', nombre: 'particulas', margen: 200, dibujar: (ctx, c) => dibujarParticulas(ctx, c, est) }).addTo(mapa);
+const capaParticulas = new CapaCanvas({ pane: 'particulas', nombre: 'particulas', dibujar: (ctx, c) => dibujarParticulas(ctx, c, est) }).addTo(mapa);
 const capaRotulos = new CapaCanvas({ pane: 'rotulos', nombre: 'rotulos', dibujar: (ctx, c) => dibujarRotulos(ctx, c, est) }).addTo(mapa);
 oleaje = new OleajeAnimado(capaOleaje, est);
 
@@ -457,6 +457,7 @@ function ponerHora(h) {
   if (!animando() && est.hora !== horaOleaje) { horaOleaje = est.hora; capaOleaje.redibujar(); }
   notaOleaje();
   capaParticulas.redibujar();
+  if (!est.reproduciendo) completarDetalle();
   if (ultimoHover) mostrarHover(ultimoHover);
 }
 
@@ -499,13 +500,27 @@ function reproducir_() {
   animacion = requestAnimationFrame(paso);
 }
 
-// Al pausar se conserva el instante exacto (aunque caiga entre dos horas).
+// Al pausar se conserva el instante exacto (aunque caiga entre dos horas) y el cuadro se
+// vuelve a dibujar con las estelas completas, por si el equipo las había simplificado.
 function pausar() {
+  const estaba = est.reproduciendo;
   est.reproduciendo = false;
   if (animacion) cancelAnimationFrame(animacion);
   animacion = null;
   $('linea-tiempo').classList.remove('reproduciendo');
   $('btn-play').setAttribute('aria-label', 'Reproducir');
+  if (estaba && est.sim) { estelasCompletas(); capaParticulas.redibujar(); }
+}
+
+// Tras arrastrar el deslizador o saltar varias veces seguidas, el último cuadro se completa.
+let pendienteDetalle = null;
+function completarDetalle() {
+  clearTimeout(pendienteDetalle);
+  pendienteDetalle = setTimeout(() => {
+    if (est.reproduciendo || !est.sim || !est.dibujo || !est.ver.estelas) return;
+    estelasCompletas();
+    capaParticulas.redibujar();
+  }, 350);
 }
 
 function saltar(horas) {

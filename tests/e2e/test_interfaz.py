@@ -541,6 +541,7 @@ def test_la_animacion_avanza_entre_horas_y_la_pausa_conserva_el_instante(pagina)
     assert len(fraccionarias) >= 6, f"la hora avanza de forma continua, no a saltos de 1 h: {sorted(vistas)}"
     pagina.click("#btn-play")
     assert not pagina.evaluate("window.pms.reproduciendo")
+    assert pagina.evaluate("window.pms.dibujo.tramosEstela") == 6, "al pausar, las estelas se dibujan completas"
     h1, f1 = pagina.evaluate("window.pms.hora"), huella_canvas(pagina, "particulas")
     time.sleep(1.2)
     assert pagina.evaluate("window.pms.hora") == h1 and huella_canvas(pagina, "particulas") == f1
@@ -583,6 +584,8 @@ def test_ninguna_particula_se_dibuja_sobre_tierra_ni_entre_horas(pagina):
 
 def test_estelas_por_rapidez_y_su_interruptor(pagina):
     poner_hora(pagina, 20.5)
+    pagina.wait_for_timeout(500)           # el último cuadro se completa solo si venía simplificado
+    assert pagina.evaluate("window.pms.dibujo.tramosEstela") == 6
     con = huella_canvas(pagina, "particulas")
     clases = pagina.evaluate("""() => {
         const s = window.pms.sim, v = [0, 0], c = [0, 0, 0];
@@ -595,6 +598,7 @@ def test_estelas_por_rapidez_y_su_interruptor(pagina):
     pagina.uncheck("#ver-estelas")
     assert huella_canvas(pagina, "particulas") != con
     pagina.check("#ver-estelas")
+    pagina.wait_for_timeout(500)
     assert huella_canvas(pagina, "particulas") == con
     capas(pagina, False)
 
@@ -752,6 +756,7 @@ def test_hover_muestra_coordenadas_en_dos_formatos_y_la_ola_del_modelo(pagina):
 # --- Exportar ----------------------------------------------------------------------------------------
 
 def test_exportar_la_imagen_del_mapa(pagina, tmp_path):
+    pausar(pagina)
     poner_hora(pagina, 12)
     with pagina.expect_download() as descarga:
         pagina.click("#btn-exportar-imagen")
@@ -767,7 +772,9 @@ def test_exportar_la_imagen_del_mapa(pagina, tmp_path):
 
 
 def test_resumen_de_una_pagina_con_parametros_arribos_escalas_y_limites(pagina):
-    pagina.evaluate("window.print = () => { window.__impreso = (window.__impreso || 0) + 1; }")
+    pausar(pagina)
+    # Como función: si la expresión evaluada fuera la propia flecha, Playwright la ejecutaría.
+    pagina.evaluate("() => { window.__impreso = 0; window.print = () => { window.__impreso += 1; }; }")
     pagina.click("#btn-imprimir")
     pagina.wait_for_function("window.__impreso === 1")
     arribos = pagina.evaluate("window.pms.sim.reg.resumen.arribos.length")

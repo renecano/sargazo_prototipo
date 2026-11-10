@@ -5,9 +5,12 @@ Para cada tamaño (1366×768 y 1920×1080) produce en docs/capturas/:
 
     recorrido-<tamaño>.png    primer paso del recorrido guiado (se abre solo la primera vez)
     recorrido-mapa-<tamaño>.png  paso «Cómo leer el mapa» con una simulación real
-    listo-<tamaño>.png        datos validados, paso 1
-    resultado-<tamaño>.png    120 h frente a Cancún, pausado en +12 h, con el hover
+    resultado-<tamaño>.png    120 h frente a Cancún, en pausa, con el cursor sobre una partícula
+    arribos-<tamaño>.png      tras tocar un tramo de la tabla de arribos
+    satelite-<tamaño>.png     mapa base de satélite con el panel «Mapa y capas» (necesita internet)
+    listo-<tamaño>.png        datos validados, paso 1, carta completa
     error-<tamaño>.png        copia del archivo sin la hora +57 (detalle desplegado)
+    resumen-a4.png            el resumen de una página, como se imprime
 
 y copia las de 1366×768 a docs/captura*.png para el README.
 
@@ -103,33 +106,63 @@ def _sesion(nav, url, ancho, alto, sufijo):
     pg = nav.new_page(viewport={"width": ancho, "height": alto}, device_scale_factor=1)
     pg.goto(url, wait_until="domcontentloaded")
     _esperar(pg, "listo")
+    pg.wait_for_function("window.pms.costa && window.pms.localidades")
     pg.wait_for_selector('[data-prueba="recorrido"]')     # se abre solo la primera vez
     pg.wait_for_timeout(1500)
     _captura(pg, DOCS / "capturas" / f"recorrido-{sufijo}.png")
     # Recorrido hasta «Cómo leer el mapa», con una simulación real frente a Cancún.
-    _siguiente(pg)
-    _siguiente(pg)
+    for _ in range(3):
+        _siguiente(pg)                                    # datos → carta y capas → fijar el punto
     pg.mouse.click(*_punto(pg, 21.12, -86.60))
-    _siguiente(pg)
-    _siguiente(pg)
-    _siguiente(pg)
+    for _ in range(3):
+        _siguiente(pg)                                    # horizonte → γ y K_h → simular
     pg.click("#btn-simular")
     pg.wait_for_function("window.pms.estado === 'resultado'", timeout=60_000)
     _siguiente(pg)
     pg.wait_for_timeout(1200)
     _captura(pg, DOCS / "capturas" / f"recorrido-mapa-{sufijo}.png")
     pg.click("#rec-saltar")
-    # Vista de resultado con hover
-    pg.eval_on_selector("#lt-slider", "e => { e.value = 12; e.dispatchEvent(new Event('input')); }")
-    lat, lon = pg.evaluate("() => window.pms.sim.reg.resultados.series.centroide[12].slice().reverse()")
-    x, y = _punto(pg, lat, lon + 0.18)
-    pg.mouse.move(x, y)
-    pg.wait_for_selector("#tooltip:not([hidden])")
+    # Resultado en pausa, con el cursor sobre una partícula (rapidez y rumbo).
+    pg.evaluate("window.pmsDepurar.ponerHora(12.4)")
+    pt = pg.evaluate("""() => { const s = window.pms.sim, p = [0, 0];
+        for (let n = 0; n < s.N; n++) { if (s.estado(n, 12.4) !== 0) continue; s.pos(n, 12.4, p);
+            const q = window.pmsMapa.latLngToContainerPoint([p[1], p[0]]);
+            if (q.x > 520 && q.x < window.innerWidth - 420 && q.y > 140 && q.y < window.innerHeight - 330) return [q.x, q.y]; }
+        return null; }""")
+    if pt:
+        pg.mouse.move(pt[0] + 1, pt[1] + 1)
+        pg.wait_for_selector("#tooltip:not([hidden])")
     pg.wait_for_timeout(800)
     _captura(pg, DOCS / "capturas" / f"resultado-{sufijo}.png")
     pg.mouse.move(5, alto - 5)
+    # Clic en el último tramo de la tabla de arribos: el mapa va a ese lugar y a esa hora.
+    pg.locator("#resultado .arribo").last.click()
+    pg.wait_for_timeout(1500)
+    _captura(pg, DOCS / "capturas" / f"arribos-{sufijo}.png")
+    # Mapa base de satélite, con el panel de capas abierto.
+    pg.click("#btn-capas")
+    pg.check('input[name="base"][value="satelite"]')
+    try:
+        pg.wait_for_load_state("networkidle", timeout=20_000)
+    except Exception:  # noqa: BLE001 — sin internet la captura sale con las teselas que haya
+        pass
+    pg.wait_for_timeout(1500)
+    _captura(pg, DOCS / "capturas" / f"satelite-{sufijo}.png")
+    pg.check('input[name="base"][value="carta"]')
+    pg.click("#btn-capas")
+    if sufijo == "1366x768":
+        # Resumen de una página, tal como se imprime (A4 a 96 ppp).
+        pg.evaluate("() => { window.print = () => {}; }")
+        pg.evaluate("window.pmsDepurar.imprimirResumen()")
+        pg.set_viewport_size({"width": 794, "height": 1123})
+        pg.emulate_media(media="print")
+        pg.wait_for_timeout(600)
+        _captura(pg, DOCS / "capturas" / "resumen-a4.png")
+        pg.emulate_media(media="screen")
+        pg.set_viewport_size({"width": ancho, "height": alto})
     pg.click('#pasos [data-paso="1"]')
-    pg.wait_for_timeout(500)
+    pg.evaluate("window.pmsMapa.fitBounds([[16.92, -92.08], [23, -84.08]], { animate: false, paddingTopLeft: [360, 84], paddingBottomRight: [40, 96] })")
+    pg.wait_for_timeout(900)
     _captura(pg, DOCS / "capturas" / f"listo-{sufijo}.png")
     pg.close()
 
@@ -156,8 +189,9 @@ def principal() -> int:
                 pg.close()
             nav.close()
         srv.should_exit = srv_e.should_exit = True
-    for nombre in ("recorrido", "resultado", "listo", "error"):
+    for nombre in ("recorrido", "resultado", "arribos", "satelite", "listo", "error"):
         shutil.copy(DOCS / "capturas" / f"{nombre}-1366x768.png", DOCS / f"captura_{nombre}.png")
+    shutil.copy(DOCS / "capturas" / "resumen-a4.png", DOCS / "captura_resumen.png")
     return 0
 
 

@@ -293,7 +293,14 @@ export function claseRapidez(ms) {
   return kn < CLASES_RAPIDEZ_KN[0] ? 0 : kn < CLASES_RAPIDEZ_KN[1] ? 1 : 2;
 }
 
-const bufer = { n: 0, x: [], y: [], clase: null, flota: null };
+// Detalle de las estelas: en cuántos tramos de opacidad se parte cada una. Lo caro no es el
+// JavaScript sino el trazado del lienzo, que el navegador hace después: por eso se mide el
+// tiempo entre cuadros seguidos (reproducción o arrastre del deslizador). Si pasa de 45 ms
+// (menos de ~22 cuadros/s) se baja un nivel; si se sostiene por debajo de 20 ms, se sube. Un
+// cuadro aislado (pausa) siempre se dibuja completo.
+const NIVELES_ESTELA = [6, 3, 2, 1];
+const MS_BAJAR = 45, MS_SUBIR = 20, MS_SEGUIDO = 300, CUADROS_PARA_BAJAR = 4, CUADROS_PARA_SUBIR = 45;
+const bufer = { n: 0, x: [], y: [], clase: null, flota: null, nivel: 0, periodo: 0, enNivel: 0, ultimo: 0, anillo: null, claveAnillo: '' };
 function reservar(n) {
   if (bufer.n >= n) return;
   bufer.n = n;
@@ -303,9 +310,46 @@ function reservar(n) {
   bufer.flota = new Uint8Array(n);
 }
 
+// El siguiente cuadro se dibuja con las estelas completas (al pausar o al dejar de arrastrar).
+export function estelasCompletas() { bufer.ultimo = 0; }
+export const TRAMOS_ESTELA_COMPLETA = NIVELES_ESTELA[0];
+
+// El anillo de «varada» se pinta una vez en un lienzo pequeño y se estampa: miles de arcos por
+// cuadro son lo más caro de dibujar cuando casi todo el sargazo ya llegó a la costa.
+function selloAnillo(color, radio) {
+  const dpr = window.devicePixelRatio || 1;
+  const clave = `${color}|${radio.toFixed(2)}|${dpr}`;
+  if (bufer.claveAnillo === clave) return bufer.anillo;
+  const lado = Math.ceil(2 * radio + 4);
+  const lienzo = document.createElement('canvas');
+  lienzo.width = lienzo.height = Math.ceil(lado * dpr);
+  const g = lienzo.getContext('2d');
+  g.scale(dpr, dpr);
+  g.strokeStyle = color;
+  g.lineWidth = 1.3;
+  g.beginPath();
+  g.arc(lado / 2, lado / 2, radio, 0, 2 * Math.PI);
+  g.stroke();
+  bufer.anillo = { lienzo, lado };
+  bufer.claveAnillo = clave;
+  return bufer.anillo;
+}
+
 export function dibujarParticulas(ctx, c, est) {
   const { sim } = est;
   if (!sim) return;
+  const inicio = performance.now();
+  const seguido = inicio - bufer.ultimo < MS_SEGUIDO;
+  if (!seguido) { bufer.nivel = 0; bufer.enNivel = 0; bufer.periodo = 0; } else {
+    bufer.periodo = bufer.periodo ? 0.7 * bufer.periodo + 0.3 * (inicio - bufer.ultimo) : inicio - bufer.ultimo;
+    bufer.enNivel++;
+    if (bufer.periodo > MS_BAJAR && bufer.enNivel > CUADROS_PARA_BAJAR && bufer.nivel < NIVELES_ESTELA.length - 1) {
+      bufer.nivel++; bufer.enNivel = 0; bufer.periodo = 0;
+    } else if (bufer.periodo < MS_SUBIR && bufer.enNivel > CUADROS_PARA_SUBIR && bufer.nivel > 0) {
+      bufer.nivel--; bufer.enNivel = 0; bufer.periodo = 0;
+    }
+  }
+  bufer.ultimo = inicio;
   const p = paleta(est);
   const t = est.hora, N = sim.N;
   const h0 = Math.min(sim.H, Math.floor(t));
@@ -334,19 +378,24 @@ export function dibujarParticulas(ctx, c, est) {
       Y[s][n] = c.y(sim.lat[o]);
     }
   }
-  est.dibujo = { aFlote, varadas, sobreTierra, radio, hora: t };
 
+  // Estelas: cada tramo de opacidad es una polilínea por partícula, en un solo trazo por clase.
+  const tramos = Math.min(NIVELES_ESTELA[bufer.nivel], cuadros);
   ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
   ctx.lineWidth = Math.max(1, radio * 0.75);
   for (let k = 0; k < 3; k++) {
     ctx.strokeStyle = p.rapidez[k];
-    for (let s = 0; s < cuadros; s++) {
-      ctx.globalAlpha = ALFA_ESTELA[s];
+    for (let g = 0; g < tramos; g++) {
+      const s0 = Math.floor((g * cuadros) / tramos), s1 = Math.floor(((g + 1) * cuadros) / tramos);
+      let alfa = 0;
+      for (let q = s0; q < s1; q++) alfa += ALFA_ESTELA[q];
+      ctx.globalAlpha = alfa / (s1 - s0);
       ctx.beginPath();
       for (let n = 0; n < N; n++) {
         if (bufer.flota[n] !== 1 || bufer.clase[n] !== k) continue;
-        ctx.moveTo(X[s][n], Y[s][n]);
-        ctx.lineTo(X[s + 1][n], Y[s + 1][n]);
+        ctx.moveTo(X[s0][n], Y[s0][n]);
+        for (let q = s0 + 1; q <= s1; q++) ctx.lineTo(X[q][n], Y[q][n]);
       }
       ctx.stroke();
     }
@@ -359,16 +408,14 @@ export function dibujarParticulas(ctx, c, est) {
   }
   ctx.globalAlpha = 1;
   // Varadas: anillo, para que no dependan solo del color.
-  ctx.strokeStyle = p.varada;
-  ctx.lineWidth = 1.3;
-  ctx.beginPath();
-  const ra = radio + 1.1;
-  for (let n = 0; n < N; n++) {
-    if (bufer.flota[n] !== 2) continue;
-    ctx.moveTo(X[0][n] + ra, Y[0][n]);
-    ctx.arc(X[0][n], Y[0][n], ra, 0, 2 * Math.PI);
+  if (varadas) {
+    const { lienzo, lado } = selloAnillo(p.varada, radio + 1.1);
+    for (let n = 0; n < N; n++) {
+      if (bufer.flota[n] === 2) ctx.drawImage(lienzo, X[0][n] - lado / 2, Y[0][n] - lado / 2, lado, lado);
+    }
   }
-  ctx.stroke();
+
+  est.dibujo = { aFlote, varadas, sobreTierra, radio, hora: t, tramosEstela: tramos, ms: performance.now() - inicio };
 }
 
 // ---------------------------------------------------------------------------
