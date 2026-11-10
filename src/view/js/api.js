@@ -40,6 +40,13 @@ export const api = {
   validacion: (forzar = false) => pedir(`/api/validacion?forzar=${forzar}`),
   campos: () => pedir('/api/campos'),
   costa: () => pedir('/api/costa'),
+  localidades: () => pedir('/api/localidades'),
+  ola: (lon, lat, hora) => pedir(`/api/ola?lon=${lon}&lat=${lat}&hora=${hora}`),
+  binario: async (url) => {
+    const r = await fetch(url);
+    if (!r.ok) throw Object.assign(new Error(`HTTP ${r.status}`), { detalle: { causa: `No se pudo descargar ${url}.`, accion: 'Recarga la página.' } });
+    return new Uint8Array(await r.arrayBuffer());
+  },
   simular: (parametros) => pedir('/api/trabajos/simulacion', json(parametros)),
   simularSincrono: (parametros) => pedir('/api/simulaciones', json(parametros)),
   trabajo: (id) => pedir(`/api/trabajos/${encodeURIComponent(id)}`),

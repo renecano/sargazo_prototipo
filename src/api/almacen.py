@@ -99,7 +99,7 @@ def armar_registro(resultado: Resultado, resumen: dict, datos: dict) -> dict:
             "hora_varada": b64(resultado.hora_varada.astype("<i2")),
             "hora_fuera": b64(resultado.hora_fuera.astype("<i2")),
             "zona_varada": b64(zonas_por_particula(resultado)),
-            "zonas": [{"id": z["id"], "nombre": z["nombre"]} for z in costa.ZONAS],
+            "zonas": [{"id": z["id"], "nombre": z["nombre"], "limites": z["limites"]} for z in costa.ZONAS],
             "series": series,
         },
         "bitacora": resultado.bitacora,

@@ -1,6 +1,6 @@
 // Utilidades de formato y decodificación compartidas por la interfaz.
 
-const ESPACIO_MILES = ' '; // espacio fino no separable: 2 000
+const ESPACIO_MILES = ' '; // espacio fino no separable: 2 000
 
 export function fmtNum(n, dec = 0) {
   if (n === null || n === undefined || Number.isNaN(n)) return '—';
@@ -13,7 +13,7 @@ export function fmtPct(fraccion, dec = 1) {
   return `${fmtNum(fraccion * 100, dec)} %`;
 }
 
-// Coordenadas siempre con 3 decimales y hemisferio: 21.123° N · 86.654° O
+// ---- Coordenadas: decimales (3) y grados con minutos decimales, como en una carta ----
 export function fmtLat(lat) {
   return `${Math.abs(lat).toFixed(3)}° ${lat >= 0 ? 'N' : 'S'}`;
 }
@@ -23,43 +23,74 @@ export function fmtLon(lon) {
 export function fmtCoord(lat, lon) {
   return `${fmtLat(lat)} · ${fmtLon(lon)}`;
 }
+// 21.12 → «21° 07.20′ N»; −86.66 → «086° 39.60′ O» (la longitud lleva tres cifras de grados).
+export function fmtGradosMin(valor, esLatitud) {
+  const abs = Math.abs(valor);
+  let grados = Math.floor(abs);
+  let minutos = Math.round((abs - grados) * 6000) / 100;
+  if (minutos >= 60) { grados += 1; minutos = 0; }
+  const hemisferio = esLatitud ? (valor >= 0 ? 'N' : 'S') : (valor >= 0 ? 'E' : 'O');
+  return `${String(grados).padStart(esLatitud ? 2 : 3, '0')}° ${minutos.toFixed(2).padStart(5, '0')}′ ${hemisferio}`;
+}
+export function fmtCoordGM(lat, lon) {
+  return `${fmtGradosMin(lat, true)} · ${fmtGradosMin(lon, false)}`;
+}
 
 const RUMBOS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
 export function rumbo16(grados) {
   return RUMBOS[Math.floor((((grados % 360) + 360) % 360) / 22.5 + 0.5) % 16];
 }
-
-// (u, v) "hacia" → dirección meteorológica "desde" (viento)
-export function dirDesde(u, v) {
-  return ((Math.atan2(-u, -v) * 180) / Math.PI + 360) % 360;
+export function fmtRumbo(grados) {
+  const g = Math.round((((grados % 360) + 360) % 360)) % 360;
+  return `${String(g).padStart(3, '0')}° (${rumbo16(g)})`;
 }
-// (u, v) → rumbo "hacia" (corriente, deriva)
+
+// (u, v) → rumbo «hacia» (deriva)
 export function dirHacia(u, v) {
   return ((Math.atan2(u, v) * 180) / Math.PI + 360) % 360;
 }
 
+// ---- Unidades navales ----
+export const KM_POR_MN = 1.852;            // 1 milla náutica = 1 852 m (exacto)
 export const MS_A_NUDOS = 1 / 0.514444;
+export const MS_A_KMH = 3.6;
 
-// ---- Fechas: UTC y hora local de Cancún (UTC−5 todo el año) ----
+export function fmtDistancia(km, dec = 1) {
+  if (km === null || km === undefined) return '—';
+  return `${fmtNum(km, dec)} km · ${fmtNum(km / KM_POR_MN, dec)} MN`;
+}
+export function fmtRapidez(ms) {
+  if (ms === null || ms === undefined || Number.isNaN(ms)) return '—';
+  return `${fmtNum(ms * MS_A_NUDOS, 2)} kn · ${fmtNum(ms * MS_A_KMH, 2)} km/h`;
+}
+
+// ---- Fechas: UTC y hora de Quintana Roo (UTC−5 todo el año, sin horario de verano) ----
 const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const dos = (n) => String(n).padStart(2, '0');
+export const DESFASE_QROO_H = -5;
 
 export function parseUTC(iso) {
   // "2026-10-01T00:00Z" o "2026-10-01T00:00:00Z"
   return new Date(iso.length === 17 ? iso.replace('Z', ':00Z') : iso);
 }
+const local = (d) => new Date(d.getTime() + DESFASE_QROO_H * 3600 * 1000);
 export function fmtFechaUTC(d) {
-  return `${DIAS[d.getUTCDay()]} ${dos(d.getUTCDate())} ${MESES[d.getUTCMonth()]} · ${dos(d.getUTCHours())}:00 UTC`;
+  return `${DIAS[d.getUTCDay()]} ${dos(d.getUTCDate())} ${MESES[d.getUTCMonth()]} · ${dos(d.getUTCHours())}:${dos(d.getUTCMinutes())} UTC`;
 }
-export function fmtHoraCancun(d) {
-  const l = new Date(d.getTime() - 5 * 3600 * 1000);
-  return `${DIAS[l.getUTCDay()]} ${dos(l.getUTCHours())}:00 Cancún (UTC−5)`;
+export function fmtFechaQRoo(d) {
+  const l = local(d);
+  return `${DIAS[l.getUTCDay()]} ${dos(l.getUTCDate())} ${MESES[l.getUTCMonth()]} · ${dos(l.getUTCHours())}:${dos(l.getUTCMinutes())}`;
+}
+export function fmtDiaMes(d) {
+  return `${dos(d.getUTCDate())} ${MESES[d.getUTCMonth()]}`;
 }
 export function fmtFechaCorta(iso) {
-  const d = parseUTC(iso);
-  const l = new Date(d.getTime() - 5 * 3600 * 1000);
+  const l = local(parseUTC(iso));
   return `${dos(l.getUTCDate())} ${MESES[l.getUTCMonth()]} ${dos(l.getUTCHours())}:${dos(l.getUTCMinutes())}`;
+}
+export function fmtFechaLarga(d) {
+  return `${dos(d.getUTCDate())} ${MESES[d.getUTCMonth()]} ${d.getUTCFullYear()}, ${dos(d.getUTCHours())}:${dos(d.getUTCMinutes())} UTC`;
 }
 export function sumarHoras(d, h) {
   return new Date(d.getTime() + h * 3600 * 1000);
@@ -94,3 +125,4 @@ export function el(etiqueta, attrs = {}, ...hijos) {
 }
 
 export const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+export const acotar = (v, a, b) => Math.max(a, Math.min(b, v));

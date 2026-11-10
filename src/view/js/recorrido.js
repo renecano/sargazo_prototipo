@@ -2,7 +2,7 @@
 // tarjeta con el texto. Algunos pasos esperan una acción real (clic en el mar, simular).
 import { el } from './util.js';
 
-const CLAVE_VISTO = 'pms.recorrido.visto.v3';
+const CLAVE_VISTO = 'pms.recorrido.visto.v4';
 const CLAVE_VOZ = 'pms.recorrido.voz';
 const MARGEN = 8;          // aire alrededor del elemento iluminado
 const SEPARACION = 14;     // distancia entre el foco y la tarjeta
