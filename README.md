@@ -565,7 +565,8 @@ sargazo_prototipo/
 ## Pruebas y rendimiento
 
 **209 pruebas rápidas** (`python -m pytest`, sin red) y **35 de interfaz** (`python -m pytest -m e2e`),
-en verde en local y en el CI de GitHub Actions (Windows y Ubuntu, Python 3.12 y 3.14, más e2e).
+en verde en local y en el CI de GitHub Actions (Windows y Ubuntu, Python 3.12 y 3.14, más e2e):
+[corrida en verde](https://github.com/renecano/sargazo_prototipo/actions/runs/42744030178).
 Para revisar a mano cada observación de SEMAR: [`docs/manual_pruebas.md`](docs/manual_pruebas.md).
 
 | Archivo | Qué comprueba |
@@ -603,22 +604,26 @@ encendido; el freno de procesador de Chromium simula un equipo más modesto):
 
 Las estelas bajan de detalle solas cuando el equipo no alcanza y el oleaje animado se limita a
 30 cuadros por segundo. Son un piso: un navegador normal, con tarjeta de video, va más rápido.
-La v0.5.0 todavía no se ha medido en Vercel; los tiempos de abajo son de la v0.4.0.
-
-**En Vercel (v0.4.0)**, medido desde Windows (incluye la red):
+**En Vercel (v0.5.0)**, medido desde Windows el 09/11/2026 (incluye la red; dos peticiones por ruta):
 
 | Operación | Tiempo |
 |---|---|
-| Validación (primera vez en la instancia) | 0.9 s |
-| Validación (en caché) | 0.27 s |
-| Campos de oleaje | 0.47 s |
-| Simulación de 120 h frente a Cancún | 0.95 s |
-| La app queda «lista» en el navegador | ~1.8 s |
+| `/api/salud` | 0.28–0.36 s |
+| Validación (en caché) | 0.29–0.32 s |
+| Campos de oleaje | 0.33–0.42 s |
+| Máscara de costa (72 KB comprimida, idéntica byte a byte a la del repositorio) | 0.29–0.40 s |
+| Simulación de 120 h frente a Cancún (2 000 partículas, registro de 1.3 MB) | 1.1 s |
+| La app queda «lista» en el navegador (carta, costa, localidades y oleaje) | 2.2–3.5 s |
+
+Las pruebas de interfaz corren también contra el despliegue
+(`python -m pytest -m e2e --url-base https://pms-sargazo.vercel.app`): 32 pasan y 3 se omiten
+porque necesitan levantar un servidor con datos propios.
 
 **Arranque en frío.** No se pudo forzar uno limpio en Vercel, porque la instancia de producción
-ya estaba caliente tras cada despliegue (`/api/salud` respondió en 0.30 s en la primera
-petición). Con el mismo punto de entrada (`api/index.py`) medido en local cuesta ~1.0–1.1 s:
-0.75 s de importar la app y 0.30 s de la primera validación. Está muy lejos del límite de 60 s
+ya estaba caliente tras cada despliegue (`/api/salud` respondió en 0.36 s en la primera
+petición de la v0.5.0). Con el mismo punto de entrada (`api/index.py`) medido en local con la
+v0.4.0 costaba ~1.0–1.1 s: 0.75 s de importar la app y 0.30 s de la primera validación; la
+v0.5.0 suma la carga de la máscara de costa (0.01 s). Está muy lejos del límite de 60 s
 de la función, así que no fue necesario optimizar la lectura del archivo.
 
 ## Límites honestos

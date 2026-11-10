@@ -558,7 +558,7 @@ def test_la_animacion_avanza_entre_horas_y_la_pausa_conserva_el_instante(pagina)
     assert not pagina.evaluate("window.pms.reproduciendo")
 
 
-def test_ninguna_particula_se_dibuja_sobre_tierra_ni_entre_horas(pagina):
+def test_ninguna_particula_se_dibuja_sobre_tierra_ni_entre_horas(pagina, url_externa):
     """Se recorre toda la simulación a cuartos de hora con la máscara del modelo."""
     r = pagina.evaluate("""() => {
         const d = window.pmsDepurar, s = window.pms.sim;
@@ -579,7 +579,8 @@ def test_ninguna_particula_se_dibuja_sobre_tierra_ni_entre_horas(pagina):
     assert r["cuadros"] == 480 and r["aFlote"] > 10_000
     assert r["sobreTierra"] == 0, "ninguna partícula, a flote o varada, se dibuja sobre tierra en ningún cuadro"
     assert r["varadas"] > 500 and r["varadasEnTierra"] == 0, "las varadas quedan en el mar, pegadas a la costa"
-    assert r["rozan"] > 0, "el caso ejercita la corrección del redondeo de 22 m"
+    if not url_externa:      # con el archivo de prueba hay rectas que rozan tierra; con otros datos puede no haberlas
+        assert r["rozan"] > 0, "el caso ejercita la corrección del redondeo de 22 m"
 
 
 def test_estelas_por_rapidez_y_su_interruptor(pagina):
