@@ -1,4 +1,4 @@
-"""Modelo pms-browniano-0.3.0: deriva de Stokes analítica, γ, movimiento browniano, interpolación,
+"""Modelo pms-browniano-0.4.0: deriva de Stokes analítica, γ, movimiento browniano, interpolación,
 reproducibilidad, costa, dominio y métricas."""
 import math
 from datetime import datetime, timezone
@@ -204,7 +204,7 @@ def test_resumen_consistente(conjunto):
     a_flote = r.estado_en(24) == A_FLOTE
     cx, cy = s["series"]["centroide"][24]
     assert cx == pytest.approx(r.lon[24, a_flote].mean(), abs=1e-4) and cy == pytest.approx(r.lat[24, a_flote].mean(), abs=1e-4)
-    assert any("pms-browniano-0.3.0" in l for l in r.bitacora) and any("γ = 1" in l for l in r.bitacora)
+    assert any("pms-browniano-0.4.0" in l for l in r.bitacora) and any("γ = 1" in l for l in r.bitacora)
 
 
 def test_costa_reconoce_tierra_y_mar():

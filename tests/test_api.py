@@ -26,7 +26,7 @@ def test_post_simulacion_pequena_devuelve_200_y_se_guarda(cliente, tmp_path):
     r = cliente.post("/api/simulaciones", json={**PEQUENA, "gamma": 1.5, "kh_m2s": 5})
     assert r.status_code == 200, r.text
     reg = r.json()
-    assert reg["version_modelo"] == "pms-browniano-0.3.0"
+    assert reg["version_modelo"] == "pms-browniano-0.4.0"
     assert reg["parametros"]["gamma"] == 1.5 and reg["parametros"]["kh_m2s"] == 5
     assert "alpha_pct" not in reg["parametros"]
     assert reg["datos"]["archivo"] == ARCHIVO_OLEAJE and len(reg["datos"]["huella_sha256"]) == 64
@@ -113,7 +113,7 @@ def test_trabajo_inexistente_404(cliente):
 
 def test_interfaz_y_salud(cliente):
     salud = cliente.get("/api/salud").json()
-    assert salud["estado"] == "ok" and salud["version_app"] == "0.4.0" and salud["version_modelo"] == "pms-browniano-0.3.0"
+    assert salud["estado"] == "ok" and salud["version_app"] == "0.5.0" and salud["version_modelo"] == "pms-browniano-0.4.0"
     assert salud["datos_disponibles"] is True and salud["trabajos_en_segundo_plano"] is True
     html = cliente.get("/")
     assert html.status_code == 200 and "Predicción de Movimiento del Sargazo" in html.text and "Recorrido guiado" in html.text
@@ -135,3 +135,94 @@ def test_pagina_validacion_y_sus_figuras(cliente):
         assert cliente.get("/validacion/" + src).status_code == 200, src
     assert cliente.get("/validacion/figuras/fss_por_horizonte.png").headers["content-type"] == "image/png"
     assert cliente.get("/validacion/fss_resumen.csv").status_code == 200
+
+
+# --- v0.5.0: costa del modelo, localidades, ola en un punto y tabla de arribos ---------------------
+
+def test_costa_la_interfaz_recibe_la_misma_mascara_que_usa_el_modelo(cliente):
+    import gzip
+    import hashlib
+
+    from src.model import costa
+
+    info = cliente.get("/api/costa").json()
+    assert info["malla"] == costa.MALLA_COSTA and info["sha256"] == costa.procedencia()["costa"]["sha256_bits"]
+    assert [z["id"] for z in info["zonas"]] == [z["id"] for z in costa.ZONAS]
+    assert "OpenStreetMap" in info["fuentes"]["costa"]["atribucion"] and info["fuentes"]["contexto"]["atribucion"] == "Natural Earth"
+    r = cliente.get(info["mascara_url"])
+    assert r.status_code == 200 and r.headers["content-encoding"] == "gzip" and len(r.content) == 6320 * 1030
+    assert hashlib.sha256(r.content).hexdigest() == info["sha256"]
+    crudo = cliente.get(info["mascara_url"], headers={"Accept-Encoding": "identity"})
+    assert "content-encoding" not in crudo.headers and crudo.content == r.content
+    contexto = cliente.get(info["contexto_url"])
+    assert len(contexto.content) == 2000 * 350
+    assert len(gzip.compress(r.content)) < 200_000, "viaja en decenas de KB"
+    assert cliente.get("/api/costa/otra.bin").status_code == 404
+
+
+def test_localidades_con_fuente(cliente):
+    d = cliente.get("/api/localidades").json()
+    assert d["fuente"]["licencia"] == "ODbL 1.0" and "OpenStreetMap" in d["fuente"]["atribucion"]
+    cancun = next(l for l in d["localidades"] if l["nombre"] == "Cancún")
+    assert cancun["osm"].startswith("node/") and cancun["rango"] == 1
+
+
+def test_ola_en_un_punto_es_la_del_modelo(cliente, semar):
+    from src.ingestion.validador import validar_conjunto
+    from src.model.campos import CamposOleaje
+
+    campos = CamposOleaje(validar_conjunto(semar)[1])
+    lon, lat = -86.47, 21.03
+    d = cliente.get("/api/ola", params={"lon": lon, "lat": lat, "hora": 37.5}).json()
+    h, direccion = campos.ola(np.array([lon]), np.array([lat]), 37.5)
+    u, v = campos.velocidades(np.array([lon]), np.array([lat]), 37.5)
+    assert d["altura_m"] == pytest.approx(float(h[0])) and d["direccion_desde"] == pytest.approx(float(direccion[0]))
+    assert d["u_ms"] == pytest.approx(float(u[0])) and d["v_ms"] == pytest.approx(float(v[0]))
+    assert d["en_tierra"] is False and d["rumbo_hacia"] == pytest.approx((d["direccion_desde"] + 180) % 360, abs=1e-6)
+    tierra = cliente.get("/api/ola", params={"lon": -86.95, "lat": 21.05}).json()
+    assert tierra["en_tierra"] is True
+    assert cliente.get("/api/ola", params={"lon": -86.47, "lat": 21.03, "hora": 500}).status_code == 422
+
+
+def test_campos_incluyen_la_franja_costera_extendida(cliente):
+    import base64
+
+    c = cliente.get("/api/campos").json()
+    n = len(c["horas"]) * c["malla"]["ny"] * c["malla"]["nx"]
+    altura = np.frombuffer(base64.b64decode(c["ola_altura"]), dtype="<u2")
+    direccion = np.frombuffer(base64.b64decode(c["ola_dir"]), dtype="<u2")
+    extrapolado = np.frombuffer(base64.b64decode(c["extrapolado"]), dtype=np.uint8)
+    assert altura.size == direccion.size == extrapolado.size == n
+    assert c["modelo"]["nodos_extrapolacion"] == 2
+    assert extrapolado.sum() > 0 and (altura[extrapolado == 1] != 65535).all(), "los nodos extendidos traen ola"
+    assert ((altura == 65535) == (direccion == 65535)).all() and direccion[direccion != 65535].max() < 3600
+
+
+def test_tabla_de_arribos_y_rapidez_del_conglomerado(cliente):
+    reg = cliente.post("/api/simulaciones", json={"lon": -86.66, "lat": 21.12, "particulas": 300, "horizonte_h": 72}).json()
+    s = reg["resumen"]
+    assert s["arribos"], "frente a Cancún hay arribos"
+    for a in s["arribos"]:
+        assert set(a) >= {"zona", "nombre", "particulas", "probabilidad", "etiqueta", "primer_arribo_h", "arribo_mediano_h",
+                          "distancia_km", "distancia_mn", "punto_primer_arribo", "limites"}
+        assert 0 < a["primer_arribo_h"] <= a["arribo_mediano_h"] <= 72
+        assert a["distancia_mn"] == pytest.approx(a["distancia_km"] / 1.852, abs=0.06)
+        o, sur, e, n = a["limites"]
+        assert o <= a["punto_primer_arribo"][0] <= e and sur <= a["punto_primer_arribo"][1] <= n
+    assert [a["probabilidad"] for a in s["arribos"]] == sorted((a["probabilidad"] for a in s["arribos"]), reverse=True)
+    assert sum(a["particulas"] for a in s["arribos"]) == round(s["varadas_pct"] * 3)
+    series = reg["resultados"]["series"]
+    assert len(series["rapidez_centroide_ms"]) == len(series["rumbo_centroide_grados"]) == 73
+    rapidez = [v for v in series["rapidez_centroide_ms"] if v is not None]
+    assert rapidez and 0.0 < max(rapidez) < 0.5 and max(rapidez) > min(rapidez), "la rapidez cambia con el tiempo"
+    assert s["distancia_centroide_mn"] == pytest.approx(s["distancia_centroide_km"] / 1.852, abs=0.06)
+    assert [z["id"] for z in reg["resultados"]["zonas"]][:4] == ["cuba", "banco_campeche", "chinchorro", "cozumel"]
+
+
+def test_el_historial_solo_lista_simulaciones_del_modelo_actual(cliente, tmp_path):
+    import json
+
+    reg = cliente.post("/api/simulaciones", json=PEQUENA).json()
+    viejo = {**reg, "id": "sim-20261001-000000-abcd", "version_modelo": "pms-browniano-0.3.0"}
+    (tmp_path / "sims" / f"{viejo['id']}.json").write_text(json.dumps(viejo), encoding="utf-8")
+    assert [h["id"] for h in cliente.get("/api/simulaciones").json()] == [reg["id"]]

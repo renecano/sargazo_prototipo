@@ -13,6 +13,11 @@ import numpy as np
 from src.config import RADIO_TIERRA_M
 
 NUDO_A_MS = 0.514444  # 1 nudo = 0.514444 m/s
+KM_POR_MILLA_NAUTICA = 1.852  # 1 milla náutica = 1 852 m (exacto)
+
+
+def km_a_millas_nauticas(km):
+    return np.asarray(km, dtype=float) / KM_POR_MILLA_NAUTICA
 
 
 def nudos_a_ms(nudos):

@@ -7,7 +7,7 @@ Vercel enruta todas las peticiones a esta función (ver vercel.json). Diferencia
   - El único archivo de entrada, data/semar/dirmarea.txt, viaja dentro del paquete de la
     función (vercel.json → includeFiles); está en el repositorio, así que los
     despliegues desde GitHub lo incluyen.
-  - Modelo pms-browniano-0.3.0: deriva de Stokes de la ola de viento + movimiento browniano.
+  - Modelo pms-browniano-0.4.0: deriva de Stokes de la ola de viento + movimiento browniano.
 """
 from __future__ import annotations
 

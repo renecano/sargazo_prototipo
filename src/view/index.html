@@ -8,7 +8,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f4ecd8'/%3E%3Cpath d='M16 3l3 13-3 13-3-13z' fill='%231d3557'/%3E%3Cpath d='M3 16l13-3 13 3-13 3z' fill='%23b07d10'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,500&display=swap">
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/static/css/carta.css">
 </head>
@@ -42,12 +42,7 @@
   </nav>
 
   <div class="acciones">
-    <label class="interruptor" id="chip-oleaje" title="Flechas hacia donde viaja la ola; largo proporcional a la altura">
-      <input type="checkbox" id="ver-oleaje" checked>
-      <span>Mostrar oleaje</span>
-      <svg width="30" height="10" viewBox="0 0 30 10" aria-hidden="true"><path d="M2 5h20" stroke="#1f5c7a" stroke-width="1.3"/><path d="M27 5l-6 3.2V1.8z" fill="#1f5c7a"/></svg>
-      <span class="mono">1 m</span>
-    </label>
+    <button type="button" class="boton-linea" id="btn-capas" aria-expanded="false" aria-controls="capas">Mapa y capas</button>
     <button type="button" class="boton-linea" id="btn-historial" aria-expanded="false" aria-controls="historial">Historial <span class="mono" id="hist-n"></span></button>
     <button type="button" class="boton-tinta" id="btn-recorrido">Recorrido guiado</button>
   </div>
@@ -59,11 +54,12 @@
   <div class="paso" data-paso="1">
     <p class="cuaderno">Paso 1 de 3</p>
     <h2>Punto de liberación</h2>
-    <p class="guia">Haz clic en el mar para soltar el conglomerado o escribe sus coordenadas. El círculo punteado es el radio inicial.</p>
+    <p class="guia">Haz clic en el mar o escribe las coordenadas.</p>
     <div class="dos">
       <label class="campo"><span>Latitud (°)</span><input id="p-lat" type="number" step="0.001" min="16.92" max="23" required></label>
       <label class="campo"><span>Longitud (°)</span><input id="p-lon" type="number" step="0.001" min="-92.08" max="-84.08" required></label>
     </div>
+    <p class="lectura mono" id="p-gm" title="Grados y minutos">—</p>
     <p class="aviso-campo" id="aviso-punto" hidden></p>
     <button type="button" class="primario" id="btn-a-ajustes">Continuar a Ajustes</button>
   </div>
@@ -74,14 +70,13 @@
     <label class="campo" id="campo-horizonte">
       <span class="fila"><span>Horizonte</span><b class="mono" id="v-horizonte">120 h</b></span>
       <input id="p-horizonte" type="range" min="24" max="120" step="24" value="120">
-      <small>Cuántas horas hacia adelante se calcula la deriva (máximo 5 días).</small>
     </label>
     <details class="avanzado" id="avanzado">
       <summary>Avanzado</summary>
       <label class="campo"><span>Radio inicial (km)</span><input id="p-radio" type="number" min="0.5" max="50" step="0.5" value="5">
-        <small>Tamaño del conglomerado al soltarlo.</small></label>
+        <small>Tamaño del conglomerado al soltarlo: el círculo punteado, a escala del mapa.</small></label>
       <label class="campo"><span>Partículas</span><input id="p-n" type="number" min="100" max="5000" step="100" value="2000">
-        <small>Más partículas dan probabilidades más estables, pero tardan más.</small></label>
+        <small>Más partículas dan porcentajes más estables, pero tardan más.</small></label>
       <label class="campo"><span>γ · factor de deriva por oleaje</span><input id="p-gamma" type="number" min="0" max="3" step="0.1" value="1">
         <small>Escala la deriva de Stokes: 0 la apaga, 1 es la estimación base, 3 la triplica.</small></label>
       <label class="campo"><span>K<sub>h</sub> · movimiento browniano (m²/s)</span><input id="p-kh" type="number" min="0" max="100" step="1" value="10">
@@ -102,49 +97,88 @@
   </div>
 </section>
 
-<aside class="historial" id="historial" hidden aria-label="Historial de simulaciones">
+<aside class="flotante capas" id="capas" hidden aria-label="Mapa base y capas">
+  <fieldset>
+    <legend>Mapa base</legend>
+    <label><input type="radio" name="base" value="carta" checked> Carta náutica <small>la costa del modelo; no usa internet</small></label>
+    <label><input type="radio" name="base" value="satelite"> Satélite <small>Sentinel-2 cloudless 2016</small></label>
+    <label><input type="radio" name="base" value="calles"> Calles <small>OpenStreetMap</small></label>
+  </fieldset>
+  <fieldset>
+    <legend>Capas</legend>
+    <label><input type="checkbox" id="ver-oleaje" checked> Oleaje</label>
+    <label class="sub"><input type="checkbox" id="ver-animar" checked> Animado <small id="nota-animar"></small></label>
+    <label><input type="checkbox" id="ver-estelas" checked> Estelas de las partículas</label>
+    <label><input type="checkbox" id="ver-densidad" checked> Densidad y zona 90 %</label>
+    <label><input type="checkbox" id="ver-localidades" checked> Localidades y puertos</label>
+  </fieldset>
+</aside>
+
+<aside class="flotante historial" id="historial" hidden aria-label="Historial de simulaciones">
   <h2>Historial</h2>
   <p class="nota" id="aviso-historial" hidden>En la nube el historial es temporal y puede vaciarse.</p>
   <ul class="lista-hist" id="lista-hist"></ul>
 </aside>
 
-<section class="leyenda" aria-label="Leyenda">
-  <ul>
-    <li><svg width="16" height="12" aria-hidden="true"><rect x="6" y="4" width="4" height="4" fill="#b07d10"/></svg>Sargazo a flote</li>
-    <li><svg width="16" height="12" aria-hidden="true"><circle cx="8" cy="6" r="3.5" fill="none" stroke="#c0392b" stroke-width="1.4"/></svg>Varado en la costa</li>
-    <li><svg width="16" height="12" aria-hidden="true"><path d="M1 6h14" stroke="#1d3557" stroke-width="2.2"/></svg>Trayectoria central</li>
-    <li><svg width="16" height="12" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="9" fill="rgba(29,53,87,0.07)" stroke="#1d3557" stroke-width="1.2" stroke-dasharray="4 2.5"/></svg>Zona probable P90</li>
-  </ul>
-  <p class="aviso" role="note">Pronóstico probabilístico de muestra; deriva estimada solo por oleaje, sin viento ni corrientes.</p>
-  <p class="validacion-enlace"><a href="/validacion">¿Se mueve como el sargazo real? Validación →</a></p>
+<section class="leyenda" id="leyenda" aria-label="Escalas y leyenda">
+  <div class="escalas" id="escalas">
+    <svg class="norte" viewBox="0 0 16 40" aria-label="Norte arriba"><path d="M8 38V6M3 13l5-8 5 8" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+    <div class="barras">
+      <div class="barra"><i id="esc-km"></i><span class="mono" id="esc-km-t">— km</span></div>
+      <div class="barra"><i id="esc-mn"></i><span class="mono" id="esc-mn-t">— MN</span></div>
+    </div>
+    <div class="ref-ola" id="ref-ola" title="El largo de cada flecha es la altura de la ola a esta escala, en cualquier zoom">
+      <svg id="ref-ola-svg" height="12" aria-hidden="true"></svg><span class="mono">ola de 1 m</span>
+    </div>
+  </div>
+  <p class="nota-ola" id="nota-ola" hidden></p>
+  <div class="ley-sim" id="ley-sim" hidden>
+    <div class="ley-densidad" id="ley-densidad" aria-label="Densidad"></div>
+    <p class="ley-unidad">% del sargazo liberado por celda de 0.04° (≈ 4.4 × 4.2 km)</p>
+    <ul class="ley-simbolos">
+      <li><span class="muestra estelas" id="ley-estelas"></span>a flote; estela de 6 h</li>
+      <li><span class="muestra"><svg width="14" height="12" aria-hidden="true"><circle cx="7" cy="6" r="3.6" fill="none" stroke="var(--ley-varada)" stroke-width="1.4"/></svg></span>varado</li>
+      <li><span class="muestra"><svg width="16" height="12" aria-hidden="true"><path d="M1 6h14" stroke="var(--ley-tinta)" stroke-width="2.2"/></svg></span>trayectoria central</li>
+      <li><span class="muestra"><svg width="16" height="12" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="9" fill="none" stroke="var(--ley-tinta)" stroke-width="1.2" stroke-dasharray="4 2.5"/></svg></span>zona con el 90 %</li>
+    </ul>
+  </div>
+  <details class="ley-detalle" id="ley-detalle">
+    <summary>Ver detalle</summary>
+    <p><b>Escala.</b> Las barras miden kilómetros y millas náuticas (1 MN = 1.852 km) en el centro del mapa y cambian con el zoom.</p>
+    <p><b>Oleaje.</b> Cada trazo viaja hacia donde va la ola; su largo y su rapidez son proporcionales a la altura. La flecha «1 m» mide lo mismo en cualquier zoom.</p>
+    <p><b>Partículas.</b> Cada punto es 1 de las partículas simuladas (no tiene tamaño físico; el símbolo crece un poco al acercar). La estela marca sus últimas 6 h: más larga y más oscura, más rápida (menos de 0.2 kn, de 0.2 a 0.4 kn, más de 0.4 kn).</p>
+    <p><b>Costa.</b> La línea de costa de la carta es la del modelo (OpenStreetMap, celdas de ~100 m): «varado» es tocar esa línea.</p>
+    <p class="fuentes" id="fuentes"></p>
+  </details>
+  <p class="aviso" role="note">Pronóstico probabilístico de muestra: solo oleaje, sin viento ni corrientes. <a href="/validacion" id="enlace-validacion">Validación contra satélite →</a></p>
 </section>
-
-<svg class="rosa" viewBox="0 0 120 120" aria-hidden="true">
-  <circle cx="60" cy="60" r="52" fill="none" stroke="#1d3557" stroke-width="0.8"/>
-  <circle cx="60" cy="60" r="46" fill="none" stroke="#1d3557" stroke-width="0.5" stroke-dasharray="1 3"/>
-  <g fill="#1d3557" opacity="0.85">
-    <path d="M60 10l5 50-5 50-5-50z"/><path d="M10 60l50-5 50 5-50 5z"/>
-  </g>
-  <g fill="#b07d10" opacity="0.8">
-    <path d="M60 60l22-22-18 26z"/><path d="M60 60l22 22-26-18z"/><path d="M60 60l-22 22 18-26z"/><path d="M60 60l-22-22 26 18z"/>
-  </g>
-  <circle cx="60" cy="60" r="3" fill="#f4ecd8" stroke="#1d3557"/>
-  <text x="60" y="7" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9" fill="#1d3557">N</text>
-</svg>
 
 <section class="linea-tiempo" id="linea-tiempo" aria-label="Línea de tiempo">
   <button type="button" class="play" id="btn-play" title="Reproducir / pausar (espacio)" aria-label="Reproducir">
     <svg class="i-play" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>
     <svg class="i-pausa" viewBox="0 0 20 20"><path d="M5 4h3.5v12H5zM11.5 4H15v12h-3.5z" fill="currentColor"/></svg>
   </button>
-  <span class="lt-h mono" id="lt-h">+0 h</span>
-  <input type="range" id="lt-slider" min="0" max="120" step="1" value="0" aria-label="Hora de pronóstico">
-  <span class="lt-fechas mono"><span id="lt-utc">—</span><span id="lt-local">—</span></span>
+  <div class="lt-saltos" role="group" aria-label="Saltar en el tiempo">
+    <button type="button" id="btn-atras" title="Retroceder (Mayús + ←)">−<span class="salto-n">6</span> h</button>
+    <button type="button" id="btn-adelante" title="Avanzar (Mayús + →)">+<span class="salto-n">6</span> h</button>
+  </div>
+  <div class="lt-hora"><b class="mono" id="lt-h">Hora 0 de 120</b></div>
+  <div class="lt-pista">
+    <input type="range" id="lt-slider" min="0" max="120" step="1" value="0" aria-label="Hora de pronóstico">
+    <div class="lt-dias" id="lt-dias" aria-hidden="true"></div>
+  </div>
+  <div class="lt-fechas mono"><span id="lt-utc">—</span><span id="lt-local">—</span></div>
+  <div class="lt-rapidez" id="lt-rapidez" hidden title="Desplazamiento del centroide del sargazo a flote en esta hora">
+    <span>Conglomerado</span><b class="mono" id="lt-kn">—</b><span class="mono" id="lt-rumbo"></span>
+  </div>
+  <label class="lt-sel">Salto<select id="lt-salto"><option value="3">3 h</option><option value="6" selected>6 h</option><option value="12">12 h</option></select></label>
+  <label class="lt-sel">Velocidad<select id="lt-velocidad"><option value="3">3 h/s</option><option value="6" selected>6 h/s</option><option value="12">12 h/s</option><option value="24">24 h/s</option></select></label>
 </section>
 
 <div class="tooltip" id="tooltip" role="status" hidden></div>
 <div class="velo" id="velo" hidden></div>
 <div id="recorrido"></div>
+<article id="informe" class="informe" aria-label="Resumen para imprimir"></article>
 
 <script src="/static/vendor/leaflet/leaflet.js"></script>
 <script type="module" src="/static/js/main.js"></script>

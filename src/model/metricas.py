@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import numpy as np
 
+from src.config import PASO_SEGUNDOS
 from src.model import costa
-from src.model.conversiones import distancia_km, nombre_rumbo
+from src.model.conversiones import KM_POR_MILLA_NAUTICA, distancia_km, nombre_rumbo
 from src.model.simulacion import A_FLOTE, FUERA, VARADA, Resultado
 
 HORAS_REPORTE = (24, 48, 72, 96, 120)
@@ -56,6 +57,9 @@ def resumir(r: Resultado) -> dict:
     varadas = r.estado == VARADA
     zonas = costa.zona_costera(r.lon[-1, varadas], r.lat[-1, varadas]) if varadas.any() else np.empty(0, dtype=object)
     horas_v = r.hora_varada[varadas]
+    xv, yv = r.lon[-1, varadas], r.lat[-1, varadas]
+    # Distancia recorrida: en línea recta, de donde se soltó cada partícula a donde varó.
+    recorrido_km = distancia_km(r.lon[0, varadas], r.lat[0, varadas], xv, yv) if varadas.any() else np.empty(0)
     arribos = []
     for z in costa.ZONAS:
         en_zona = zonas == z["id"]
@@ -63,17 +67,35 @@ def resumir(r: Resultado) -> dict:
         if not cuenta:
             continue
         prob = cuenta / n
+        primera = int(np.flatnonzero(en_zona)[np.argmin(horas_v[en_zona])])
+        mediana_km = float(np.median(recorrido_km[en_zona]))
         arribos.append({
             "zona": z["id"],
             "nombre": z["nombre"],
             "particulas": cuenta,
             "probabilidad": round(prob, 4),
             "etiqueta": etiqueta_probabilidad(prob),
-            "primer_arribo_h": int(horas_v[en_zona].min()),
+            "primer_arribo_h": int(horas_v[primera]),
             "arribo_mediano_h": int(np.median(horas_v[en_zona])),
-            "ancla": list(z["ancla"]),
+            "distancia_km": round(mediana_km, 1),
+            "distancia_mn": round(mediana_km / KM_POR_MILLA_NAUTICA, 1),
+            "punto_primer_arribo": [round(float(xv[primera]), 4), round(float(yv[primera]), 4)],
+            # Recuadro [oeste, sur, este, norte] de los varamientos del tramo: a donde va el mapa.
+            "limites": [round(float(v), 4) for v in (xv[en_zona].min(), yv[en_zona].min(),
+                                                     xv[en_zona].max(), yv[en_zona].max())],
         })
     arribos.sort(key=lambda a: -a["probabilidad"])
+
+    # Rapidez y rumbo del conglomerado: desplazamiento del centroide en la hora siguiente.
+    rapidez, rumbo_c = [], []
+    for h in range(r.horas + 1):
+        a, b = (centroide[h], centroide[h + 1]) if h < r.horas else (centroide[h - 1], centroide[h])
+        if a is None or b is None:
+            rapidez.append(None)
+            rumbo_c.append(None)
+            continue
+        rapidez.append(round(float(distancia_km(a[0], a[1], b[0], b[1])) * 1000.0 / PASO_SEGUNDOS, 4))
+        rumbo_c.append(round(float(np.degrees(np.arctan2((b[0] - a[0]) * np.cos(np.radians(a[1])), b[1] - a[1])) % 360), 1))
 
     fuera = r.estado == FUERA
     bordes = {}
@@ -112,7 +134,9 @@ def resumir(r: Resultado) -> dict:
         "salidas_por_borde": bordes,
         "reubicadas_inicio": r.reubicadas_inicio,
         "distancia_centroide_km": round(recorrida, 1),
+        "distancia_centroide_mn": round(recorrida / KM_POR_MILLA_NAUTICA, 1),
         "desplazamiento_neto_km": round(neto, 1),
+        "desplazamiento_neto_mn": round(neto / KM_POR_MILLA_NAUTICA, 1),
         "rumbo_neto_grados": round(rumbo, 0),
         "rumbo_neto": nombre_rumbo(rumbo),
         "centroide_hasta_h": ultimo_h,
@@ -123,6 +147,8 @@ def resumir(r: Resultado) -> dict:
         "series": {
             "centroide": [None if c is None else [round(c[0], 4), round(c[1], 4)] for c in centroide],
             "radio_p90_km": [None if v is None else round(v, 2) for v in radio],
+            "rapidez_centroide_ms": rapidez,
+            "rumbo_centroide_grados": rumbo_c,
             "varadas": serie_varadas,
             "fuera": serie_fuera,
         },

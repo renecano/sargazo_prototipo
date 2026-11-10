@@ -2,8 +2,8 @@
 
 Cada archivo es autocontenido: id, fecha de ejecución, archivos de SEMAR de entrada (con huella
 SHA-256), parámetros, versión del modelo, semilla, bitácora y resultados. Las
-posiciones de todas las partículas se guardan cuantizadas a 0.0002° (~22 m, muy por
-debajo de la malla de 0.16°) en uint16 little-endian codificado en base64.
+posiciones de todas las partículas se guardan cuantizadas a 0.0002° (~22 m, la quinta parte
+de una celda de la máscara de costa) en uint16 little-endian codificado en base64.
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src.config import LAT_MIN, LON_MIN, VERSION_APP
+from src.config import LAT_MIN, LON_MIN, VERSION_APP, VERSION_MODELO
 from src.model import costa
 from src.model.simulacion import VARADA, Resultado
 
@@ -29,9 +29,23 @@ def b64(arreglo: np.ndarray) -> str:
     return base64.b64encode(np.ascontiguousarray(arreglo).tobytes()).decode("ascii")
 
 
-def codificar_posiciones(lon: np.ndarray, lat: np.ndarray) -> dict:
-    qlon = np.round((lon - LON_MIN) * ESCALA_POSICION).astype("<u2")
-    qlat = np.round((lat - LAT_MIN) * ESCALA_POSICION).astype("<u2")
+def codificar_posiciones(lon: np.ndarray, lat: np.ndarray, en_tierra=costa.en_tierra) -> dict:
+    """Cuantiza a 0.0002°. Si el redondeo mete en tierra un punto que estaba en el mar (una
+    partícula varada queda a centímetros de la costa), se usa la esquina de la rejilla de
+    cuantización que sigue en el mar: lo que la interfaz dibuja nunca queda sobre tierra."""
+    flon, flat = (lon - LON_MIN) * ESCALA_POSICION, (lat - LAT_MIN) * ESCALA_POSICION
+    qlon, qlat = np.round(flon), np.round(flat)
+    malas = en_tierra(LON_MIN + qlon / ESCALA_POSICION, LAT_MIN + qlat / ESCALA_POSICION) & ~en_tierra(lon, lat)
+    for redondear_lon, redondear_lat in ((np.floor, np.floor), (np.floor, np.ceil), (np.ceil, np.floor), (np.ceil, np.ceil)):
+        if not malas.any():
+            break
+        clon, clat = redondear_lon(flon[malas]), redondear_lat(flat[malas])
+        sirve = ~en_tierra(LON_MIN + clon / ESCALA_POSICION, LAT_MIN + clat / ESCALA_POSICION)
+        idx = np.nonzero(malas)
+        idx = tuple(i[sirve] for i in idx)
+        qlon[idx], qlat[idx] = clon[sirve], clat[sirve]
+        malas[idx] = False
+    qlon, qlat = qlon.astype("<u2"), qlat.astype("<u2")
     return {
         "codificacion": {
             "tipo": "uint16-le-base64",
@@ -85,7 +99,7 @@ def armar_registro(resultado: Resultado, resumen: dict, datos: dict) -> dict:
             "hora_varada": b64(resultado.hora_varada.astype("<i2")),
             "hora_fuera": b64(resultado.hora_fuera.astype("<i2")),
             "zona_varada": b64(zonas_por_particula(resultado)),
-            "zonas": [{"id": z["id"], "nombre": z["nombre"], "ancla": list(z["ancla"])} for z in costa.ZONAS],
+            "zonas": [{"id": z["id"], "nombre": z["nombre"], "limites": z["limites"]} for z in costa.ZONAS],
             "series": series,
         },
         "bitacora": resultado.bitacora,
@@ -130,8 +144,9 @@ class Almacen:
                     continue
                 try:
                     r = json.loads(ruta.read_text(encoding="utf-8"))
-                    # Solo registros del modelo actual: los de versiones previas (viento, α) no se pueden reabrir.
-                    if not str(r.get("version_modelo", "")).startswith("pms-browniano"):
+                    # Solo registros del modelo actual: los de versiones previas usan otra costa y
+                    # otro formato de resumen, y no se pueden reabrir.
+                    if r.get("version_modelo") != VERSION_MODELO:
                         continue
                 except (OSError, json.JSONDecodeError):
                     continue

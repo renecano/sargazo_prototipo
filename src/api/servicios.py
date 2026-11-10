@@ -14,7 +14,8 @@ from src.api.almacen import Almacen, armar_registro, b64
 from src.config import ARCHIVO_OLEAJE, COEF_PERIODO, COEF_STOKES, RESOLUCION_GRADOS
 from src.ingestion.lector import ConjuntoDatos
 from src.ingestion.validador import ReporteValidacion, validar_conjunto
-from src.model.campos import CamposOleaje
+from src.model.campos import NODOS_EXTRAPOLACION, R_MINIMA, CamposOleaje
+from src.model import costa
 from src.model.metricas import resumir
 from src.model.simulacion import Parametros, simular
 
@@ -35,6 +36,7 @@ class ServicioDatos:
     def __init__(self, dir_semar: Path):
         self.dir_semar = Path(dir_semar)
         self._cache: tuple[tuple, ReporteValidacion, ConjuntoDatos | None] | None = None
+        self._campos: tuple[str, CamposOleaje] | None = None
         self._lock = threading.Lock()
 
     def _huella_rapida(self) -> tuple:
@@ -75,12 +77,40 @@ class ServicioDatos:
             )
         return conjunto
 
-    def campos(self) -> dict:
-        """Altura y dirección de ola por bloque, para las flechas y el hover (enteros escalados en base64)."""
+    def campos_modelo(self) -> CamposOleaje:
+        """Los campos de oleaje tal como los usa el modelo (con la franja costera extendida)."""
         c = self.conjunto_valido()
+        with self._lock:
+            if self._campos and self._campos[0] == c.huella_sha256:
+                return self._campos[1]
+        campos = CamposOleaje(c)
+        with self._lock:
+            self._campos = (c.huella_sha256, campos)
+        return campos
 
-        def entero(x, escala):
-            return b64(np.where(np.isfinite(x), np.round(x * escala), 65535).astype("<u2"))
+    def ola_en(self, lon: float, lat: float, hora: float) -> dict:
+        """Ola y deriva (γ = 1) que el modelo usa en un punto y una hora de pronóstico."""
+        m = self.campos_modelo()
+        x, y = np.array([lon]), np.array([lat])
+        h, d = m.ola(x, y, hora)
+        u, v = m.velocidades(x, y, hora)
+        hay = bool(np.isfinite(h[0]) and np.isfinite(d[0]))
+        rapidez = float(np.hypot(u[0], v[0]))
+        return {
+            "lon": lon, "lat": lat, "hora": hora, "en_tierra": bool(costa.en_tierra(x, y)[0]),
+            "altura_m": float(h[0]) if hay else None,
+            "direccion_desde": float(d[0]) if hay else None,
+            "u_ms": float(u[0]), "v_ms": float(v[0]), "rapidez_ms": rapidez,
+            "rumbo_hacia": float(np.degrees(np.arctan2(u[0], v[0])) % 360) if rapidez > 0 else None,
+        }
+
+    def campos(self) -> dict:
+        """Altura y dirección de ola por bloque, tal como las usa el modelo, para el oleaje
+        animado y el hover de la interfaz (enteros escalados en base64)."""
+        c = self.conjunto_valido()
+        m = self.campos_modelo()
+        con_rumbo = np.isfinite(m.altura) & (np.hypot(m.seno, m.coseno) > R_MINIMA)
+        direccion = np.mod(np.round(np.degrees(np.arctan2(m.seno, m.coseno)) * 10), 3600)
 
         return {
             "datos": c.resumen(),
@@ -90,20 +120,23 @@ class ServicioDatos:
                 "resolucion_grados": RESOLUCION_GRADOS,
             },
             "horas": [int(h) for h in c.horas],
-            "modelo": {"coef_stokes": COEF_STOKES, "coef_periodo": COEF_PERIODO},
+            "modelo": {"coef_stokes": COEF_STOKES, "coef_periodo": COEF_PERIODO,
+                       "nodos_extrapolacion": NODOS_EXTRAPOLACION},
             "codificacion": {
                 "ola_dir": "uint16-le, grados «desde» × 10, 65535 = sin dato, forma [bloques, ny, nx]",
                 "ola_altura": "uint16-le, m × 100, 65535 = sin dato, forma [bloques, ny, nx]",
+                "extrapolado": "uint8, 1 = nodo sin dato en el archivo, extendido desde sus vecinos; forma [bloques, ny, nx]",
             },
-            "ola_dir": entero(c.direccion, 10),
-            "ola_altura": entero(c.altura, 100),
+            "ola_dir": b64(np.where(con_rumbo, direccion, 65535).astype("<u2")),
+            "ola_altura": b64(np.where(con_rumbo, np.round(np.nan_to_num(m.altura) * 100), 65535).astype("<u2")),
+            "extrapolado": b64(m.extrapolado.astype(np.uint8)),
         }
 
 
 def ejecutar_simulacion(datos: ServicioDatos, almacen: Almacen, p: Parametros, progreso=None) -> dict:
     conjunto = datos.conjunto_valido()
     dominio = (float(conjunto.lons[0]), float(conjunto.lons[-1]), float(conjunto.lats[0]), float(conjunto.lats[-1]))
-    resultado = simular(CamposOleaje(conjunto), p, dominio=dominio, progreso=progreso)
+    resultado = simular(datos.campos_modelo(), p, dominio=dominio, progreso=progreso)
     resumen = resumir(resultado)
     resumen["advertencias"] = conjunto.advertencias + resumen["advertencias"]
     registro = armar_registro(resultado, resumen, conjunto.resumen())

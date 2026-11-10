@@ -3,3 +3,4 @@
 # Datos de SEMAR: se guardan byte a byte para que su huella SHA-256 no cambie
 data/semar/*.txt -text
 *.jpg binary
+*.npz binary

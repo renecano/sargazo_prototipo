@@ -1,4 +1,4 @@
-"""Modelo de partículas brownianas (pms-browniano-0.3.0) para conglomerados de sargazo.
+"""Modelo de partículas brownianas (pms-browniano-0.4.0) para conglomerados de sargazo.
 
 Para cada partícula y cada paso Δt = 1 h:
 
@@ -11,8 +11,11 @@ Para cada partícula y cada paso Δt = 1 h:
 - El término determinista se integra con punto medio (RK2) en espacio y tiempo; con
   oleaje uniforme coincide exactamente con la solución analítica.
 - El desplazamiento métrico se convierte a grados corrigiendo la longitud por cos(lat).
-- Costa: si el segmento recorrido en el paso toca tierra, la partícula queda VARADA en
-  el último punto en mar del segmento (búsqueda binaria) y ya no se mueve.
+- Costa: el segmento recorrido en cada paso se revisa cada media celda de la máscara de
+  tierra (~50 m), de modo que ninguna partícula salta una franja de tierra angosta. Si lo
+  toca, la partícula queda VARADA en el último punto en mar del segmento (búsqueda binaria)
+  y ya no se mueve. La interfaz anima en línea recta entre horas guardadas: es el mismo
+  segmento que aquí se revisó, así que el dibujo tampoco cruza tierra.
 - Dominio: si sale del recuadro de la malla queda FUERA DEL DOMINIO y se congela en el borde.
 """
 from __future__ import annotations
@@ -30,7 +33,8 @@ from src.model import costa
 from src.model.conversiones import metros_a_grados
 
 A_FLOTE, VARADA, FUERA = 0, 1, 2
-FRACCIONES_SEGMENTO = (0.25, 0.5, 0.75, 1.0)
+MIN_MUESTRAS_SEGMENTO = 4       # revisiones de costa por paso, como mínimo
+MAX_MUESTRAS_SEGMENTO = 512     # tope para pasos enormes (corrientes fuertes en la validación)
 ITERACIONES_BISECCION = 10
 MAX_REINTENTOS_INICIO = 50
 
@@ -99,7 +103,7 @@ def validar_punto(lon: float, lat: float, en_tierra: FuncionTierra = costa.en_ti
         )
     if en_tierra(np.array([lon]), np.array([lat]))[0]:
         raise PuntoInvalido(
-            f"El punto ({lat:.3f}, {lon:.3f}) está en tierra según la costa aproximada del modelo. "
+            f"El punto ({lat:.3f}, {lon:.3f}) está en tierra según la costa del modelo. "
             "Elige un punto en el mar."
         )
 
@@ -141,8 +145,11 @@ class Trayectorias:
 def integrar(campos, lon0: np.ndarray, lat0: np.ndarray, horas: int, gamma: float, kh_m2s: float,
              rng: np.random.Generator, en_tierra: FuncionTierra = costa.en_tierra,
              dominio: Dominio = (LON_MIN, LON_MAX, LAT_MIN, LAT_MAX), t_inicio_h: float = 0.0,
-             progreso: Progreso | None = None) -> Trayectorias:
+             progreso: Progreso | None = None, paso_costa: float = costa.MALLA_COSTA["paso"]) -> Trayectorias:
     """Avanza partículas desde (lon0, lat0) durante `horas` pasos de Δt = 1 h.
+
+    `paso_costa` es la resolución (°) de la función de tierra: el segmento de cada paso se
+    revisa cada media celda.
 
     `campos` es cualquier objeto con velocidades(lon, lat, t_horas) → (u, v) en m/s; t se
     mide desde el inicio de los campos, así que la integración empieza en `t_inicio_h`.
@@ -174,15 +181,18 @@ def integrar(campos, lon0: np.ndarray, lat0: np.ndarray, horas: int, gamma: floa
             dlon, dlat = metros_a_grados(dx, dy, y)
             nx, ny = x + dlon, y + dlat
 
-            # Costa: primera fracción del segmento que toca tierra.
+            # Costa: primera muestra del segmento que toca tierra, revisando cada media celda.
+            largo = max(float(np.abs(dlon).max()), float(np.abs(dlat).max()))
+            muestras = int(min(MAX_MUESTRAS_SEGMENTO, max(MIN_MUESTRAS_SEGMENTO, np.ceil(largo / (0.5 * paso_costa)))))
             f_tierra = np.full(activas.size, np.inf)
-            for f in reversed(FRACCIONES_SEGMENTO):
+            for m in range(muestras, 0, -1):
+                f = m / muestras
                 toca = en_tierra(x + f * dlon, y + f * dlat)
                 f_tierra[toca] = f
             varan = np.isfinite(f_tierra)
             if varan.any():
-                lo = np.where(f_tierra[varan] > FRACCIONES_SEGMENTO[0], f_tierra[varan] - 0.25, 0.0)
                 hi = f_tierra[varan]
+                lo = hi - 1.0 / muestras
                 xv, yv, dxv, dyv = x[varan], y[varan], dlon[varan], dlat[varan]
                 for _ in range(ITERACIONES_BISECCION):
                     mid = 0.5 * (lo + hi)

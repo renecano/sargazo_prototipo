@@ -210,6 +210,41 @@ sudo rm -rf /opt/pms          # borra también el historial de simulaciones
 sudo userdel -r pms
 ```
 
+## Guía corta para el dueño del servidor
+
+Esta misma guía está en el servidor, en `/opt/pms/LEEME_SERVIDOR.txt`.
+
+La aplicación ya corre sola como servicio (se llama `pms`) y arranca junto con el servidor. No
+hace falta lanzarla a mano.
+
+| Para | Comando |
+|---|---|
+| Ver el estado | `systemctl status pms` |
+| Reiniciarla | `systemctl restart pms` |
+| Detenerla | `systemctl stop pms` |
+| Ver los logs en vivo | `journalctl -u pms -f` |
+| Ver los logs de hoy | `journalctl -u pms --since today` |
+
+**Para correrla a mano**, primero detén el servicio, porque ocupa el puerto 8000, y usa el Python
+de PMS:
+
+```bash
+systemctl stop pms
+cd /opt/pms
+sudo -u pms /opt/pms/.venv/bin/python main.py --host 0.0.0.0 --puerto 8000 --no-navegador
+```
+
+Usa siempre `/opt/pms/.venv/bin/python`. Nunca uses `python3` del sistema ni instales librerías
+con `pip`: el entorno de PMS ya tiene las versiones correctas.
+
+**Para volver a dejarla como servicio**, detén la que corriste a mano con Ctrl+C y arranca el
+servicio:
+
+```bash
+systemctl start pms
+curl -s http://127.0.0.1:8000/api/salud   # debe decir "estado":"ok"
+```
+
 ## Verificación (03/11/2026)
 
 En el servidor de entrega, en este orden:
