@@ -1,5 +1,5 @@
 {
-  "generado_utc": "2026-11-09T23:52:15Z",
+  "generado_utc": "2026-11-10T00:27:50Z",
   "generado_con": "scripts/construir_costa.py",
   "costa": {
     "fuente": "OpenStreetMap, vías natural=coastline (API Overpass)",
@@ -34,11 +34,11 @@
     "sha256_bits": "5c3af0bbe1ad12f56c49ec5d06fabb864ef36344b6c525858e9eb91a6831a656"
   },
   "localidades": {
-    "fuente": "OpenStreetMap, nodos place=* y natural=cape; puertos por harbour, seamark:type=harbour, amenity=ferry_terminal, landuse=harbour e industrial=port a ≤ 3 km",
+    "fuente": "OpenStreetMap: poblados (place=*), islas, cabos, arrecifes, bahías y canales con nombre; puertos por harbour, seamark:type=harbour, amenity=ferry_terminal, landuse=harbour e industrial=port, asignados al poblado más cercano (≤ 8 km)",
     "licencia": "ODbL 1.0",
     "atribucion": "© colaboradores de OpenStreetMap",
     "datos_al": "2026-09-16T16:22:11Z",
-    "criterio": "ciudades del dominio y demás lugares a ≤ 6 km de la costa del modelo",
-    "total": 595
+    "criterio": "ciudades del dominio, poblados a ≤ 6 km de la costa del modelo y rasgos geográficos con nombre",
+    "total": 747
   }
 }
