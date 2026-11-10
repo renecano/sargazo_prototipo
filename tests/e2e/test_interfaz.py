@@ -676,16 +676,19 @@ def test_linea_de_tiempo_con_fechas_saltos_y_velocidad(pagina):
     assert hora(pagina) == 120, "no pasa del final"
     pagina.select_option("#lt-salto", "6")
     # Velocidad de reproducción: a 24 h/s se avanza cuatro veces más que a 6 h/s.
-    avances = {}
+    # Se mide en la propia página (horas de pronóstico por segundo de reloj) para no depender
+    # de lo que tarde el navegador en atender cada orden de la prueba.
+    ritmos = {}
     for velocidad in ("6", "24"):
         pagina.select_option("#lt-velocidad", velocidad)
         poner_hora(pagina, 10)
         pagina.click("#btn-play")
-        pagina.wait_for_timeout(1000)
-        pagina.click("#btn-play")
-        avances[velocidad] = pagina.evaluate("window.pms.hora") - 10
-    assert avances["6"] == pytest.approx(6, abs=2.5) and avances["24"] == pytest.approx(24, abs=8)
-    assert avances["24"] > 2.5 * avances["6"]
+        ritmos[velocidad] = pagina.evaluate("""() => new Promise((listo) => {
+            const medir = () => ({ t: performance.now(), h: window.pms.hora });
+            setTimeout(() => { const a = medir(); setTimeout(() => { const b = medir(); listo((1000 * (b.h - a.h)) / (b.t - a.t)); }, 900); }, 150);
+        })""")
+        pausar(pagina)
+    assert ritmos["6"] == pytest.approx(6, rel=0.25) and ritmos["24"] == pytest.approx(24, rel=0.25), ritmos
     pagina.select_option("#lt-velocidad", "6")
 
 
