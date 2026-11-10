@@ -136,11 +136,13 @@ export class Costa {
   }
 
   static _malla(m, bits) {
-    return { lon0: m.lon0, lat0: m.lat0, inv: 1 / m.paso, paso: m.paso, nx: m.nx, ny: m.ny, ancho: m.nx >> 3, bits };
+    return { lon0: m.lon0, lat0: m.lat0, paso: m.paso, nx: m.nx, ny: m.ny, ancho: m.nx >> 3, bits };
   }
 
   static _bit(m, lon, lat) {
-    const j = Math.floor((lon - m.lon0) * m.inv), i = Math.floor((lat - m.lat0) * m.inv);
+    // Se divide entre el paso, como en Python: multiplicar por 1/paso cambia el resultado
+    // justo en los bordes de celda, que es donde quedan las partículas varadas.
+    const j = Math.floor((lon - m.lon0) / m.paso), i = Math.floor((lat - m.lat0) / m.paso);
     if (i < 0 || j < 0 || i >= m.ny || j >= m.nx) return -1;
     return (m.bits[i * m.ancho + (j >> 3)] >> (7 - (j & 7))) & 1;
   }
@@ -170,8 +172,11 @@ export class Simulacion {
     const p = reg.resultados.particulas;
     const c = p.codificacion;
     const qlon = b64a(p.lon, Uint16Array), qlat = b64a(p.lat, Uint16Array);
-    this.lon = new Float32Array(qlon.length);
-    this.lat = new Float32Array(qlat.length);
+    // Doble precisión y la misma cuenta que el servidor (lon0 + valor / escala): una partícula
+    // varada queda justo en el borde de una celda de costa y medio metro de redondeo de un
+    // Float32 la pasaría a tierra.
+    this.lon = new Float64Array(qlon.length);
+    this.lat = new Float64Array(qlat.length);
     for (let k = 0; k < qlon.length; k++) {
       this.lon[k] = c.lon0 + qlon[k] / c.escala;
       this.lat[k] = c.lat0 + qlat[k] / c.escala;
@@ -203,6 +208,23 @@ export class Simulacion {
     const a = h0 * this.N + n, b = a + this.N;
     out[0] = this.lon[a] + f * (this.lon[b] - this.lon[a]);
     out[1] = this.lat[a] + f * (this.lat[b] - this.lat[a]);
+    return out;
+  }
+
+  // Posición que se dibuja. Las horas guardadas están redondeadas a 0.0002° (~22 m) y la recta
+  // entre dos de ellas puede rozar una celda de tierra que el segmento exacto del modelo no
+  // tocó. En ese caso la partícula se dibuja en el último punto de esa recta que sigue en el
+  // mar (la hora guardada anterior siempre lo está): nada se dibuja sobre tierra.
+  posVisible(n, t, out, costa) {
+    this.pos(n, t, out);
+    if (!costa || !costa.enTierra(out[0], out[1])) return out;
+    const h0 = Math.min(this.H - 1, Math.floor(Math.max(0, Math.min(this.H, t))));
+    const a = h0 * this.N + n;
+    const lon = this.lon[a], lat = this.lat[a], dx = out[0] - lon, dy = out[1] - lat;
+    for (const f of [0.75, 0.5, 0.25, 0]) {
+      out[0] = lon + f * dx; out[1] = lat + f * dy;
+      if (!costa.enTierra(out[0], out[1])) break;
+    }
     return out;
   }
 
@@ -254,12 +276,12 @@ export class Simulacion {
   }
 
   // Partícula a flote más cercana a un punto de pantalla (para el hover en pausa).
-  masCercana(t, proyectarX, proyectarY, x, y, radioPx) {
+  masCercana(t, proyectarX, proyectarY, x, y, radioPx, costa) {
     const p = [0, 0];
     let mejor = -1, d2 = radioPx * radioPx;
     for (let n = 0; n < this.N; n++) {
       if (this.estado(n, t) !== A_FLOTE) continue;
-      this.pos(n, t, p);
+      this.posVisible(n, t, p, costa);
       const dx = proyectarX(p[0]) - x, dy = proyectarY(p[1]) - y;
       const d = dx * dx + dy * dy;
       if (d < d2) { d2 = d; mejor = n; }

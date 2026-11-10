@@ -320,12 +320,12 @@ export function dibujarParticulas(ctx, c, est) {
     const e = sim.estado(n, t);
     bufer.flota[n] = e === A_FLOTE ? 1 : e === VARADA ? 2 : 0;
     if (!bufer.flota[n]) continue;
-    sim.pos(n, t, pos);
+    if (e === A_FLOTE) sim.posVisible(n, t, pos, est.costa); else sim.pos(n, t, pos);
     X[0][n] = c.x(pos[0]);
     Y[0][n] = c.y(pos[1]);
+    if (est.costa && est.costa.enTierra(pos[0], pos[1])) sobreTierra++;
     if (e !== A_FLOTE) { varadas++; continue; }
     aFlote++;
-    if (est.costa && est.costa.enTierra(pos[0], pos[1])) sobreTierra++;
     sim.velocidad(n, t, vel);
     bufer.clase[n] = claseRapidez(Math.hypot(vel[0], vel[1]));
     for (let s = 1; s <= cuadros; s++) {

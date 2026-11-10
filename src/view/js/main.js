@@ -590,7 +590,7 @@ function mostrarHover(e) {
   }
   if (est.sim && !est.reproduciendo && e.containerPoint) {
     const c = capaParticulas;
-    const n = est.sim.masCercana(est.hora, (x) => c.x(x), (y) => c.y(y), e.containerPoint.x + c.mg, e.containerPoint.y + c.mg, RADIO_HOVER_PX);
+    const n = est.sim.masCercana(est.hora, (x) => c.x(x), (y) => c.y(y), e.containerPoint.x + c.mg, e.containerPoint.y + c.mg, RADIO_HOVER_PX, est.costa);
     if (n >= 0 && est.hora < est.sim.H) {
       const v = est.sim.velocidad(n, est.hora, [0, 0]);
       const rumbo = ((Math.atan2(v[0], v[1]) * 180) / Math.PI + 360) % 360;
@@ -882,12 +882,13 @@ mapa.on('moveend zoomend resize', actualizarEscala);
 
 document.addEventListener('keydown', (e) => {
   if (window.pmsRecorridoActivo) return;
+  // Escape cierra los paneles aunque el foco esté en una de sus casillas.
+  if (e.code === 'Escape') { mostrarHistorial(false); mostrarCapas(false); $('estado-detalle').hidden = true; return; }
   const activo = document.activeElement;
   if (activo && ['INPUT', 'SELECT', 'TEXTAREA'].includes(activo.tagName) && activo.type !== 'range') return;
   if (e.code === 'Space') { e.preventDefault(); if (est.reproduciendo) pausar(); else reproducir_(); }
   else if (e.code === 'ArrowLeft') { e.preventDefault(); saltar(e.shiftKey ? -est.salto : -1); }
   else if (e.code === 'ArrowRight') { e.preventDefault(); saltar(e.shiftKey ? est.salto : 1); }
-  else if (e.code === 'Escape') { mostrarHistorial(false); mostrarCapas(false); $('estado-detalle').hidden = true; }
 });
 
 // Ganchos para las pruebas de interfaz y para inspeccionar desde la consola.
