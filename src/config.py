@@ -18,8 +18,8 @@ DIR_VALIDACION = RAIZ / "docs" / "validacion"   # resultados de scripts/validar.
 # petición puede caer en otra instancia: no hay trabajos en segundo plano compartidos.
 SERVERLESS = os.environ.get("VERCEL") == "1"
 
-VERSION_APP = "0.4.0"
-VERSION_MODELO = "pms-browniano-0.3.0"
+VERSION_APP = "0.5.0"
+VERSION_MODELO = "pms-browniano-0.4.0"
 
 # Malla nativa de dirmarea.txt: 0.16°, lon −98.00…−83.12, lat 15…23. El modelo usa el
 # recuadro de Yucatán alineado a esa malla: 51 × 39 = 1 989 nodos (sin interpolar mallas).
@@ -39,7 +39,7 @@ VALOR_RELLENO = -9.99e8
 UMBRAL_RELLENO = -1.0e8         # todo valor menor se trata como relleno (sin dato)
 
 # ---------------------------------------------------------------------------
-# Deriva de Stokes de la ola de viento (modelo pms-browniano-0.3.0)
+# Deriva de Stokes de la ola de viento (modelo pms-browniano-0.4.0)
 #
 #   |u_s| = γ · 2π³·H² / (g·T³)      en la dirección HACIA donde viaja la ola
 #

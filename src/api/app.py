@@ -1,12 +1,14 @@
 """API FastAPI de PMS y servidor de la interfaz estática."""
 from __future__ import annotations
 
+import gzip
 import mimetypes
+from functools import lru_cache
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -22,6 +24,17 @@ from src.model.simulacion import Parametros, PuntoInvalido, validar_punto
 # En Windows el registro puede declarar .js como text/plain y el navegador rechaza los módulos ES.
 mimetypes.add_type("text/javascript", ".js")
 mimetypes.add_type("text/css", ".css")
+
+
+def _mascara_bytes(nombre: str) -> bytes:
+    m = costa.mascara() if nombre == "tierra" else costa.mascara_contexto()
+    return m.bits.tobytes()
+
+
+@lru_cache(maxsize=2)
+def _mascara_gzip(nombre: str) -> bytes:
+    """La máscara se comprime una sola vez (6.5 MB → decenas de KB)."""
+    return gzip.compress(_mascara_bytes(nombre), compresslevel=6, mtime=0)
 
 
 class SolicitudSimulacion(BaseModel):
@@ -85,9 +98,31 @@ def crear_app(dir_semar: Path = DIR_SEMAR, dir_simulaciones: Path = DIR_SIMULACI
     def campos():
         return datos.campos()
 
+    @app.get("/api/ola")
+    def ola_en_un_punto(lon: float = Query(..., ge=-180, le=180), lat: float = Query(..., ge=-90, le=90),
+                        hora: float = Query(0.0, ge=0, le=HORIZONTE_H)):
+        """Ola y deriva de Stokes (γ = 1) interpoladas como lo hace el modelo."""
+        return datos.ola_en(lon, lat, hora)
+
     @app.get("/api/costa")
-    def geojson_costa():
-        return costa.geojson()
+    def descripcion_costa():
+        """Malla, tramos y fuentes de la costa del modelo; la máscara va aparte, en binario."""
+        return costa.descripcion()
+
+    @app.get("/api/costa/{nombre}.bin")
+    def mascara_costa(nombre: str, request: Request):
+        if nombre not in ("tierra", "contexto"):
+            raise HTTPException(404, "Máscara no encontrada")
+        cabeceras = {"Cache-Control": "public, max-age=86400", "Vary": "Accept-Encoding"}
+        if "gzip" in request.headers.get("accept-encoding", ""):
+            return Response(_mascara_gzip(nombre), media_type="application/octet-stream",
+                            headers={**cabeceras, "Content-Encoding": "gzip"})
+        return Response(_mascara_bytes(nombre), media_type="application/octet-stream", headers=cabeceras)
+
+    @app.get("/api/localidades")
+    def localidades():
+        """Ciudades, pueblos, islas, cabos y puertos del dominio (OpenStreetMap, con su id)."""
+        return {"fuente": costa.procedencia()["localidades"], "localidades": costa.localidades()}
 
     @app.post("/api/simulaciones")
     def crear_simulacion(s: SolicitudSimulacion):

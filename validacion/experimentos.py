@@ -2,7 +2,7 @@
 
   E0  Persistencia: el sargazo de t0 se queda donde está (referencia mínima).
   E1  Solo browniano: γ = 0, K_h = 10 m²/s.
-  E2  PMS v0.3 tal cual: γ = 1, K_h = 10 m²/s, ola de dirmarea.txt real.
+  E2  PMS tal cual: γ = 1, K_h = 10 m²/s, ola de dirmarea.txt real.
   E3  PMS con γ y K_h calibrados SOLO con los casos de calibración.
   E4  Experimental: corriente superficial total de SMOC (euleriana + marea + Stokes) + browniano.
   E5  Experimental: corriente de SMOC sin Stokes (euleriana + marea) + α·viento a 10 m
@@ -60,7 +60,7 @@ def experimentos(gamma_cal: float | None, kh_cal: float | None) -> list[Experime
     lista = [
         Experimento("E0", "Persistencia", mover=False),
         Experimento("E1", "Solo browniano", gamma=0.0),
-        Experimento("E2", "PMS v0.3 (γ = 1, K_h = 10)", gamma=cfg.GAMMA_V03, kh=cfg.KH_V03),
+        Experimento("E2", "PMS tal cual (γ = 1, K_h = 10)", gamma=cfg.GAMMA_V03, kh=cfg.KH_V03),
     ]
     if gamma_cal is not None:
         lista.append(Experimento("E3", f"PMS calibrado (γ = {gamma_cal:g}, K_h = {kh_cal:g})",

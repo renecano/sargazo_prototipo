@@ -253,11 +253,11 @@ def _conclusion(v, principal) -> str:
     gana_e2 = all(x == "mejor" for x in e2.values())
     pierde_e2 = any(x == "peor" for x in e2.values())
     if gana_e2:
-        txt = "El modelo v0.3 (solo oleaje) mueve el sargazo mejor que suponer que no se mueve"
+        txt = "El modelo de PMS (solo oleaje) mueve el sargazo mejor que suponer que no se mueve"
     elif pierde_e2:
-        txt = "Con datos satelitales 2022–2026, el modelo v0.3 (solo oleaje) todavía no predice el movimiento del sargazo mejor que suponer que no se mueve"
+        txt = "Con datos satelitales 2022–2026, el modelo de PMS (solo oleaje) todavía no predice el movimiento del sargazo mejor que suponer que no se mueve"
     else:
-        txt = "Con datos satelitales 2022–2026, el modelo v0.3 (solo oleaje) no se distingue de suponer que el sargazo no se mueve"
+        txt = "Con datos satelitales 2022–2026, el modelo de PMS (solo oleaje) no se distingue de suponer que el sargazo no se mueve"
     if exp:
         ve = v[exp]
         if all(x.startswith("sin datos") for x in ve.values()):
@@ -292,7 +292,7 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
     semar_caso = d.resultado_semar
     L = []
     w = L.append
-    w("# ¿El modelo se mueve como el sargazo real? — Validación de PMS v0.4.0")
+    w("# ¿El modelo se mueve como el sargazo real? — Validación de PMS v0.5.0")
     w("")
     w(f"> Generado por `python scripts/validar.py` el {d.generado}. Cada número "
       "de este documento sale de ese script; las tablas completas están en [`docs/validacion/`](validacion/).")
@@ -303,7 +303,7 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
     w("")
     w(f"Medido en {n_eval} casos de evaluación (2025–2026) que no se usaron para calibrar, con el Fractions "
       f"Skill Score a {esc} km entre el sargazo que vio el satélite y el que simula el modelo a +3, +5 y +7 días. "
-      f"El modelo v0.3 (E2) {_frase_e2(v)}.")
+      f"El modelo de PMS (E2) {_frase_e2(v)}.")
     w("")
     w(_tabla_resumen_md(principal))
     w("")
@@ -458,14 +458,14 @@ def _markdown(d: Insumos, fss, cen, mccr, cos, principal, v, figs_caso, hay_mcc,
     w("")
     w(f"Todos con las mismas {_miles(cfg.PARTICULAS)} partículas (o una por píxel si hay más píxeles), sembradas en proporción a "
       f"los píxeles con sargazo en t0 (cada píxel pesa 1), la misma semilla ({cfg.SEMILLA}) y el integrador del "
-      f"producto (Δt = 1 h, RK2, costa y varamiento iguales). La simulación empieza a las {cfg.HORA_IMAGEN_UTC} UTC "
-      "(hora aproximada de la imagen).")
+      f"producto (Δt = 1 h, RK2, costa y varamiento iguales: la máscara de ~105 m derivada de OpenStreetMap). "
+      f"La simulación empieza a las {cfg.HORA_IMAGEN_UTC} UTC (hora aproximada de la imagen).")
     w("")
     w("| | Qué mueve las partículas |")
     w("|---|---|")
     w("| E0 | Nada: persistencia |")
     w(f"| E1 | Solo browniano (γ = 0, K_h = {cfg.KH_V03:g} m²/s) |")
-    w(f"| E2 | PMS v0.3 tal cual: deriva de Stokes de la ola real (γ = 1, K_h = {cfg.KH_V03:g}) |")
+    w(f"| E2 | PMS tal cual: deriva de Stokes de la ola real (γ = 1, K_h = {cfg.KH_V03:g}) |")
     if d.gamma is None:
         w(f"| E3 | **Pendiente**: γ y K_h se calibran solo cuando están los {d.extra['n_cal_sel']} casos de "
           f"calibración (hay {len({f['caso'] for f in d.filas_calibracion})}) |")

@@ -255,8 +255,9 @@ def validar_conjunto(directorio: Path, progreso: Progreso | None = None) -> tupl
                       f"no coinciden {solo_datos + solo_costa} ({solo_datos} con ola sobre «tierra» del modelo, "
                       f"{solo_costa} sin ola sobre «mar» del modelo).")
     if solo_datos + solo_costa:
-        v_masc.agregar("advertencia", f"{solo_datos + solo_costa} nodos de la malla no coinciden con la costa poligonal.",
-                       ARCHIVO_OLEAJE, "Esperable con una costa aproximada; las partículas usan los vecinos con dato.")
+        v_masc.agregar("advertencia", f"{solo_datos + solo_costa} nodos de la malla no coinciden con la costa del modelo.",
+                       ARCHIVO_OLEAJE, "Esperable: la malla de oleaje es de 0.16° (~17 km) y la costa, de ~100 m. "
+                       "Cerca de la costa el modelo usa los nodos vecinos con dato.")
 
     if any(v.estado == "error" for v in verificaciones):
         return terminar()

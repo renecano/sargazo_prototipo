@@ -68,7 +68,7 @@ FECHA_DIRMAREA_SEMAR = date(2026, 10, 1)
 # ---------------------------------------------------------------------------
 PARTICULAS = 20_000             # mismo número en todos los experimentos de un caso
 SEMILLA = 2026
-GAMMA_V03, KH_V03 = 1.0, 10.0   # PMS v0.3 tal cual
+GAMMA_V03, KH_V03 = 1.0, 10.0   # PMS tal cual (valores por defecto del producto)
 REJILLA_GAMMA = (0.0, 0.5, 1.0, 1.5, 2.0, 3.0)        # calibración de E3 (solo casos de calibración)
 REJILLA_KH = (1.0, 10.0, 50.0, 100.0)
 FACTORES_VIENTO = (0.01, 0.02, 0.03)                   # E5: 1 %, 2 % y 3 % del viento a 10 m

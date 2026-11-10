@@ -32,7 +32,7 @@ NUBE, TIERRA = "#dcd6c8", "#e9dcbf"
 AZULES = ListedColormap(["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"])
 
 NOMBRES = {
-    "E0": "E0 Persistencia", "E1": "E1 Solo browniano", "E2": "E2 PMS v0.3", "E3": "E3 PMS calibrado",
+    "E0": "E0 Persistencia", "E1": "E1 Solo browniano", "E2": "E2 PMS tal cual", "E3": "E3 PMS calibrado",
     "E4": "E4 Corriente SMOC total + browniano", "E5-1": "E5 Corriente sin Stokes + viento 1 % + ola",
     "E5-2": "E5 Corriente sin Stokes + viento 2 % + ola", "E5-3": "E5 Corriente sin Stokes + viento 3 % + ola",
     "E2-SEMAR": "E2 con el dirmarea.txt de SEMAR",

@@ -18,3 +18,6 @@ data/simulations/*.json
 
 # Caché de la validación (descargas completas de ERDDAP y Open-Meteo)
 data/validacion/
+
+# Caché de scripts/construir_costa.py (descargas de Overpass y Natural Earth)
+data/costa/
