@@ -18,8 +18,8 @@ información geográfica y la limpieza de la interfaz ([tabla](#qué-cambió-en-
 
 *Interfaz «carta náutica» en 1366×768. A la izquierda, el paso 3 con la tabla de arribos por
 tramo de costa; al tocar una fila el mapa va a ese tramo y a esa hora. En el mapa, la carta
-propia con la costa del modelo, las partículas con estela, los anillos de las varadas sobre la
-línea de costa, la densidad y el oleaje. Abajo a la derecha, las escalas (km, millas náuticas,
+propia con la costa del modelo, el sargazo en púrpura (partículas con estela y densidad con
+trama), los anillos rojos de las varadas sobre la línea de costa y el oleaje. Abajo a la derecha, las escalas (km, millas náuticas,
 ola de 1 m y densidad); al pie, la línea de tiempo con fechas en UTC y en hora de Quintana Roo.*
 
 ---
@@ -56,7 +56,7 @@ guiado** y la **hoja de la izquierda que guía paso a paso**, ahora actualizados
 | 1. Marca contacto con tierra donde no la hay | La costa del modelo era un polígono dibujado a mano de 92 vértices. Ahora es una **máscara de ~105 m derivada de la línea de costa de OpenStreetMap**, la misma que dibuja la carta. «Varado» es tocar esa línea; ninguna partícula se dibuja sobre tierra. [Detalle](#la-costa-del-modelo) |
 | 2. Interpolación | Auditadas y documentadas las tres (espacial, temporal y visual), con pruebas contra casos analíticos. Se corrigieron dos fallas: mar sin ola junto a la costa y direcciones que se cancelan. [Detalle](#interpolación) |
 | 3. Oleaje en movimiento | Trazos que fluyen hacia donde viaja la ola; largo y rapidez proporcionales a la altura, sincronizados con la hora. Interruptor para dejarlos fijos u ocultarlos; se apagan solos con `prefers-reduced-motion`. La interfaz dice si los bloques del archivo son idénticos |
-| 4. Que se note que el movimiento no es uniforme | Estela de 6 h detrás de cada partícula, más larga y más oscura cuanto más rápida; rapidez del conglomerado en nudos y km/h que cambia con la hora; en pausa, el cursor sobre una partícula da su rapidez y su rumbo |
+| 4. Que se note que el movimiento no es uniforme | Estela de 6 h detrás de cada partícula, más larga y de tono más intenso cuanto más rápida; rapidez del conglomerado en nudos y km/h que cambia con la hora; en pausa, el cursor sobre una partícula da su rapidez y su rumbo |
 | 5. Escalas | Barra doble en km y millas náuticas que sigue al zoom; flecha de ola de «1 m» a escala fija en cualquier zoom; densidad con unidades y rangos; línea de tiempo con fechas en UTC y en hora de Quintana Roo, marcas por día, «hora N de 120», saltos de 3/6/12 h y velocidad; km, MN y nudos en los resultados; coordenadas también en grados y minutos; radio inicial a escala del mapa |
 | 6. Información geográfica | Localidades, islas, cabos, bahías y puertos de OpenStreetMap, con rótulos que no se enciman y aparecen según el zoom. Tres mapas base: carta propia (no usa internet), satélite (Sentinel-2 cloudless 2016, CC BY 4.0) y calles |
 | 7. Mucha información | Por defecto solo el mapa, el paso actual, la línea de tiempo y un resultado principal. Lo demás, bajo «Ver detalle». [Qué se quitó](#qué-se-quitó-o-se-escondió) |
@@ -271,6 +271,23 @@ el error era al revés: el 42 % de las varadas quedaba dibujado tierra adentro.
 - Las posiciones se guardan redondeadas a 0.0002° (~22 m). El registro y el navegador cuidan
   que ese redondeo no meta a tierra una partícula que estaba en el mar.
 
+### La franja al norte de Cancún
+
+Al norte de Cancún, hacia Isla Contoy, la carta mostraba una hilera de anillos de «varado»
+sobre una línea que apenas se veía. **Esa franja es tierra real**: la barra de Isla Blanca,
+que en la máscara mide de 3 a 21 celdas de ancho (unos 300 m entre 21.34° y 21.36° N), e
+Isla Contoy, de unas 4 celdas. El modelo vara ahí correctamente; lo que fallaba era el
+dibujo. La carta tomaba una sola muestra de la máscara por pixel y pintaba el borde de la
+tierra con tinta de costa: en los zooms 9 y 10, donde un pixel abarca de 150 a 300 m, la
+barra quedaba como una línea de tinta de 1 o 2 pixeles o desaparecía.
+
+Ahora cada pixel toma hasta 4 × 4 muestras de la máscara y es tierra si alguna lo es, y la
+tierra de 2 pixeles o menos de ancho se rellena con el color de la tierra y lleva la tinta de
+la costa por fuera. **El modelo no cambió**, solo el dibujo. Con los datos de SEMAR y una
+liberación en 21.40° N, 86.65° O, las 1 922 partículas varadas tienen tierra o costa dibujada
+a 2 pixeles o menos en los zooms 8.5 a 11; lo comprueba la prueba
+`test_la_tierra_angosta_se_dibuja_y_lo_varado_queda_sobre_tierra_visible`.
+
 **Límites de la costa.** No resuelve canales ni bocas de menos de ~200 m: las lagunas que
 solo comunican por ahí (Nichupté, por ejemplo) cuentan como tierra. No distingue playa,
 manglar, arrecife ni muelle. Depende de cómo esté trazada la costa en OpenStreetMap.
@@ -368,10 +385,15 @@ leyenda mínima con las escalas. Los **tres pasos**, uno a la vez:
 - **Oleaje**: trazos que fluyen hacia donde viaja la ola. Su largo es la altura a 22 px por
   metro en cualquier zoom, y su rapidez también es proporcional a la altura. Se puede dejar
   fijo (una flecha por nodo con dato) u ocultar.
-- **Partículas**: posición interpolada entre horas, con estela de 6 h en tres tonos según la
-  rapidez (menos de 0.2 kn, de 0.2 a 0.4 kn, más de 0.4 kn). Anillo rojo para las varadas.
+- **Partículas**: cuadro púrpura con borde (rosa claro sobre el satélite) en la posición
+  interpolada entre horas, con estela de 6 h en tres tonos según la rapidez (menos de 0.2 kn,
+  de 0.2 a 0.4 kn, más de 0.4 kn). Anillo rojo hueco con halo para las varadas.
 - **Densidad** en cuatro clases (0.2–1, 1–5, 5–20 y ≥ 20 % del sargazo liberado por celda de
-  0.04°) y contorno punteado de la zona con el 90 %. No se pinta sobre tierra.
+  0.04°): mancha translúcida de bordes suaves con trama diagonal, recortada a la costa. La
+  zona con el 90 % es una línea fina. [Colores y contraste](#paleta-del-sargazo-y-contraste).
+- **Tierra angosta**: las barras e islas más delgadas que un pixel de la pantalla (la franja
+  de Isla Blanca al norte de Cancún, Isla Contoy) se dibujan como tierra con un ancho mínimo,
+  para que lo varado no parezca flotar en el mar. [Detalle](#la-franja-al-norte-de-cancún).
 - **Hover**: coordenadas en decimales y en grados y minutos, y la ola interpolada como en el
   modelo. En pausa, sobre una partícula: su rapidez (kn y km/h) y su rumbo.
 
@@ -552,9 +574,11 @@ python scripts/generar_dirmarea.py --fecha 2026-10-01       # dirmarea.txt con o
 ## Despliegue
 
 - **Vercel** (<https://pms-sargazo.vercel.app>), **v0.5.0**. El proyecto `pms-sargazo`
-  despliega `main` automáticamente en cada push. La función (`api/index.py`) incluye `src/`
-  (con la máscara de costa y las localidades) y `data/semar/dirmarea.txt`. En Vercel el
-  historial vive en `/tmp` (efímero) y la interfaz usa los endpoints síncronos. **La demo es
+  despliega **solo `main`**, en cada push; las demás ramas no crean despliegues de vista
+  previa. La función (`api/index.py`) incluye `src/` (con la máscara de costa y las
+  localidades), `data/semar/dirmarea.txt` y `docs/validacion/`. En Vercel el historial vive
+  en `/tmp` (efímero) y la interfaz usa los endpoints síncronos. Qué sube cada despliegue y
+  cómo limpiar los viejos: [más abajo](#almacenamiento-en-vercel). **La demo es
   pública**: cualquiera con la URL ve el oleaje. Si SEMAR no lo autoriza, hay que activar
   Deployment Protection o retirar el archivo.
 - **VPS de entrega para SEMAR** (<http://66.179.210.78:8000>): sigue en la **v0.4.0**. La
@@ -562,6 +586,65 @@ python scripts/generar_dirmarea.py --fecha 2026-10-01       # dirmarea.txt con o
   actualizar y revertir está en [`docs/despliegue_vps.md`](docs/despliegue_vps.md). Al
   actualizarlo, las simulaciones guardadas con el modelo 0.3.0 dejan de aparecer en el
   historial (usan otra costa); los archivos no se borran.
+
+### Almacenamiento en Vercel
+
+El plan Hobby da 10 GB de *Deployment Storage*. Según la
+[documentación de Vercel](https://vercel.com/docs/deployment-storage), ahí cuentan la salida de
+construcción y los archivos estáticos de **cada despliegue que se conserva**; los paquetes de
+las funciones se miden aparte (*Functions Storage*). Un despliegue deja de contar cuando se
+borra, pero la cifra de la página *Usage* es una ventana de 30 días con los máximos diarios ya
+registrados, así que tarda en bajar. Lo que se hizo el 11/11/2026 para que PMS no la llene:
+
+| Por despliegue de PMS | Antes | Ahora |
+|---|---|---|
+| Archivos estáticos publicados | 10.46 MB en 77 archivos | 150 bytes en 1 archivo |
+| Función `api/index` (paquete en Vercel) | 33.29 MB | sin cambio (ver la fila siguiente) |
+| Función sin comprimir, construida en local | 80.16 MB | 80.13 MB |
+| Despliegues conservados | 13 (12 de producción y 1 de vista previa) | 2 (producción vigente y la anterior) |
+
+- **Copias estáticas.** Vercel publicaba como archivos estáticos todo lo que subía del
+  repositorio, además de empaquetarlo en la función: `dirmarea.txt`, el código y la página de
+  validación estaban dos veces, y cualquiera podía bajar `/data/semar/dirmarea.txt` o
+  `/requirements.txt` directo. La carpeta `public/` (vacía a propósito) hace que solo se
+  publique esa carpeta; todo lo demás lo sirve la función, igual que antes.
+- **Lista blanca.** `.vercelignore` ya no enumera lo que sobra: ignora todo y solo deja pasar
+  `api/`, `src/`, `public/`, `requirements.txt`, `.python-version`, `vercel.json`,
+  `data/semar/dirmarea.txt` y `docs/validacion/`. Pruebas, capturas, documentación, el código y
+  los datos crudos de la validación, cachés y scripts no suben, tampoco los que se agreguen
+  después. `tests/test_despliegue.py` lo comprueba y falla si el proyecto pasa de 12 MB.
+- **La función no se pudo reducir.** De sus 80 MB sin comprimir, 52 son `numpy` y 10 son del
+  proyecto (5.1 de `dirmarea.txt` y 4.7 de las figuras y tablas de `/validacion`).
+- **Solo `main` despliega** (`git.deploymentEnabled` en `vercel.json`): una rama o un pull
+  request ya no crea un despliegue de vista previa. Las pruebas de la rama corren en el CI.
+- **Retención.** Vercel permite fijarla en todos los planes, pero solo desde el panel:
+  *Project → Settings → Build and Deployment → Deployment Retention Policy*. El proyecto tiene
+  el valor por defecto de Hobby (30 días en todos los estados). Pase lo que pase, Vercel
+  conserva el despliegue con el alias de producción y los 3 últimos de producción.
+
+**Medir** qué sube un despliegue, sin crear ninguno:
+
+```powershell
+vercel pull --yes --environment=production
+vercel build --prod --yes
+python scripts/tamano_despliegue.py        # lee .vercel/output
+vercel inspect https://pms-sargazo.vercel.app   # tamaño de la función ya desplegada
+```
+
+`vercel build` en local no aplica `.vercelignore`; para una medida fiel hay que construir en
+una copia que solo tenga los archivos que suben.
+
+**Limpiar** despliegues viejos, conservando siempre el de producción vigente y el anterior
+(para poder revertir con `vercel rollback`):
+
+```powershell
+vercel ls pms-sargazo                 # del más nuevo al más viejo
+vercel alias ls                       # a qué despliegue apunta cada dominio
+vercel rm <url-o-id-del-despliegue> --yes   # uno por uno; nunca los dos primeros de producción
+```
+
+Un despliegue borrado se puede restaurar unos días desde *Settings → Security → Recently
+Deleted Deployments*.
 
 ## API
 
@@ -591,7 +674,7 @@ Documentación interactiva en `/docs`.
 ```
 sargazo_prototipo/
 ├── main.py                       python main.py → http://localhost:8000
-├── api/index.py · vercel.json    Función sin servidor para Vercel
+├── api/index.py · vercel.json    Función sin servidor para Vercel (`public/` y `.vercelignore`: qué sube)
 ├── data/semar/                   dirmarea.txt de SEMAR (autorización de difusión por confirmar) y su README
 ├── data/simulations/             Simulaciones guardadas (JSON)
 ├── src/

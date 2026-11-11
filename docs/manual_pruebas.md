@@ -82,7 +82,7 @@ mover la línea de tiempo. Sus valores son sintéticos.
 
 | Paso | Qué debe verse |
 |---|---|
-| Con una simulación, acerca el mapa a las partículas | Cada una deja una estela; hay estelas cortas y claras, y largas y oscuras |
+| Con una simulación, acerca el mapa a las partículas | Cada una deja una estela púrpura; hay estelas cortas y claras, y largas y oscuras (sobre el satélite, rosas: las largas son las más claras) |
 | Mueve la línea de tiempo | «Conglomerado» cambia: nudos, km/h y rumbo |
 | Pausa y pasa el cursor sobre una partícula | «Partícula N · 0.29 kn · 0.53 km/h · rumbo 327° (NNO)» |
 | Reproduce | El dato de la partícula desaparece mientras se mueve |
@@ -95,6 +95,8 @@ mover la línea de tiempo. Sus valores son sintéticos.
 | Mide con la barra el círculo punteado (radio 5 km) | El diámetro es de 10 km en cualquier zoom |
 | Compara una flecha de oleaje con «ola de 1 m» | Donde la ola es de ~1 m (pasa el cursor), el trazo mide lo mismo que la referencia, en cualquier zoom |
 | Leyenda con una simulación | Cuatro clases de densidad: 0.2–1, 1–5, 5–20 y ≥ 20 % del sargazo liberado por celda de 0.04° |
+| Mira la densidad y la zona con el 90 % en los tres mapas base | Manchas púrpura translúcidas de bordes suaves, con trama diagonal y sin bloques rectangulares ni borde grueso; no se pintan sobre tierra. La zona es una línea fina. Nada se confunde con la tierra ni con el mar |
+| Suelta el conglomerado en 21.40° N, 86.65° O, simula y acerca el mapa al norte de Cancún (zooms 9 a 11) | La barra de Isla Blanca e Isla Contoy se ven como tierra; cada anillo rojo queda sobre tierra dibujada |
 | Línea de tiempo | «Hora N de 120», fecha en UTC y en hora de Quintana Roo (5 horas menos), una marca por día |
 | Botones −6 h y +6 h; cambia «Salto» a 3 y a 12 | Saltan lo que dicen; no pasan de 0 ni de 120 |
 | Cambia «Velocidad» a 24 h/s | La reproducción va cuatro veces más rápido que a 6 h/s |

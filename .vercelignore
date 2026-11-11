@@ -1,18 +1,25 @@
-.venv
-.git
-.github
-.pytest_cache
+# Lista blanca: a Vercel solo sube lo que la app usa en producción. Todo lo demás
+# (pruebas, capturas, documentación, código y datos crudos de la validación, cachés,
+# scripts de desarrollo) se queda fuera, también lo que se agregue después.
+# tests/test_despliegue.py comprueba esta lista; el porqué está en el README (Despliegue).
+/*
+!/api
+!/src
+!/public
+!/requirements.txt
+!/.python-version
+!/vercel.json
+
+# Único archivo de entrada del modelo
+!/data
+/data/*
+!/data/semar
+/data/semar/*
+!/data/semar/dirmarea.txt
+
+# Resultados publicados de la validación (página /validacion y sus tablas)
+!/docs
+/docs/*
+!/docs/validacion
+
 **/__pycache__
-tests
-# docs/ no se sube salvo docs/validacion/ (página /validacion)
-docs/*.md
-docs/capturas
-docs/*.png
-data/simulations
-*.pdf
-ejemplo.jpeg
-.env.local
-/data/validacion
-/validacion
-/scripts
-/data/costa
