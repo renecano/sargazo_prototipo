@@ -723,7 +723,7 @@ sargazo_prototipo/
 
 **241 pruebas rápidas** (`python -m pytest`, sin red) y **36 de interfaz** (`python -m pytest -m e2e`),
 en verde en local y en el CI de GitHub Actions (Windows y Ubuntu, Python 3.12 y 3.14, más e2e):
-[corrida en verde](https://github.com/renecano/sargazo_prototipo/actions/runs/42744030178).
+[corrida en verde del PR #2](https://github.com/renecano/sargazo_prototipo/actions/runs/43119639243), con las 36 de interfaz.
 Para revisar a mano cada observación de SEMAR: [`docs/manual_pruebas.md`](docs/manual_pruebas.md).
 
 | Archivo | Qué comprueba |
