@@ -4,7 +4,12 @@
     copernicusmarine login          # solo la primera vez
     python scripts/validar.py
 
-Pasos (cada uno guarda su resultado en data/validacion/ y se reanuda si se corta):
+Pasos (cada uno guarda su resultado en data/validacion/ y se reanuda si se corta: el inventario
+por mes, la calibración y los experimentos por caso). Lo calculado con otra versión del modelo
+o con otra costa no se reutiliza (validacion/sello.py). `--procesos N` fija cuántos meses del
+inventario se procesan a la vez (2 por defecto: cabe en 8 GB de RAM).
+
+Pasos:
   1. Inventario AFAI 2022–2026 (NOAA AOML ERDDAP) y detección de sargazo.
   2. Selección automática de casos (calibración < 2025 ≤ evaluación) y caso de la fecha
      del dirmarea.txt de SEMAR.
@@ -50,7 +55,11 @@ def principal(argv=None) -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--solo-reporte", action="store_true", help="solo rehace tablas, figuras y documentos")
+    p.add_argument("--procesos", type=int, default=None,
+                   help="meses del inventario en paralelo (~300 MB cada uno); por defecto 2, que cabe en 8 GB de RAM")
     a = p.parse_args(argv)
+    if a.procesos:
+        inventario.PROCESOS = max(1, a.procesos)
     t_inicio = time.perf_counter()
     cache, salida = cfg.DIR_CACHE, cfg.DIR_RESULTADOS
     salida.mkdir(parents=True, exist_ok=True)

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-from validacion import afai, casos, experimentos, inventario, metricas
+from validacion import afai, casos, experimentos, inventario, metricas, sello
 from validacion import config as cfg
 from validacion.experimentos import Contexto, Experimento
 
@@ -52,8 +52,14 @@ def guardar_json(ruta: Path, datos) -> None:
 # ---------------------------------------------------------------------------
 # Calibración de E3 (solo casos de calibración)
 # ---------------------------------------------------------------------------
+# Lo que hay en la carpeta de un caso y depende del modelo y de la costa (las descargas y los
+# dirmarea.txt del caso no dependen y se conservan).
+DERIVADOS_CASO = ("calibracion.json", "resultado.json", "campos.npz")
+
+
 def calibrar_caso(caso, ctx: Contexto, det, forz, cache: Path, registrar) -> list[dict]:
     ruta = cache / "casos" / caso.id / "calibracion.json"
+    sello.renovar(ruta.parent, DERIVADOS_CASO)
     if ruta.is_file():
         return json.loads(ruta.read_text(encoding="utf-8"))
     _, sarg0 = det.dia(caso.t0)
@@ -96,7 +102,7 @@ def calibracion_completa(cal, cache: Path = cfg.DIR_CACHE):
     filas, faltan = [], []
     for c in cal:
         ruta = cache / "casos" / c.id / "calibracion.json"
-        if ruta.is_file():
+        if ruta.is_file() and sello.vigente(ruta.parent):
             filas += json.loads(ruta.read_text(encoding="utf-8"))
         else:
             faltan.append(c.id)
@@ -116,6 +122,7 @@ def _disponibles(forz) -> dict:
 def procesar_caso(caso, ctx: Contexto, det, archivo_afai, forz, lista: list[Experimento], cache: Path,
                   registrar, extra_semar=None) -> dict:
     ruta = experimentos.ruta_resultado(caso, cache)
+    sello.renovar(ruta.parent, DERIVADOS_CASO)
     firma = [asdict(e) for e in lista]
     if ruta.is_file():
         previo = json.loads(ruta.read_text(encoding="utf-8"))
@@ -229,5 +236,6 @@ def comparar_semar(cache: Path, registrar) -> dict:
 
 
 def cargar_resultado(caso, cache: Path = cfg.DIR_CACHE) -> dict | None:
+    """Resultado en caché del caso, solo si se calculó con el modelo y la costa actuales."""
     ruta = experimentos.ruta_resultado(caso, cache)
-    return json.loads(ruta.read_text(encoding="utf-8")) if ruta.is_file() else None
+    return json.loads(ruta.read_text(encoding="utf-8")) if ruta.is_file() and sello.vigente(ruta.parent) else None

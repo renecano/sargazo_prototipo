@@ -13,13 +13,14 @@ Dos pasadas sobre todos los días disponibles:
 from __future__ import annotations
 
 import csv
+import os
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
 import numpy as np
 
-from validacion import afai
+from validacion import afai, sello
 from validacion import config as cfg
 
 MIN_OBSERVACIONES = 30          # un píxel con menos observaciones en 5 años no se evalúa
@@ -38,6 +39,14 @@ def _ruta_mascaras(cache: Path) -> Path:
 
 def _ruta_mes(cache: Path, anio: int, mes: int) -> Path:
     return cache / "inventario" / f"deteccion_{anio:04d}-{mes:02d}.npz"
+
+
+def _ruta_pasada1(cache: Path, anio: int, mes: int) -> Path:
+    return cache / "inventario" / f"pasada1_{anio:04d}-{mes:02d}.npz"
+
+
+# Todo lo que hay en inventario/ depende del mar del modelo (la costa).
+DERIVADOS = ("mascaras.npz", "pasada1_*.npz", "deteccion_*.npz", "dias.csv")
 
 
 def ruta_csv(cache: Path = cfg.DIR_CACHE) -> Path:
@@ -95,7 +104,9 @@ def _derivar(lons, lats, mar, obs, sobre) -> Mascaras:
     return Mascaras(lons, lats, mar, obs, sobre, persistente, mar_util)
 
 
-PROCESOS = 4          # meses en paralelo (≈ 300 MB de memoria cada uno)
+# Meses en paralelo (≈ 300 MB de memoria cada uno). Con 2 cabe en un equipo de 8 GB; se cambia
+# con `python scripts/validar.py --procesos N` o con la variable PMS_VALIDACION_PROCESOS.
+PROCESOS = max(1, int(os.environ.get("PMS_VALIDACION_PROCESOS", "2")))
 
 
 def _en_paralelo(funcion, tareas):
@@ -106,7 +117,13 @@ def _en_paralelo(funcion, tareas):
 
 
 def _pasada1_mes(tarea):
+    """Conteos de un mes. Se guardan por mes: si la corrida se interrumpe, al reanudar solo
+    se calculan los meses que faltan."""
     anio, mes, mar, regiones, cache = tarea
+    ruta = _ruta_pasada1(cache, anio, mes)
+    if ruta.is_file():
+        with np.load(ruta) as z:
+            return anio, mes, z["observaciones"], z["sobre_umbral"]
     rej = afai.mes_afai(anio, mes, cache, registrar=lambda *_: None)
     obs = np.zeros(mar.shape, dtype=np.int32)
     sobre = np.zeros(mar.shape, dtype=np.int32)
@@ -114,6 +131,10 @@ def _pasada1_mes(tarea):
         d = afai.detectar(rej.afai[k], mar, regiones=regiones)
         obs += d.valido
         sobre += d.sargazo
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    temporal = ruta.with_name(ruta.stem + ".tmp.npz")
+    np.savez_compressed(temporal, observaciones=obs, sobre_umbral=sobre)
+    temporal.replace(ruta)
     return anio, mes, obs, sobre
 
 
@@ -199,7 +220,10 @@ CAMPOS_CSV = ("fecha", "mar_util", "validos", "claro", "sargazo")
 def construir(cache: Path = cfg.DIR_CACHE, registrar=print) -> tuple[Mascaras, Detecciones, list[dict]]:
     """Descarga (si falta), detecta y escribe el CSV con un renglón por imagen disponible."""
     archivo = afai.ArchivoAfai(cache, registrar)
-    registrar("Inventario AFAI: máscaras (pasada 1)")
+    retirados = sello.renovar(cache / "inventario", DERIVADOS)
+    if retirados:
+        registrar(f"Inventario AFAI: se retiraron {len(retirados)} archivos calculados con otro modelo u otra costa")
+    registrar(f"Inventario AFAI: máscaras (pasada 1, {PROCESOS} procesos)")
     m = calcular_mascaras(archivo, cache, registrar)
     det = Detecciones(archivo, m, cache, registrar)
     ruta = ruta_csv(cache)

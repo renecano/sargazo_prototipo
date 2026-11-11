@@ -388,6 +388,57 @@ fecha en UTC y en hora de Quintana Roo (UTC−5), rapidez y rumbo del conglomera
 clic. Si el archivo no es válido, un velo muestra la causa, el archivo y la acción.
 **Historial** plegado: fecha, arribo principal y % varado; clic para reabrir.
 
+### Paleta del sargazo y contraste
+
+En la primera v0.5.0 el sargazo iba en dorado y sobre la carta se confundía con la tierra, que
+es de color ante: la partícula lenta daba 1.6:1 contra la tierra y la densidad parecían islas.
+Ahora va en **púrpura** sobre la carta y las calles y en **rosa claro** sobre el satélite, un
+tono que no tienen la tierra ni el mar de ningún mapa base, y no depende solo del tono:
+
+- **a flote**: cuadro relleno con borde del color contrario al mapa;
+- **varado**: anillo hueco rojo con halo;
+- **densidad**: mancha de bordes suaves con trama de líneas diagonales, recortada a la costa;
+- **zona con el 90 %**: una línea fina, sin esquinas rectas.
+
+<!-- contraste:inicio (generado por scripts/medir_contraste.py; no editar a mano) -->
+Razón de contraste WCAG (1 = igual, 21 = negro sobre blanco) contra la **mediana** de la tierra y del mar de cada mapa base; en negritas, lo que llega a 3:1, el mínimo de WCAG para objetos gráficos. Lo genera `python scripts/medir_contraste.py`; detalle y extremos claro y oscuro en [`docs/contraste.md`](docs/contraste.md).
+
+| Elemento | Forma | Carta: tierra · mar | Satélite: tierra · mar | Calles: tierra · mar |
+|---|---|---|---|---|
+| Partícula a flote, lenta | cuadro relleno con borde | **3.3** · **4.3** | **5.5** · **7.2** | **3.9** · **3.5** |
+| Partícula a flote, media | cuadro relleno con borde | **5.9** · **7.7** | **7.3** · **9.6** | **6.8** · **6.2** |
+| Partícula a flote, rápida | cuadro relleno con borde | **9.9** · **12.9** | **10.1** · **13.3** | **11.5** · **10.4** |
+| Densidad 0.2–1 % (línea de la trama) | trama diagonal | 1.0 · 1.3 | 1.1 · 1.4 | 1.4 · 1.3 |
+| Densidad 1–5 % (línea de la trama) | trama diagonal | 1.3 · 1.7 | 1.5 · 1.9 | 1.9 · 1.7 |
+| Densidad 5–20 % (línea de la trama) | trama diagonal | 1.8 · 2.4 | 2.2 · 2.9 | 2.5 · 2.3 |
+| Densidad ≥ 20 % (línea de la trama) | trama diagonal | 2.6 · **3.4** | **3.1** · **4.1** | **3.4** · **3.1** |
+| Zona con el 90 % (línea) | línea fina | **6.0** · **7.8** | **6.8** · **8.9** | **7.5** · **6.7** |
+| Varado | anillo hueco con halo | **3.7** · **4.8** | **3.9** · **5.2** | **4.2** · **3.8** |
+
+Fondos medidos: carta propia: tierra `#e3d3a8` y mar `#eef1ea`; calles: tierra `#e6e5c9` y mar `#cedcd6`; satélite: tierra `#223a35` y mar `#10223a`.
+
+Diferencia de color ΔE (CIE76; más de ~10 ya se distingue a simple vista) entre la partícula a flote media y lo que la rodea, con visión normal y con daltonismo simulado:
+
+| Mapa base | Visión | vs tierra | vs mar | vs varado |
+|---|---|---|---|---|
+| Carta propia | visión normal | 100 | 96 | 81 |
+| Carta propia | protanopía | 90 | 83 | 77 |
+| Carta propia | deuteranopía | 80 | 73 | 83 |
+| Carta propia | tritanopía | 59 | 72 | 52 |
+| Calles | visión normal | 100 | 92 | 81 |
+| Calles | protanopía | 87 | 76 | 77 |
+| Calles | deuteranopía | 77 | 65 | 83 |
+| Calles | tritanopía | 67 | 69 | 52 |
+| Satélite | visión normal | 81 | 78 | 82 |
+| Satélite | protanopía | 63 | 65 | 76 |
+| Satélite | deuteranopía | 64 | 70 | 80 |
+| Satélite | tritanopía | 72 | 80 | 61 |
+<!-- contraste:fin -->
+
+Lo que no llega a 3:1: las clases bajas de densidad, que son tenues a propósito (poca opacidad
+es poco sargazo), y las partículas sobre lo más claro del satélite (playas y zonas urbanas),
+donde las separa su borde oscuro.
+
 ### Qué se quitó o se escondió
 
 | Elemento de la v0.4.0 | En la v0.5.0 |

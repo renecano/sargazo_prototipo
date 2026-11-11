@@ -4,6 +4,7 @@
 // escalas siguen siendo verdad a cualquier tamaño de impresión.
 import { CLASES_DENSIDAD, CELDA_DENSIDAD } from './datos.js';
 import { ALFA_DENSIDAD, medirEscala, paleta, pintarCarta, PX_POR_METRO, trazarFlecha } from './capas.js';
+import { conAlfa } from './paleta.js';
 import { arribosEnOrden } from './paneles.js';
 import {
   el, fmtCoord, fmtCoordGM, fmtDistancia, fmtFechaLarga, fmtFechaQRoo, fmtFechaUTC, fmtNum, fmtPct, fmtRapidez, fmtRumbo,
@@ -141,12 +142,18 @@ function dibujarEscalas(ctx, mapa, est, ancho, alto, atribucion) {
   ctx.fillText('ola de 1 m', x + 278 + PX_POR_METRO, y + 16);
   if (est.sim) {
     const pal = paleta(est);
-    const [r, g, b] = pal.densidad;
     const alfas = ALFA_DENSIDAD;
     CLASES_DENSIDAD.forEach((v, k) => {
       const xx = x + 12 + k * 62;
       ctx.fillStyle = pal.fondo; ctx.fillRect(xx, y + 60, 18, 12);
-      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alfas[k]})`; ctx.fillRect(xx, y + 60, 18, 12);
+      ctx.fillStyle = conAlfa(pal.densidad, alfas[k] * 0.46); ctx.fillRect(xx, y + 60, 18, 12);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(xx, y + 60, 18, 12); ctx.clip();
+      ctx.strokeStyle = conAlfa(pal.densidad, alfas[k]); ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      for (let q = -12; q < 20; q += 4.2) { ctx.moveTo(xx + q, y + 72); ctx.lineTo(xx + q + 12, y + 60); }
+      ctx.stroke();
+      ctx.restore();
       ctx.strokeStyle = TINTA_2; ctx.lineWidth = 0.6; ctx.strokeRect(xx + 0.5, y + 60.5, 17, 11);
       ctx.fillStyle = TINTA;
       const tope = CLASES_DENSIDAD[k + 1];
