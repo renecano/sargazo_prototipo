@@ -707,12 +707,24 @@ def test_estelas_por_rapidez_y_su_interruptor(pagina):
         }
         return { vistos, paleta: PALETAS.carta.sargazo, leyenda: [...document.querySelectorAll('#ley-estelas i')].map((i) => i.style.backgroundColor) };
     }""")
-    # El centro de la mayoría cae en un píxel entero de su cuadro (color exacto de la paleta); el
-    # resto, en un borde suavizado: mezcla de púrpuras o de púrpura con el borde claro.
+    # El centro de la mayoría cae en un píxel entero de su cuadro (color de la paleta); el resto, en
+    # un borde suavizado: mezcla de púrpuras o de púrpura con el borde claro. El rasterizado por
+    # software (Chromium en Linux, sin GPU) redondea una o dos unidades por canal: #460752 por #470852.
+    def rgb(color):
+        return tuple(int(color[k:k + 2], 16) for k in (1, 3, 5))
+
+    def de_la_paleta(color, tolerancia=6):
+        return any(max(abs(a - b) for a, b in zip(rgb(color), rgb(p))) <= tolerancia for p in pintado["paleta"])
+
     total = sum(pintado["vistos"].values())
-    de_paleta = sum(n for color, n in pintado["vistos"].items() if color in pintado["paleta"])
+    de_paleta = sum(n for color, n in pintado["vistos"].items() if de_la_paleta(color))
     assert total > 500 and de_paleta > 0.6 * total, pintado
-    assert max(pintado["vistos"], key=pintado["vistos"].get) in pintado["paleta"]
+    assert de_la_paleta(max(pintado["vistos"], key=pintado["vistos"].get))
+    # Ningún grupo apreciable de partículas con el color de la tierra (los bordes suavizados que
+    # mezclan púrpura con el borde claro pueden acercarse en uno o dos píxeles sueltos).
+    parecidos_a_tierra = sum(n for color, n in pintado["vistos"].items()
+                             if max(abs(a - b) for a, b in zip(rgb(color), TIERRA_CARTA)) <= 25)
+    assert parecidos_a_tierra <= 0.01 * total, f"partículas pintadas con un color parecido a la tierra de la carta: {pintado}"
     for color in pintado["paleta"]:
         r, g, b = (int(color[k:k + 2], 16) for k in (1, 3, 5))
         assert b > g + 60 and r > g + 40, f"{color} es púrpura: lejos del ante de la tierra y del crema del mar"
