@@ -170,9 +170,17 @@ def pausar(pg):
 
 
 def poner_zoom(pg, zoom, centro=None):
-    pg.evaluate("([z, c]) => { const m = window.pmsMapa; m.setView(c || m.getCenter(), z, { animate: false }); }", [zoom, centro])
-    pg.wait_for_function(f"window.pmsMapa.getZoom() === {zoom}")
+    """Pone el zoom y lo vuelve a poner si una animación de la app (el encuadre al mostrar un
+    resultado, que en un equipo lento llega tarde) lo cambió; termina con el mapa quieto."""
+    pg.wait_for_function(
+        """([z, c]) => {
+            const m = window.pmsMapa;
+            if (m._animatingZoom || (m._panAnim && m._panAnim._inProgress)) return false;
+            if (m.getZoom() !== z) { m.setView(c || m.getCenter(), z, { animate: false }); return false; }
+            return true;
+        }""", arg=[zoom, centro], polling=100)
     pg.wait_for_timeout(150)
+    assert pg.evaluate("window.pmsMapa.getZoom()") == zoom
 
 
 def capas(pg, abierto: bool):
