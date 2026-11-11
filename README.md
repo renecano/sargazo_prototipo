@@ -71,13 +71,10 @@ Además:
 - El modelo pasa a **`pms-browniano-0.4.0`** porque la costa y la interpolación cambian los
   resultados ([cuánto](#cuánto-cambian-los-resultados)).
 
-> **Pendiente:** la validación contra satélite de abajo se calculó con la v0.4.0 (modelo 0.3.0
-> y la costa anterior). Hay que repetirla con el modelo 0.4.0; la corrida completa se detuvo
-> por falta de memoria en el equipo y no se ha relanzado.
-
 ## ¿El modelo se mueve como el sargazo real?
 
-El profesor preguntó cómo sabemos que el comportamiento del modelo es real. La v0.4.0 lo midió:
+El profesor preguntó cómo sabemos que el comportamiento del modelo es real. La v0.4.0 lo midió
+y la v0.5.0 lo **repitió completo con su modelo (`pms-browniano-0.4.0`) y su costa**:
 toma días de 2022–2026 con sargazo visto por satélite (AFAI de USF en NOAA AOML), siembra
 partículas donde estaba, las mueve con el modelo usando el oleaje real de esas fechas
 (MFWAM de Copernicus Marine, escrito como `dirmarea.txt` en el formato de SEMAR) y compara
@@ -85,23 +82,49 @@ contra lo que el satélite vio 3, 5 y 7 días después. La referencia mínima es
 mueve** (persistencia, E0).
 
 <!-- validacion:inicio (generado por scripts/validar.py; no editar a mano) -->
-**Con datos satelitales 2022–2026, el modelo v0.3 (solo oleaje) no se distingue de suponer que el sargazo no se mueve; ni agregando corrientes (E4 Corriente SMOC total + browniano) se supera a la persistencia.**
+**Con datos satelitales 2022–2026, el modelo de PMS (solo oleaje) no se distingue de suponer que el sargazo no se mueve; ni agregando corrientes (E4 Corriente SMOC total + browniano) se supera a la persistencia.**
 
-FSS a 25 km (1 = perfecto) en 11 casos de evaluación 2025–2026 (γ y K_h de E3 calibrados con 14 casos anteriores), media e IC 95 %:
+FSS a 25 km (1 = perfecto) en 11 casos de evaluación 2025–2026 (γ y K_h de E3 calibrados con 13 casos anteriores), media e IC 95 %:
 
 | Experimento | +3 d | +5 d | +7 d |
 |---|---|---|---|
-| E0 Persistencia | 0.375 [0.291–0.452] | 0.354 [0.272–0.424] | 0.364 [0.308–0.411] |
-| E1 Solo browniano | 0.379 [0.294–0.455]<br>Δ vs E0 +0.004 [-0.001, +0.010] | 0.357 [0.275–0.429]<br>Δ vs E0 +0.003 [-0.004, +0.012] | 0.371 [0.313–0.420]<br>Δ vs E0 +0.007 [+0.001, +0.014] |
-| E2 PMS v0.3 | 0.377 [0.296–0.449]<br>Δ vs E0 +0.002 [-0.017, +0.024] | 0.332 [0.254–0.404]<br>Δ vs E0 -0.022 [-0.045, +0.001] | 0.345 [0.280–0.410]<br>Δ vs E0 -0.019 [-0.055, +0.018] |
-| E3 PMS calibrado | 0.378 [0.293–0.454]<br>Δ vs E0 +0.003 [-0.004, +0.009] | 0.352 [0.270–0.423]<br>Δ vs E0 -0.002 [-0.009, +0.006] | 0.363 [0.307–0.409]<br>Δ vs E0 -0.001 [-0.006, +0.005] |
-| E4 Corriente SMOC total + browniano | 0.359 [0.270–0.437]<br>Δ vs E0 -0.016 [-0.077, +0.049] | 0.283 [0.215–0.346]<br>Δ vs E0 -0.071 [-0.134, -0.006] | 0.254 [0.190–0.315]<br>Δ vs E0 -0.110 [-0.165, -0.049] |
-| E5 Corriente sin Stokes + viento 1 % + ola | 0.342 [0.261–0.416]<br>Δ vs E0 -0.033 [-0.091, +0.025] | 0.269 [0.200–0.333]<br>Δ vs E0 -0.085 [-0.144, -0.020] | 0.226 [0.162–0.289]<br>Δ vs E0 -0.138 [-0.187, -0.084] |
-| E5 Corriente sin Stokes + viento 2 % + ola | 0.297 [0.227–0.366]<br>Δ vs E0 -0.078 [-0.125, -0.034] | 0.255 [0.186–0.317]<br>Δ vs E0 -0.099 [-0.152, -0.041] | 0.199 [0.137–0.259]<br>Δ vs E0 -0.165 [-0.209, -0.122] |
-| E5 Corriente sin Stokes + viento 3 % + ola | 0.282 [0.213–0.351]<br>Δ vs E0 -0.093 [-0.145, -0.045] | 0.227 [0.169–0.280]<br>Δ vs E0 -0.126 [-0.173, -0.077] | 0.182 [0.122–0.244]<br>Δ vs E0 -0.182 [-0.228, -0.136] |
+| E0 Persistencia | 0.374 [0.291–0.451] | 0.353 [0.271–0.424] | 0.363 [0.307–0.409] |
+| E1 Solo browniano | 0.381 [0.296–0.458]<br>Δ vs E0 +0.007 [+0.000, +0.013] | 0.357 [0.274–0.429]<br>Δ vs E0 +0.003 [-0.006, +0.013] | 0.370 [0.312–0.418]<br>Δ vs E0 +0.007 [+0.000, +0.015] |
+| E2 PMS tal cual | 0.377 [0.296–0.449]<br>Δ vs E0 +0.002 [-0.018, +0.023] | 0.332 [0.254–0.404]<br>Δ vs E0 -0.021 [-0.044, +0.001] | 0.344 [0.278–0.407]<br>Δ vs E0 -0.020 [-0.055, +0.017] |
+| E3 PMS calibrado | 0.377 [0.293–0.453]<br>Δ vs E0 +0.003 [-0.003, +0.009] | 0.351 [0.270–0.423]<br>Δ vs E0 -0.002 [-0.009, +0.006] | 0.363 [0.308–0.409]<br>Δ vs E0 +0.000 [-0.005, +0.007] |
+| E4 Corriente SMOC total + browniano | 0.358 [0.271–0.435]<br>Δ vs E0 -0.016 [-0.075, +0.046] | 0.284 [0.218–0.348]<br>Δ vs E0 -0.069 [-0.132, -0.003] | 0.256 [0.191–0.318]<br>Δ vs E0 -0.107 [-0.164, -0.047] |
+| E5 Corriente sin Stokes + viento 1 % + ola | 0.340 [0.259–0.414]<br>Δ vs E0 -0.034 [-0.092, +0.024] | 0.270 [0.200–0.334]<br>Δ vs E0 -0.083 [-0.143, -0.017] | 0.225 [0.162–0.287]<br>Δ vs E0 -0.138 [-0.185, -0.085] |
+| E5 Corriente sin Stokes + viento 2 % + ola | 0.297 [0.226–0.366]<br>Δ vs E0 -0.078 [-0.125, -0.034] | 0.255 [0.187–0.317]<br>Δ vs E0 -0.099 [-0.152, -0.040] | 0.199 [0.137–0.259]<br>Δ vs E0 -0.164 [-0.208, -0.122] |
+| E5 Corriente sin Stokes + viento 3 % + ola | 0.282 [0.213–0.351]<br>Δ vs E0 -0.092 [-0.145, -0.044] | 0.227 [0.168–0.280]<br>Δ vs E0 -0.126 [-0.173, -0.076] | 0.180 [0.122–0.241]<br>Δ vs E0 -0.183 [-0.228, -0.137] |
 
 Reporte completo con método, casos y limitaciones: [docs/validacion.md](docs/validacion.md) · página en la app: `/validacion`.
 <!-- validacion:fin -->
+
+**Qué cambió respecto a la validación de la v0.4.0** (modelo 0.3.0 y costa manual), FSS a 25 km
+en los mismos 11 casos de evaluación, diferencia contra la persistencia (E0):
+
+| Experimento | +3 d | +5 d | +7 d |
+|---|---|---|---|
+| E2 PMS tal cual, v0.4.0 | +0.002 [−0.017, +0.024] | −0.022 [−0.045, +0.001] | −0.019 [−0.055, +0.018] |
+| E2 PMS tal cual, v0.5.0 | +0.002 [−0.018, +0.023] | −0.021 [−0.044, +0.001] | −0.020 [−0.055, +0.017] |
+| E3 PMS calibrado, v0.4.0 | +0.003 [−0.004, +0.009] | −0.002 [−0.009, +0.006] | −0.001 [−0.006, +0.005] |
+| E3 PMS calibrado, v0.5.0 | +0.003 [−0.003, +0.009] | −0.002 [−0.009, +0.006] | +0.000 [−0.005, +0.007] |
+
+**La conclusión no cambia**: ni E2 ni E3 se distinguen de la persistencia en ningún horizonte,
+y la calibración vuelve a elegir el mínimo movimiento de la rejilla (γ = 0, K_h = 1 m²/s). Las
+diferencias son de una a dos milésimas. Es lo esperable: la costa nueva cambia sobre todo qué
+pasa junto a la orilla, y el FSS se mide en todo el mar despejado, donde el modelo casi no
+mueve el sargazo en 3 a 7 días. Dos cosas sí se movieron:
+
+- **Casos de calibración: 13 en vez de 14.** El mar que se evalúa sale de la máscara de costa;
+  con la nueva cambia un poco la fracción despejada de cada día. Salen C20220304 y C20220623 y
+  entra C20220626. Los 11 casos de evaluación son los mismos.
+- **E1 (solo movimiento aleatorio) le gana a la persistencia a +3 y +7 días** por +0.007, con
+  el límite inferior del intervalo en +0.000; en la v0.4.0 solo a +7 días. Es una mejora
+  mínima, sin oleaje, y no se le puede atribuir a PMS.
+
+La corrida completa tardó 93 min en el equipo de 8 GB con 2 procesos
+(`python scripts/validar.py --procesos 2`); si se interrumpe, continúa desde la caché.
 
 ### Qué cambió en la v0.4.0
 
@@ -684,7 +707,7 @@ sargazo_prototipo/
 │   │   └── datos/                costa.npz (máscara de 0.001°) · costa.json (procedencia) · localidades.json
 │   ├── api/                      app.py · servicios.py · almacen.py
 │   └── view/                     index.html · css/carta.css · js/ (main, capas, oleaje, datos, paneles, exportar, recorrido…)
-├── validacion/                   Validación v0.4.0: afai · inventario · casos · dirmarea · openmeteo · campos ·
+├── validacion/                   Validación contra satélite: afai · inventario · casos · dirmarea · openmeteo · campos ·
 │                                 experimentos · metricas · ejecutar · reporte · documento
 ├── data/validacion/              Caché de descargas de la validación (fuera de git y de Vercel)
 ├── data/costa/                   Caché de construir_costa.py (fuera de git y de Vercel)
@@ -698,7 +721,7 @@ sargazo_prototipo/
 
 ## Pruebas y rendimiento
 
-**209 pruebas rápidas** (`python -m pytest`, sin red) y **35 de interfaz** (`python -m pytest -m e2e`),
+**241 pruebas rápidas** (`python -m pytest`, sin red) y **36 de interfaz** (`python -m pytest -m e2e`),
 en verde en local y en el CI de GitHub Actions (Windows y Ubuntu, Python 3.12 y 3.14, más e2e):
 [corrida en verde](https://github.com/renecano/sargazo_prototipo/actions/runs/42744030178).
 Para revisar a mano cada observación de SEMAR: [`docs/manual_pruebas.md`](docs/manual_pruebas.md).
@@ -712,6 +735,8 @@ Para revisar a mano cada observación de SEMAR: [`docs/manual_pruebas.md`](docs/
 | `tests/test_interpolacion.py` | Bilineal exacta en un campo lineal; valor del nodo sin desfase; continuidad; borde; seno y coseno; direcciones opuestas; nodos sin dato; franja costera de 2 nodos; rampa temporal, bloques irregulares y extremos; RK2 contra dos soluciones exactas y contra la integral con un campo real |
 | `tests/test_api.py` | 200 y guardado con huella; reproducibilidad; trabajos con progreso; 409, 422 y 404; sin datos; la máscara que recibe la interfaz es la del modelo; localidades; `/api/ola` igual al modelo; tabla de arribos y rapidez del conglomerado; el historial solo lista el modelo actual; página `/validacion` y sus figuras |
 | `tests/test_validacion.py` | Lector de ERDDAP con un recorte real (`tests/fixtures`); detección (franja, nubes y su borde, umbral adaptativo, regiones y franja de la costura); `generar_dirmarea` con formato idéntico al de SEMAR y aceptado por el validador y el modelo; Open-Meteo sin red (unidades, caché, cuota); campos encadenados y convenciones de corriente y viento; FSS analítico (1, 0, 2/3, 1 − d/n); MCC recupera desplazamientos sintéticos (también con nubes); Liu-Weisberg, bootstrap y contingencia; persistencia da FSS = 1 si nada se mueve; siembra; integrador del producto; selección de casos reproducible y sin traslape; veredicto contra E0 |
+| `tests/test_paleta.py` | La paleta del sargazo contra la tierra y el mar medidos de cada mapa base: partículas ≥ 3:1, borde y halo ≥ 4.5:1, ΔE ≥ 40 con visión normal y con los tres daltonismos simulados; varado distinto de flotante; `docs/contraste.md` y el bloque del README coinciden con la paleta |
+| `tests/test_despliegue.py` | `.vercelignore` deja subir a Vercel todo lo que la app usa (código, máscara, `dirmarea.txt`, página de validación con sus figuras y tablas) y nada de desarrollo; el proyecto no pasa de 12 MB; solo `main` despliega y no se publican copias estáticas |
 | `tests/e2e/test_interfaz.py` | La carta dibuja la costa del modelo y no pide teselas; navegador y modelo dan el mismo tierra/mar; ninguna partícula sobre tierra en 480 cuadros; radio inicial y barra de km y MN a escala en tres zooms; oleaje animado con largo y rapidez proporcionales a la altura, fijo, apagado y con movimiento reducido; con bloques distintos la ola del navegador coincide con la del modelo; animación continua y pausa; estelas; rapidez del conglomerado y de una partícula; línea de tiempo (fechas, marcas, saltos, velocidad); densidad con unidades y sin pintar tierra; localidades sin encimarse según el zoom; mapas base y atribuciones; tabla de arribos y clic en un tramo; imagen PNG y resumen de una página en PDF; recorrido de 14 pasos; historial; errores; sin datos; `/validacion` |
 
 **Rendimiento en local** (Windows 11, 8 GB de RAM; detalle en [`docs/rendimiento.md`](docs/rendimiento.md)):
@@ -750,8 +775,8 @@ Las estelas bajan de detalle solas cuando el equipo no alcanza y el oleaje anima
 | La app queda «lista» en el navegador (carta, costa, localidades y oleaje) | 2.2–3.5 s |
 
 Las pruebas de interfaz corren también contra el despliegue
-(`python -m pytest -m e2e --url-base https://pms-sargazo.vercel.app`): 32 pasan y 3 se omiten
-porque necesitan levantar un servidor con datos propios.
+(`python -m pytest -m e2e --url-base https://pms-sargazo.vercel.app`): el 09/11/2026 pasaron 32 y
+se omitieron 3, que necesitan levantar un servidor con datos propios.
 
 **Arranque en frío.** No se pudo forzar uno limpio en Vercel, porque la instancia de producción
 ya estaba caliente tras cada despliegue (`/api/salud` respondió en 0.36 s en la primera
@@ -762,10 +787,7 @@ de la función, así que no fue necesario optimizar la lectura del archivo.
 
 ## Límites honestos
 
-- **La validación publicada es de la versión anterior.** Se calculó con el modelo 0.3.0 y la
-  costa manual. El modelo 0.4.0 cambia dónde y cuándo vara el sargazo, así que hay que repetirla
-  antes de citar sus cifras para esta versión.
-- **El modelo no le gana a suponer que el sargazo no se mueve.** En la validación v0.4.0
+- **El modelo no le gana a suponer que el sargazo no se mueve.** En la validación de la v0.5.0
   (casos de evaluación 2025–2026, FSS a 25 km) la diferencia contra la persistencia no es
   distinguible de cero en ningún horizonte; la calibración eligió el mínimo movimiento de la
   rejilla (γ = 0). Hoy PMS no aporta información sobre hacia dónde se mueve el sargazo más allá

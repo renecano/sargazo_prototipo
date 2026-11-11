@@ -17,8 +17,8 @@ Para probar un servidor ya desplegado, usa su dirección en lugar de `localhost:
 
 | Comando | Qué corre | Duración aproximada |
 |---|---|---|
-| `python -m pytest` | 209 pruebas rápidas: lector, validador, modelo, costa, interpolación, API y validación | 1 min |
-| `python -m pytest -m e2e` | 35 pruebas de interfaz con un navegador real | 3 min |
+| `python -m pytest` | 241 pruebas rápidas: lector, validador, modelo, costa, interpolación, API, validación, paleta y despliegue | 1 min |
+| `python -m pytest -m e2e` | 36 pruebas de interfaz con un navegador real | 3 min |
 | `python -m pytest -m e2e --url-base https://pms-sargazo.vercel.app` | Las de interfaz contra un servidor desplegado (omite las que necesitan datos propios) | 3 min |
 | `python scripts/medir_rendimiento.py` | Tiempos del servidor y cuadros por segundo de la interfaz → `docs/rendimiento.md` | 3 min |
 | `python scripts/capturar_pantalla.py` | Capturas de `docs/` en 1366×768 y 1920×1080 | 2 min |
