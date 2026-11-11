@@ -18,7 +18,9 @@ import pytest
 from src.config import DIR_SEMAR
 from src.ingestion.validador import validar_conjunto
 from src.model.campos import CamposOleaje, OleajeUniforme
-from validacion import afai, casos, copernicus, dirmarea, documento, ejecutar, experimentos, metricas, openmeteo
+from validacion import (
+    afai, casos, copernicus, dirmarea, documento, ejecutar, experimentos, inventario, metricas, openmeteo, sello,
+)
 from validacion import config as cfg
 from validacion.campos import CamposEncadenados, CamposSuma, CamposVectoriales, vectoriales_desde_serie
 
@@ -560,8 +562,64 @@ def test_e3_queda_pendiente_sin_calibracion_completa(tmp_path):
     (tmp_path / "casos" / "A").mkdir(parents=True)
     (tmp_path / "casos" / "A" / "calibracion.json").write_text(json.dumps(
         [{"caso": "A", "gamma": 0.0, "kh": 1.0, "fss_3d": 0.3, "fss_5d": 0.2, "fss_7d": 0.2}]), encoding="utf-8")
+    # Sin sello no se sabe con qué modelo se calculó: no cuenta.
+    g, k, tabla, filas, faltan = ejecutar.calibracion_completa(cal, tmp_path)
+    assert g is None and faltan == ["A", "B"] and filas == []
+    (tmp_path / "casos" / "A" / sello.NOMBRE).write_text(json.dumps(sello.actual()), encoding="utf-8")
     g, k, tabla, filas, faltan = ejecutar.calibracion_completa(cal, tmp_path)
     assert g is None and k is None and tabla == [] and faltan == ["B"] and len(filas) == 1
+
+
+# ---------------------------------------------------------------------------
+# Caché: sello del modelo y de la costa, y reanudación del inventario
+# ---------------------------------------------------------------------------
+def test_la_cache_de_otro_modelo_o_de_otra_costa_no_se_reutiliza(tmp_path):
+    from src.config import VERSION_MODELO
+    from src.model import costa
+
+    assert sello.actual() == {"version_modelo": VERSION_MODELO, "costa_sha256": costa.procedencia()["costa"]["sha256_bits"]}
+    caso = tmp_path / "casos" / "C1"
+    caso.mkdir(parents=True)
+    for nombre in ("calibracion.json", "resultado.json", "campos.npz", "dirmarea_2025-01-01"):
+        (caso / nombre).write_text("{}", encoding="utf-8")
+    (caso / sello.NOMBRE).write_text(json.dumps({"version_modelo": "pms-browniano-0.3.0", "costa_sha256": "0" * 64}), encoding="utf-8")
+    assert not sello.vigente(caso)
+    retirados = sello.renovar(caso, ejecutar.DERIVADOS_CASO)
+    assert sorted(retirados) == ["calibracion.json", "campos.npz", "resultado.json"]
+    assert (caso / "dirmarea_2025-01-01").is_file(), "las descargas del caso no dependen del modelo y se conservan"
+    assert sello.vigente(caso) and sello.renovar(caso, ejecutar.DERIVADOS_CASO) == []
+
+    class C:
+        id = "C1"
+    (caso / "resultado.json").write_text(json.dumps({"filas": []}), encoding="utf-8")
+    assert ejecutar.cargar_resultado(C, tmp_path) == {"filas": []}
+    (caso / sello.NOMBRE).write_text(json.dumps({"version_modelo": "otro", "costa_sha256": "1" * 64}), encoding="utf-8")
+    assert ejecutar.cargar_resultado(C, tmp_path) is None
+
+
+def test_el_inventario_se_reanuda_por_mes(monkeypatch, tmp_path):
+    """La pasada 1 guarda sus conteos por mes: tras un corte no se repiten los meses hechos."""
+    from types import SimpleNamespace
+
+    llamadas = []
+    mar = np.ones((3, 4), dtype=bool)
+
+    def mes_falso(anio, mes, cache, registrar=None):
+        llamadas.append((anio, mes))
+        return SimpleNamespace(fechas=[date(anio, mes, 1), date(anio, mes, 2)], afai=np.zeros((2, 3, 4)))
+
+    monkeypatch.setattr(inventario.afai, "mes_afai", mes_falso)
+    monkeypatch.setattr(inventario.afai, "detectar",
+                        lambda rejilla, mar, regiones=None: SimpleNamespace(valido=mar, sargazo=np.zeros_like(mar)))
+    a = inventario._pasada1_mes((2025, 6, mar, None, tmp_path))
+    assert llamadas == [(2025, 6)] and a[2].sum() == 24 and a[3].sum() == 0
+    assert (tmp_path / "inventario" / "pasada1_2025-06.npz").is_file()
+    assert not list((tmp_path / "inventario").glob("*.tmp.npz")), "se escribe a un temporal y se renombra"
+    b = inventario._pasada1_mes((2025, 6, mar, None, tmp_path))
+    assert llamadas == [(2025, 6)], "la segunda vez sale de la caché"
+    assert np.array_equal(a[2], b[2]) and np.array_equal(a[3], b[3])
+    assert inventario.PROCESOS == 2, "por defecto, 2 procesos: cabe en 8 GB de RAM"
+    assert "pasada1_*.npz" in inventario.DERIVADOS and "mascaras.npz" in inventario.DERIVADOS
 
 
 # ---------------------------------------------------------------------------

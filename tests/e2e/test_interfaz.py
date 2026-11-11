@@ -170,9 +170,17 @@ def pausar(pg):
 
 
 def poner_zoom(pg, zoom, centro=None):
-    pg.evaluate("([z, c]) => { const m = window.pmsMapa; m.setView(c || m.getCenter(), z, { animate: false }); }", [zoom, centro])
-    pg.wait_for_function(f"window.pmsMapa.getZoom() === {zoom}")
+    """Pone el zoom y lo vuelve a poner si una animación de la app (el encuadre al mostrar un
+    resultado, que en un equipo lento llega tarde) lo cambió; termina con el mapa quieto."""
+    pg.wait_for_function(
+        """([z, c]) => {
+            const m = window.pmsMapa;
+            if (m._animatingZoom || (m._panAnim && m._panAnim._inProgress)) return false;
+            if (m.getZoom() !== z) { m.setView(c || m.getCenter(), z, { animate: false }); return false; }
+            return true;
+        }""", arg=[zoom, centro], polling=100)
     pg.wait_for_timeout(150)
+    assert pg.evaluate("window.pmsMapa.getZoom()") == zoom
 
 
 def capas(pg, abierto: bool):
@@ -209,7 +217,35 @@ def siguiente(pg):
     pg.wait_for_timeout(300)
 
 
-MAR_CARTA, TIERRA_CARTA = [238, 241, 234], [232, 219, 181]
+MAR_CARTA, TIERRA_CARTA, COSTA_CARTA = [238, 241, 234], [227, 211, 168], [29, 53, 87]
+
+# Para cada partícula varada a la vista: ¿hay tierra o línea de costa de la carta a 2 px o menos?
+JS_VARADAS_SOBRE_TIERRA = """() => {
+    const s = window.pms.sim, m = window.pmsMapa, marco = m.getContainer().getBoundingClientRect(), p = [0, 0];
+    const teselas = [...document.querySelectorAll('.leaflet-tile-pane canvas.leaflet-tile')]
+        .map((t) => ({ t, r: t.getBoundingClientRect(), g: t.getContext('2d', { willReadFrequently: true }) }));
+    const esMar = (x, y) => {
+        for (const { t, r, g } of teselas) {
+            const a = x + marco.left - r.left, b = y + marco.top - r.top;
+            if (a < 0 || b < 0 || a >= r.width || b >= r.height) continue;
+            const d = g.getImageData(Math.floor(a * t.width / r.width), Math.floor(b * t.height / r.height), 1, 1).data;
+            return d[0] === 238 && d[1] === 241 && d[2] === 234;
+        }
+        return true;
+    };
+    let varadas = 0, conTierra = 0;
+    for (let n = 0; n < s.N; n++) {
+        if (s.estado(n, s.H) !== 1) continue;
+        s.pos(n, s.H, p);
+        const q = m.latLngToContainerPoint([p[1], p[0]]);
+        if (q.x < 3 || q.y < 3 || q.x > marco.width - 3 || q.y > marco.height - 3) continue;
+        varadas++;
+        let hay = false;
+        for (let dx = -2; dx <= 2 && !hay; dx++) for (let dy = -2; dy <= 2 && !hay; dy++) hay = !esMar(q.x + dx, q.y + dy);
+        if (hay) conTierra++;
+    }
+    return { varadas, conTierra };
+}"""
 
 
 # --- Recorrido guiado: se abre la primera vez, «Saltar» y no se reabre ---------------------
@@ -315,6 +351,71 @@ def test_clic_en_el_mar_fija_el_punto_con_grados_y_minutos(pagina):
     assert "tierra" in pagina.text_content("#aviso-punto")
     pagina.mouse.click(*punto_en_pantalla(pagina, *CANCUN))
     assert pagina.is_hidden("#aviso-punto")
+
+
+def test_la_tierra_angosta_se_dibuja_y_lo_varado_queda_sobre_tierra_visible(navegador, app_url):
+    """La barra de Isla Blanca (al norte de Cancún, 300 m en su parte más delgada) e Isla Contoy
+    medían 1 o 2 píxeles y la carta las pintaba como una raya o las perdía: los varados parecían
+    estar sobre el mar. Ahora la tierra angosta se ve en todos los zooms de trabajo y cada
+    partícula varada tiene tierra o línea de costa a 2 píxeles o menos."""
+    ctx, pg = abrir(navegador, app_url)
+    try:
+        esperar_lista(pg)
+        # (lat, lon) sobre la barra de Isla Blanca, de sur a norte, y sobre Isla Contoy.
+        franja = [(21.30, -86.820), (21.34, -86.7925), (21.36, -86.7915), (21.40, -86.7965), (21.42, -86.8215), (21.50, -86.7965)]
+        for zoom in (9, 9.5, 10, 10.5, 11):
+            poner_zoom(pg, zoom, [21.38, -86.90])
+            pg.wait_for_timeout(250)
+            for lat, lon in franja:
+                vecinos = pg.evaluate("""([lat, lon]) => {
+                    const m = window.pmsMapa, marco = m.getContainer().getBoundingClientRect(), p = m.latLngToContainerPoint([lat, lon]);
+                    const colores = [];
+                    for (const t of document.querySelectorAll('.leaflet-tile-pane canvas.leaflet-tile')) {
+                        const r = t.getBoundingClientRect(), g = t.getContext('2d', { willReadFrequently: true });
+                        for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) {
+                            const a = p.x + dx + marco.left - r.left, b = p.y + dy + marco.top - r.top;
+                            if (a < 0 || b < 0 || a >= r.width || b >= r.height) continue;
+                            const d = g.getImageData(Math.floor(a * t.width / r.width), Math.floor(b * t.height / r.height), 1, 1).data;
+                            colores.push([d[0], d[1], d[2]]);
+                        }
+                    }
+                    return colores;
+                }""", [lat, lon])
+                assert TIERRA_CARTA in vecinos, f"zoom {zoom}: a 2 px de ({lat}, {lon}) hay relleno de tierra, no solo una raya"
+            # En su parte más delgada (300 m) la franja lleva relleno y línea de costa a los lados.
+            delgada = pg.evaluate("""() => {
+                const m = window.pmsMapa, marco = m.getContainer().getBoundingClientRect(), p = m.latLngToContainerPoint([21.34, -86.7925]);
+                const fila = [];
+                for (let dx = -4; dx <= 4; dx++) for (const t of document.querySelectorAll('.leaflet-tile-pane canvas.leaflet-tile')) {
+                    const r = t.getBoundingClientRect(), a = p.x + dx + marco.left - r.left, b = p.y + marco.top - r.top;
+                    if (a < 0 || b < 0 || a >= r.width || b >= r.height) continue;
+                    const d = t.getContext('2d', { willReadFrequently: true }).getImageData(Math.floor(a * t.width / r.width), Math.floor(b * t.height / r.height), 1, 1).data;
+                    fila.push([d[0], d[1], d[2]]);
+                }
+                return fila;
+            }""")
+            assert TIERRA_CARTA in delgada and COSTA_CARTA in delgada and MAR_CARTA in delgada, f"zoom {zoom}: {delgada}"
+        assert pg.evaluate("window.pmsDepurar.enTierra(-86.7925, 21.34)"), "y es tierra del modelo"
+        # Simulación que vara justo ahí.
+        pg.fill("#p-lat", "21.400")
+        pg.fill("#p-lon", "-86.650")
+        pg.dispatch_event("#p-lon", "change")
+        assert pg.is_hidden("#aviso-punto")
+        pg.click("#btn-a-ajustes")
+        pg.click("#btn-simular")
+        esperar_estado(pg, "resultado")
+        pausar(pg)
+        poner_hora(pg, 120)
+        zonas = {a["zona"] for a in pg.evaluate("window.pms.sim.reg.resumen.arribos")}
+        assert zonas & {"costa_mujeres", "contoy"}, zonas
+        for zoom in (9, 10, 11):
+            poner_zoom(pg, zoom, [21.38, -86.90])
+            pg.wait_for_timeout(300)
+            r = pg.evaluate(JS_VARADAS_SOBRE_TIERRA)
+            assert r["varadas"] > 300 and r["conTierra"] == r["varadas"], f"zoom {zoom}: {r}"
+        assert pg.errores == []
+    finally:
+        ctx.close()
 
 
 # --- 5. Escalas ----------------------------------------------------------------------------------
@@ -463,6 +564,11 @@ def test_selector_de_mapa_base_con_atribuciones(pagina):
     assert any("tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/" in u for u in pagina.teselas), "capa 2016, la de licencia CC BY 4.0"
     # Sobre la imagen, las capas cambian a trazo claro y la leyenda muestra esos mismos colores.
     assert pagina.evaluate("getComputedStyle(document.getElementById('leyenda')).getPropertyValue('--ley-tinta').trim()") == "#fbf6ea"
+    en_satelite = pagina.evaluate("""async () => { const { PALETAS } = await import('/static/js/paleta.js');
+        const e = getComputedStyle(document.getElementById('leyenda'));
+        return [e.getPropertyValue('--ley-zona').trim() === PALETAS.satelite.zona, e.getPropertyValue('--ley-varada').trim() === PALETAS.satelite.varada,
+                document.querySelector('#ley-densidad i').style.background.includes('repeating-linear-gradient')]; }""")
+    assert en_satelite == [True, True, True], "la leyenda usa los colores y la trama del mapa base activo"
     pagina.check('input[name="base"][value="calles"]')
     pagina.wait_for_selector(".leaflet-layer.tesela-calles", state="attached")
     assert pagina.locator(".leaflet-layer.tesela-satelite").count() == 0
@@ -595,6 +701,42 @@ def test_estelas_por_rapidez_y_su_interruptor(pagina):
     }""")
     assert all(k > 20 for k in clases), f"hay partículas lentas, medias y rápidas: el movimiento no es uniforme ({clases})"
     assert pagina.locator("#ley-estelas i").count() == 3
+    # El color que se pinta es el de la paleta (púrpura), no un dorado parecido a la tierra.
+    pintado = pagina.evaluate("""async () => {
+        const { PALETAS } = await import('/static/js/paleta.js');
+        const s = window.pms.sim, c = window.pmsDepurar.capas.particulas, dpr = window.devicePixelRatio || 1, p = [0, 0];
+        const hex = (d) => '#' + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, '0')).join('');
+        const vistos = {};
+        for (let n = 0; n < s.N; n++) {
+            if (s.estado(n, 20.5) !== 0) continue;
+            s.posVisible(n, 20.5, p, window.pms.costa);
+            const d = c.ctx.getImageData(Math.round(c.x(p[0]) * dpr), Math.round(c.y(p[1]) * dpr), 1, 1).data;
+            if (d[3] === 255) vistos[hex(d)] = (vistos[hex(d)] || 0) + 1;
+        }
+        return { vistos, paleta: PALETAS.carta.sargazo, leyenda: [...document.querySelectorAll('#ley-estelas i')].map((i) => i.style.backgroundColor) };
+    }""")
+    # El centro de la mayoría cae en un píxel entero de su cuadro (color de la paleta); el resto, en
+    # un borde suavizado: mezcla de púrpuras o de púrpura con el borde claro. El rasterizado por
+    # software (Chromium en Linux, sin GPU) redondea una o dos unidades por canal: #460752 por #470852.
+    def rgb(color):
+        return tuple(int(color[k:k + 2], 16) for k in (1, 3, 5))
+
+    def de_la_paleta(color, tolerancia=6):
+        return any(max(abs(a - b) for a, b in zip(rgb(color), rgb(p))) <= tolerancia for p in pintado["paleta"])
+
+    total = sum(pintado["vistos"].values())
+    de_paleta = sum(n for color, n in pintado["vistos"].items() if de_la_paleta(color))
+    assert total > 500 and de_paleta > 0.6 * total, pintado
+    assert de_la_paleta(max(pintado["vistos"], key=pintado["vistos"].get))
+    # Ningún grupo apreciable de partículas con el color de la tierra (los bordes suavizados que
+    # mezclan púrpura con el borde claro pueden acercarse en uno o dos píxeles sueltos).
+    parecidos_a_tierra = sum(n for color, n in pintado["vistos"].items()
+                             if max(abs(a - b) for a, b in zip(rgb(color), TIERRA_CARTA)) <= 25)
+    assert parecidos_a_tierra <= 0.01 * total, f"partículas pintadas con un color parecido a la tierra de la carta: {pintado}"
+    for color in pintado["paleta"]:
+        r, g, b = (int(color[k:k + 2], 16) for k in (1, 3, 5))
+        assert b > g + 60 and r > g + 40, f"{color} es púrpura: lejos del ante de la tierra y del crema del mar"
+    assert len(pintado["leyenda"]) == 3 and all(c.startswith("rgb") for c in pintado["leyenda"])
     capas(pagina, True)
     pagina.uncheck("#ver-estelas")
     assert huella_canvas(pagina, "particulas") != con
@@ -731,6 +873,25 @@ def test_leyenda_de_densidad_con_unidades_y_sin_pintar_tierra(pagina):
     }""")
     assert muestra, "hay una celda de densidad que toca la costa"
     assert muestra["mar"] > 0 and muestra["tierra"] == 0, muestra
+    # No son bloques: la opacidad cambia de forma gradual (muchos niveles), lleva trama y la
+    # costa la recorta píxel a píxel.
+    forma = pagina.evaluate("""() => {
+        const c = window.pmsDepurar.capas.densidad, d = window.pms.densidadDibujada, dpr = window.devicePixelRatio || 1;
+        const [x0, y0, x1, y1] = d.rect;
+        const px = c.ctx.getImageData(Math.round(x0 * dpr), Math.round(y0 * dpr), Math.round((x1 - x0) * dpr), Math.round((y1 - y0) * dpr)).data;
+        const niveles = new Set();
+        let maximo = 0;
+        for (let k = 3; k < px.length; k += 4) { niveles.add(px[k]); if (px[k] > maximo) maximo = px[k]; }
+        return { niveles: niveles.size, maximo, ...d };
+    }""")
+    assert forma["niveles"] > 40, f"bordes suaves, no cuadros de un solo tono: {forma}"
+    assert forma["maximo"] < 240, "siempre con transparencia (lo más opaco es la línea de la zona sobre la trama)"
+    assert forma["recortados"] > 0 and forma["pintados"] > forma["recortados"], "recortada a la costa"
+    assert forma["tramosZona"] > 0, "la zona con el 90 % solo se traza sobre el mar"
+    poner_hora(pagina, 12)
+    en_el_mar = pagina.evaluate("window.pms.densidadDibujada")
+    assert en_el_mar["tramosZona"] >= 8 and en_el_mar["pintados"] > 500, f"mar adentro, una línea cerrada alrededor de la mancha: {en_el_mar}"
+    poner_hora(pagina, 120)
     con = huella_canvas(pagina, "densidad")
     capas(pagina, True)
     pagina.uncheck("#ver-densidad")

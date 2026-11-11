@@ -1,0 +1,2 @@
+Carpeta vacía a propósito: con ella Vercel no publica el repositorio como archivos estáticos.
+Todo lo sirve la función api/index.py (ver «Despliegue» en el README).

@@ -2,29 +2,10 @@
 // retícula, densidad y zona P90, partículas con estela, flechas de oleaje y rótulos.
 /* global L */
 import { A_FLOTE, CELDA_DENSIDAD, CLASES_DENSIDAD, CLASES_RAPIDEZ_KN, HORAS_ESTELA, VARADA } from './datos.js';
+import { conAlfa, paleta, PALETAS } from './paleta.js';
 import { MS_A_NUDOS } from './util.js';
 
-// ---------------------------------------------------------------------------
-// Paletas: tinta sobre papel (carta y calles) o trazo claro sobre imagen (satélite)
-// ---------------------------------------------------------------------------
-export const PALETAS = {
-  carta: {
-    tinta: '#1d3557', reticula: 'rgba(29, 53, 87, 0.16)', rotuloReticula: 'rgba(29, 53, 87, 0.55)',
-    rotulo: '#1d3557', agua: '#2f6384', halo: 'rgba(251, 246, 234, 0.92)',
-    ola: 'rgba(31, 92, 122, 0.78)', varada: '#c0392b',
-    rapidez: ['#d6a531', '#a8740c', '#6a3f02'],                 // lenta, media, rápida
-    densidad: [176, 125, 16], zona: '#1d3557', fondo: '#eef1ea',
-  },
-  satelite: {
-    tinta: '#fbf6ea', reticula: 'rgba(251, 246, 234, 0.20)', rotuloReticula: 'rgba(251, 246, 234, 0.75)',
-    rotulo: '#fffaf0', agua: '#bfe3f2', halo: 'rgba(8, 18, 32, 0.80)',
-    ola: 'rgba(196, 232, 245, 0.92)', varada: '#ff6a5c',
-    rapidez: ['#ffe9a3', '#ffc23d', '#ff8a1f'],
-    densidad: [255, 196, 61], zona: '#fbf6ea', fondo: '#10263f',
-  },
-};
-PALETAS.calles = PALETAS.carta;
-export const paleta = (est) => PALETAS[est.base] || PALETAS.carta;
+export { paleta, PALETAS };
 
 export const PX_POR_METRO = 22;          // largo de la flecha de ola: 1 m de altura = 22 px, en cualquier zoom
 const SEPARACION_MIN_PX = 34;            // las flechas fijas se dibujan en una submalla para no saturar
@@ -108,48 +89,75 @@ export const CapaCanvas = L.Layer.extend({
 // Carta propia: mar, tierra y línea de costa pintados píxel a píxel con la máscara del modelo.
 // La costa que se ve ES la costa con la que el modelo decide qué vara. No usa internet.
 // ---------------------------------------------------------------------------
-const TINTA_CARTA = {
-  mar: [238, 241, 234], tierra: [232, 219, 181], contexto: [232, 219, 181],
-  costa: [29, 53, 87], costaContexto: [138, 151, 168],
-};
+// Dos reglas para que la tierra angosta se vea (la barra de Isla Blanca, al norte de Cancún,
+// mide 300 m en su parte más delgada; Isla Contoy, 400 m):
+//  1. Cobertura. Cada píxel se muestrea en tantos puntos como celdas de la máscara abarca
+//     (hasta 4 × 4): si alguno es tierra, el píxel es tierra. Una franja de una celda no se
+//     pierde entre dos muestras.
+//  2. Grosor mínimo. Una franja de 1 o 2 píxeles de ancho (medida en horizontal o en vertical)
+//     se pintaría entera con la tinta de la línea de costa y parecería una raya, no tierra. En
+//     ese caso el píxel se rellena de tierra y la línea de costa se traza por fuera, en el
+//     píxel de mar contiguo: la franja queda de al menos 3 píxeles (tinta, tierra, tinta),
+//     exagerada en un píxel por lado.
+export const MUESTRAS_MAX = 4;
 
 export function pintarCarta(ctx, costa, px0, py0, z, ancho, alto, dpr) {
   const escala = 256 * Math.pow(2, z);
-  const W = ancho + 2, H = alto + 2;
-  const lons = new Float64Array(W), lats = new Float64Array(H);
-  for (let x = 0; x < W; x++) lons[x] = ((px0 + (x - 0.5) / dpr) / escala) * 360 - 180;
-  for (let y = 0; y < H; y++) {
-    const n = Math.PI - (2 * Math.PI * (py0 + (y - 0.5) / dpr)) / escala;
-    lats[y] = (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
-  }
-  // En zoom lejano un píxel abarca muchas celdas: se toman 4 muestras y gana la tierra, para
-  // que los cayos e islas angostas no desaparezcan.
+  const B = 3;                                       // borde: hasta 2 vecinos para medir el grosor, más 1
+  const W = ancho + 2 * B, H = alto + 2 * B;
   const gradosPx = 360 / (escala * dpr);
-  const fino = gradosPx > 3 * costa.t.paso;
-  const q = gradosPx / 4;
-  const clases = new Uint8Array(W * H);
+  const n = Math.max(1, Math.min(MUESTRAS_MAX, Math.ceil(gradosPx / costa.t.paso)));
+  const lons = new Float64Array(W * n), lats = new Float64Array(H * n);
+  for (let x = 0; x < W; x++) {
+    for (let a = 0; a < n; a++) lons[x * n + a] = ((px0 + (x - B + (a + 0.5) / n) / dpr) / escala) * 360 - 180;
+  }
   for (let y = 0; y < H; y++) {
-    const lat = lats[y], fila = y * W;
-    for (let x = 0; x < W; x++) {
-      const lon = lons[x];
-      let c = costa.clase(lon, lat);
-      if (fino && c === 0) {
-        c = costa.clase(lon - q, lat - q) || costa.clase(lon + q, lat - q) || costa.clase(lon - q, lat + q) || costa.clase(lon + q, lat + q);
-      }
-      clases[fila + x] = c;
+    for (let a = 0; a < n; a++) {
+      const m = Math.PI - (2 * Math.PI * (py0 + (y - B + (a + 0.5) / n) / dpr)) / escala;
+      lats[y * n + a] = (180 / Math.PI) * Math.atan(0.5 * (Math.exp(m) - Math.exp(-m)));
     }
   }
+  // Clase de cada píxel: 0 mar, 1 tierra del modelo, 2 tierra de contexto. Gana la tierra.
+  const clases = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let c = 0;
+      for (let a = 0; a < n && c !== 1; a++) {
+        const lat = lats[y * n + a];
+        for (let b = 0; b < n; b++) {
+          const k = costa.clase(lons[x * n + b], lat);
+          if (k === 1) { c = 1; break; }
+          if (k === 2) c = 2;
+        }
+      }
+      clases[y * W + x] = c;
+    }
+  }
+  // Delgada: tierra cuya franja mide 1 o 2 píxeles de ancho, en horizontal o en vertical.
+  const delgada = new Uint8Array(W * H);
+  for (let y = 2; y < H - 2; y++) {
+    for (let x = 2; x < W - 2; x++) {
+      const k = y * W + x;
+      if (!clases[k]) continue;
+      const horizontal = 1 + (clases[k - 1] ? (clases[k - 2] ? 2 : 1) : 0) + (clases[k + 1] ? (clases[k + 2] ? 2 : 1) : 0);
+      const vertical = 1 + (clases[k - W] ? (clases[k - 2 * W] ? 2 : 1) : 0) + (clases[k + W] ? (clases[k + 2 * W] ? 2 : 1) : 0);
+      if (horizontal <= 2 || vertical <= 2) delgada[k] = 1;
+    }
+  }
+  const T = PALETAS.carta;
   const img = ctx.createImageData(ancho, alto);
   const d = img.data;
-  const T = TINTA_CARTA;
   for (let y = 0; y < alto; y++) {
     for (let x = 0; x < ancho; x++) {
-      const k = (y + 1) * W + (x + 1);
+      const k = (y + B) * W + (x + B);
       const c = clases[k];
-      let rgb = c === 0 ? T.mar : c === 1 ? T.tierra : T.contexto;
-      if (c !== 0 && (clases[k - 1] === 0 || clases[k + 1] === 0 || clases[k - W] === 0 || clases[k + W] === 0)) {
-        rgb = c === 1 ? T.costa : T.costaContexto;
-      }
+      let rgb;
+      if (c === 0) {
+        const vecina = delgada[k - 1] ? clases[k - 1] : delgada[k + 1] ? clases[k + 1] : delgada[k - W] ? clases[k - W] : delgada[k + W] ? clases[k + W] : 0;
+        rgb = vecina === 1 ? T.costaCarta : vecina === 2 ? T.costaContexto : T.marCarta;
+      } else if (!delgada[k] && (clases[k - 1] === 0 || clases[k + 1] === 0 || clases[k - W] === 0 || clases[k + W] === 0)) {
+        rgb = c === 1 ? T.costaCarta : T.costaContexto;
+      } else rgb = T.tierraCarta;
       const o = (y * ancho + x) * 4;
       d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
     }
@@ -209,8 +217,12 @@ export function dibujarReticula(ctx, c, est) {
 }
 
 // ---------------------------------------------------------------------------
-// Densidad (% del sargazo liberado por celda de 0.04°) y contorno de la zona P90.
-// Nada se pinta sobre tierra: las celdas que tocan la costa se recortan con la máscara.
+// Densidad (% del sargazo liberado por celda de 0.04°) y zona con el 90 %.
+//
+// No se pintan cuadros: el valor de cada celda se interpola hacia sus vecinas, de modo que la
+// mancha tiene bordes suaves; lleva una trama de líneas diagonales (textura, no solo color)
+// y se recorta píxel a píxel con la máscara de costa. La zona con el 90 % es una línea fina
+// achaflanada, sin esquinas rectas.
 // ---------------------------------------------------------------------------
 export function claseDensidad(pct) {
   let k = -1;
@@ -218,67 +230,137 @@ export function claseDensidad(pct) {
   return k;
 }
 
-function soloMar(costa, lon, lat, lado) {
-  if (!costa) return true;
-  for (let a = 0; a <= 2; a++) for (let b = 0; b <= 2; b++) if (costa.enTierra(lon + (a * lado) / 2, lat + (b * lado) / 2)) return false;
-  return true;
+const LADO_MAX_PX = 1400;          // tope del lienzo auxiliar de la densidad
+let trama = null;
+function tramaDiagonal() {
+  if (trama) return trama;
+  trama = document.createElement('canvas');
+  trama.width = trama.height = 6;
+  const g = trama.getContext('2d');
+  g.fillStyle = 'rgba(0, 0, 0, 0.46)';              // entre líneas queda el 46 % de la opacidad
+  g.fillRect(0, 0, 6, 6);
+  g.strokeStyle = '#000';
+  g.lineWidth = 1.6;
+  g.beginPath();
+  for (const k of [-6, 0, 6]) { g.moveTo(k - 1, 7); g.lineTo(k + 7, -1); }
+  g.stroke();
+  return trama;
+}
+
+// Contorno a medio camino (0.5) de un campo 0…1 dado en los centros de celda: «marching
+// squares» con interpolación lineal. Devuelve segmentos [i0, j0, i1, j1] en índices de celda.
+export function contorno(campo, nx, ny) {
+  const seg = [];
+  const corte = (a, b) => (0.5 - a) / (b - a);
+  for (let i = 0; i < ny - 1; i++) {
+    for (let j = 0; j < nx - 1; j++) {
+      const a = campo[i * nx + j], b = campo[i * nx + j + 1], c = campo[(i + 1) * nx + j + 1], d = campo[(i + 1) * nx + j];
+      const caso = (a >= 0.5 ? 1 : 0) | (b >= 0.5 ? 2 : 0) | (c >= 0.5 ? 4 : 0) | (d >= 0.5 ? 8 : 0);
+      if (caso === 0 || caso === 15) continue;
+      const S = [i, j + corte(a, b)], E = [i + corte(b, c), j + 1], N = [i + 1, j + corte(d, c)], O = [i + corte(a, d), j];
+      const une = (p, q) => seg.push(p[0], p[1], q[0], q[1]);
+      switch (caso) {
+        case 1: case 14: une(O, S); break;
+        case 2: case 13: une(S, E); break;
+        case 3: case 12: une(O, E); break;
+        case 4: case 11: une(E, N); break;
+        case 6: case 9: une(S, N); break;
+        case 7: case 8: une(O, N); break;
+        case 5: une(O, S); une(E, N); break;
+        default: une(S, E); une(O, N); break;        // caso 10
+      }
+    }
+  }
+  return seg;
 }
 
 export function dibujarDensidad(ctx, c, est) {
   const { sim, costa } = est;
+  est.densidadDibujada = null;
   if (!sim || !est.ver.densidad) return;
-  const p = paleta(est);
   const d = sim.densidad(est.hora);
-  const lado = CELDA_DENSIDAD;
-  const [r, g, b] = p.densidad;
-  const enZona = new Set(d.celdas.filter((k) => k.p90).map((k) => k.i * 4096 + k.j));
-  const trazos = [];
-  for (const celda of d.celdas) {
-    const lon = sim.lon0 + celda.j * lado, lat = sim.lat0 + celda.i * lado;
-    const x0 = c.x(lon), x1 = c.x(lon + lado), y0 = c.y(lat + lado), y1 = c.y(lat);
-    if (x1 < 0 || y1 < 0 || x0 > c.ancho || y0 > c.alto) continue;
-    const clase = claseDensidad(celda.pct);
-    const n = Math.max(1, Math.min(24, Math.ceil((x1 - x0) / 4)));
-    const entera = soloMar(costa, lon, lat, lado);
-    if (clase >= 0) {
-      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${ALFA_DENSIDAD[clase]})`;
-      if (entera) ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-      else {
-        const sub = lado / n;
-        for (let a = 0; a < n; a++) {
-          const ya = c.y(lat + (a + 1) * sub), yb = c.y(lat + a * sub);
-          for (let q = 0; q < n; q++) {
-            if (costa.enTierra(lon + (q + 0.5) * sub, lat + (a + 0.5) * sub)) continue;
-            const xa = x0 + ((x1 - x0) * q) / n;
-            ctx.fillRect(xa, ya, (x1 - x0) / n + 0.5, yb - ya + 0.5);
-          }
-        }
-      }
-    }
-    if (!celda.p90) continue;
-    // Lados de la celda que dan hacia fuera de la zona P90 (solo los tramos que están en el mar).
-    const lados = [
-      [celda.i + 1, celda.j, lon, lat + lado, lon + lado, lat + lado],
-      [celda.i - 1, celda.j, lon, lat, lon + lado, lat],
-      [celda.i, celda.j - 1, lon, lat, lon, lat + lado],
-      [celda.i, celda.j + 1, lon + lado, lat, lon + lado, lat + lado],
-    ];
-    for (const [vi, vj, ax, ay, bx, by] of lados) {
-      if (enZona.has(vi * 4096 + vj)) continue;
-      for (let q = 0; q < n; q++) {
-        const f0 = q / n, f1 = (q + 1) / n, fm = (q + 0.5) / n;
-        if (costa && costa.enTierra(ax + (bx - ax) * fm, ay + (by - ay) * fm)) continue;
-        trazos.push(c.x(ax + (bx - ax) * f0), c.y(ay + (by - ay) * f0), c.x(ax + (bx - ax) * f1), c.y(ay + (by - ay) * f1));
-      }
-    }
+  if (!d.celdas.length) return;
+  const p = paleta(est);
+  const lado = CELDA_DENSIDAD, M = 2;                // margen de 2 celdas para que el borde se desvanezca
+  let i0 = Infinity, i1 = -Infinity, j0 = Infinity, j1 = -Infinity;
+  for (const k of d.celdas) { i0 = Math.min(i0, k.i); i1 = Math.max(i1, k.i); j0 = Math.min(j0, k.j); j1 = Math.max(j1, k.j); }
+  i0 -= M; j0 -= M; i1 += M; j1 += M;
+  const nx = j1 - j0 + 1, ny = i1 - i0 + 1;
+  // Recuadro de la malla en pantalla y su parte visible.
+  const xa = c.x(sim.lon0 + j0 * lado), xb = c.x(sim.lon0 + (j1 + 1) * lado);
+  const ya = c.y(sim.lat0 + (i1 + 1) * lado), yb = c.y(sim.lat0 + i0 * lado);
+  const X0 = Math.max(0, Math.floor(xa)), X1 = Math.min(c.ancho, Math.ceil(xb));
+  const Y0 = Math.max(0, Math.floor(ya)), Y1 = Math.min(c.alto, Math.ceil(yb));
+  if (X1 <= X0 || Y1 <= Y0) return;
+
+  // 1. Campo de opacidad: un píxel por celda (fila 0 al norte), escalado con suavizado.
+  const chico = document.createElement('canvas');
+  chico.width = nx; chico.height = ny;
+  const gc = chico.getContext('2d');
+  const img = gc.createImageData(nx, ny);
+  const n = parseInt(p.densidad.slice(1), 16);
+  for (let k = 0; k < nx * ny; k++) { img.data[4 * k] = (n >> 16) & 255; img.data[4 * k + 1] = (n >> 8) & 255; img.data[4 * k + 2] = n & 255; }
+  const zona = new Float32Array(nx * ny);
+  for (const k of d.celdas) {
+    const clase = claseDensidad(k.pct);
+    const q = (i1 - k.i) * nx + (k.j - j0);
+    if (clase >= 0) img.data[4 * q + 3] = Math.round(255 * ALFA_DENSIDAD[clase]);
+    if (k.p90) zona[(k.i - i0) * nx + (k.j - j0)] = 1;
   }
-  ctx.strokeStyle = p.zona;
-  ctx.lineWidth = 1.4;
-  ctx.setLineDash([6, 4]);
+  gc.putImageData(img, 0, 0);
+
+  const dpr = Math.min(window.devicePixelRatio || 1, LADO_MAX_PX / Math.max(X1 - X0, Y1 - Y0));
+  const w = Math.max(1, Math.round((X1 - X0) * dpr)), h = Math.max(1, Math.round((Y1 - Y0) * dpr));
+  const grande = document.createElement('canvas');
+  grande.width = w; grande.height = h;
+  const g = grande.getContext('2d', { willReadFrequently: true });
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(chico, (xa - X0) * dpr, (ya - Y0) * dpr, (xb - xa) * dpr, (yb - ya) * dpr);
+  // 2. Trama diagonal: textura además de color.
+  g.globalCompositeOperation = 'destination-in';
+  g.fillStyle = g.createPattern(tramaDiagonal(), 'repeat');
+  g.fillRect(0, 0, w, h);
+  g.globalCompositeOperation = 'source-over';
+  // 3. Recorte a la costa: ningún píxel de tierra conserva opacidad.
+  let pintados = 0, recortados = 0;
+  if (costa) {
+    const datos = g.getImageData(0, 0, w, h);
+    const px = datos.data;
+    const lons = new Float64Array(w);
+    for (let x = 0; x < w; x++) lons[x] = c.lon(X0 + (x + 0.5) / dpr);
+    for (let y = 0; y < h; y++) {
+      const lat = c.lat(Y0 + (y + 0.5) / dpr);
+      for (let x = 0; x < w; x++) {
+        const o = 4 * (y * w + x) + 3;
+        if (!px[o]) continue;
+        if (costa.enTierra(lons[x], lat)) { px[o] = 0; recortados++; } else pintados++;
+      }
+    }
+    g.putImageData(datos, 0, 0);
+  }
+  ctx.drawImage(grande, X0, Y0, X1 - X0, Y1 - Y0);
+
+  // 4. Zona con el 90 %: contorno fino a medio camino entre las celdas de la zona y sus vecinas
+  // (sale achaflanado, sin esquinas rectas, y encierra también una franja de una sola celda).
+  // Solo se traza sobre el mar.
+  const seg = contorno(zona, nx, ny);
+  const lon = (j) => sim.lon0 + (j0 + j + 0.5) * lado, lat = (i) => sim.lat0 + (i0 + i + 0.5) * lado;
+  ctx.strokeStyle = conAlfa(p.zona, 0.8);
+  ctx.lineWidth = 1.1;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
   ctx.beginPath();
-  for (let k = 0; k < trazos.length; k += 4) { ctx.moveTo(trazos[k], trazos[k + 1]); ctx.lineTo(trazos[k + 2], trazos[k + 3]); }
+  let tramos = 0;
+  for (let k = 0; k < seg.length; k += 4) {
+    const la0 = lat(seg[k]), lo0 = lon(seg[k + 1]), la1 = lat(seg[k + 2]), lo1 = lon(seg[k + 3]);
+    if (costa && costa.enTierra((lo0 + lo1) / 2, (la0 + la1) / 2)) continue;
+    ctx.moveTo(c.x(lo0), c.y(la0));
+    ctx.lineTo(c.x(lo1), c.y(la1));
+    tramos++;
+  }
   ctx.stroke();
-  ctx.setLineDash([]);
+  est.densidadDibujada = { celdas: d.celdas.length, pintados, recortados, tramosZona: tramos, rect: [X0, Y0, X1, Y1] };
 }
 
 // ---------------------------------------------------------------------------
@@ -316,20 +398,23 @@ export const TRAMOS_ESTELA_COMPLETA = NIVELES_ESTELA[0];
 
 // El anillo de «varada» se pinta una vez en un lienzo pequeño y se estampa: miles de arcos por
 // cuadro son lo más caro de dibujar cuando casi todo el sargazo ya llegó a la costa.
-function selloAnillo(color, radio) {
+function selloAnillo(color, halo, radio) {
   const dpr = window.devicePixelRatio || 1;
-  const clave = `${color}|${radio.toFixed(2)}|${dpr}`;
+  const clave = `${color}|${halo}|${radio.toFixed(2)}|${dpr}`;
   if (bufer.claveAnillo === clave) return bufer.anillo;
-  const lado = Math.ceil(2 * radio + 4);
+  const lado = Math.ceil(2 * radio + 6);
   const lienzo = document.createElement('canvas');
   lienzo.width = lienzo.height = Math.ceil(lado * dpr);
   const g = lienzo.getContext('2d');
   g.scale(dpr, dpr);
-  g.strokeStyle = color;
-  g.lineWidth = 1.3;
-  g.beginPath();
-  g.arc(lado / 2, lado / 2, radio, 0, 2 * Math.PI);
-  g.stroke();
+  // Halo del color contrario al mapa y, encima, el anillo: se lee sobre tierra, mar o sargazo.
+  for (const [trazo, grosor] of [[halo, 3.2], [color, 1.5]]) {
+    g.strokeStyle = trazo;
+    g.lineWidth = grosor;
+    g.beginPath();
+    g.arc(lado / 2, lado / 2, radio, 0, 2 * Math.PI);
+    g.stroke();
+  }
   bufer.anillo = { lienzo, lado };
   bufer.claveAnillo = clave;
   return bufer.anillo;
@@ -384,8 +469,16 @@ export function dibujarParticulas(ctx, c, est) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.lineWidth = Math.max(1, radio * 0.75);
+  // Borde de cada partícula a flote, del color contrario al mapa: la separa de la tierra, del
+  // mar y de la densidad aunque no se distinga el tono.
+  const borde = radio + 0.9;
+  ctx.fillStyle = p.bordeSargazo;
+  ctx.globalAlpha = 0.85;
+  for (let n = 0; n < N; n++) {
+    if (bufer.flota[n] === 1) ctx.fillRect(X[0][n] - borde, Y[0][n] - borde, 2 * borde, 2 * borde);
+  }
   for (let k = 0; k < 3; k++) {
-    ctx.strokeStyle = p.rapidez[k];
+    ctx.strokeStyle = p.sargazo[k];
     for (let g = 0; g < tramos; g++) {
       const s0 = Math.floor((g * cuadros) / tramos), s1 = Math.floor(((g + 1) * cuadros) / tramos);
       let alfa = 0;
@@ -399,17 +492,19 @@ export function dibujarParticulas(ctx, c, est) {
       }
       ctx.stroke();
     }
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = p.rapidez[est.ver.estelas ? k : 1];
+  }
+  // Los cuadros van al final, encima de todas las estelas.
+  ctx.globalAlpha = 1;
+  for (let k = 0; k < 3; k++) {
+    ctx.fillStyle = p.sargazo[est.ver.estelas ? k : 1];
     for (let n = 0; n < N; n++) {
       if (bufer.flota[n] !== 1 || bufer.clase[n] !== k) continue;
       ctx.fillRect(X[0][n] - radio, Y[0][n] - radio, 2 * radio, 2 * radio);
     }
   }
-  ctx.globalAlpha = 1;
   // Varadas: anillo, para que no dependan solo del color.
   if (varadas) {
-    const { lienzo, lado } = selloAnillo(p.varada, radio + 1.1);
+    const { lienzo, lado } = selloAnillo(p.varada, p.haloVarada, radio + 1.6);
     for (let n = 0; n < N; n++) {
       if (bufer.flota[n] === 2) ctx.drawImage(lienzo, X[0][n] - lado / 2, Y[0][n] - lado / 2, lado, lado);
     }

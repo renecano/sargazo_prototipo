@@ -9,6 +9,7 @@ import {
   paleta, PX_POR_METRO,
 } from './capas.js';
 import { OleajeAnimado } from './oleaje.js';
+import { conAlfa } from './paleta.js';
 import { cajaError, detalleValidacion, renderHistorial, renderResultado } from './paneles.js';
 import { armarInforme, componerImagen, descargarLienzo, nombreArchivo } from './exportar.js';
 import { Recorrido, recorridoVisto } from './recorrido.js';
@@ -567,13 +568,18 @@ function pintarLeyenda() {
   // Las muestras usan los colores del mapa base activo sobre su fondo de mar, para que la
   // leyenda se lea igual que el mapa.
   const p = paleta(est);
-  const [r, g, b] = p.densidad;
-  const capa = (k) => `rgba(${r}, ${g}, ${b}, ${ALFA_DENSIDAD[k]})`;
-  $('ley-densidad').replaceChildren(...CLASES_DENSIDAD.map((v, k) => el('span', { class: 'clase' },
-    el('i', { style: `background: linear-gradient(${capa(k)}, ${capa(k)}), ${p.fondo}` }),
-    CLASES_DENSIDAD[k + 1] ? `${v}–${CLASES_DENSIDAD[k + 1]}` : `≥ ${v}`)));
-  $('ley-estelas').replaceChildren(...p.rapidez.map((color, k) => el('i', { style: `background:${color}; width:${7 + 4 * k}px` })));
   const ley = $('leyenda').style;
+  // La misma trama diagonal del mapa: líneas a la opacidad de la clase y, entre ellas, al 46 %.
+  const trama = (k) => `repeating-linear-gradient(135deg, ${conAlfa(p.densidad, ALFA_DENSIDAD[k])} 0 1.6px, `
+    + `${conAlfa(p.densidad, ALFA_DENSIDAD[k] * 0.46)} 1.6px 4.2px), ${p.fondo}`;
+  $('ley-densidad').replaceChildren(...CLASES_DENSIDAD.map((v, k) => el('span', { class: 'clase' },
+    el('i', { style: `background: ${trama(k)}` }),
+    CLASES_DENSIDAD[k + 1] ? `${v}–${CLASES_DENSIDAD[k + 1]}` : `≥ ${v}`)));
+  $('ley-estelas').replaceChildren(...p.sargazo.map((color, k) => el('i', {
+    style: `background:${color}; width:${7 + 4 * k}px; box-shadow: 0 0 0 1px ${p.bordeSargazo}`,
+  })));
+  ley.setProperty('--ley-zona', p.zona);
+  ley.setProperty('--ley-halo', p.haloVarada);
   ley.setProperty('--ley-fondo', p.fondo);
   ley.setProperty('--ley-tinta', p.tinta);
   ley.setProperty('--ley-varada', p.varada);
@@ -778,8 +784,8 @@ const recorrido = new Recorrido($('recorrido'), [
   {
     titulo: 'Cómo leer el mapa',
     texto: [
-      'Cada punto es una partícula a flote y deja una estela de sus últimas 6 horas: más larga y más oscura cuanto más rápido va, así se nota que el movimiento no es uniforme. Cada anillo rojo es una partícula varada, justo sobre la línea de costa.',
-      'El sombreado es la densidad y el contorno punteado encierra el 90 % del sargazo. La línea gruesa es la trayectoria central.',
+      'El sargazo va en púrpura, un color que no tienen la tierra ni el mar. Cada cuadro con borde es una partícula a flote y deja una estela de sus últimas 6 horas: más larga y de tono más intenso cuanto más rápido va, así se nota que el movimiento no es uniforme. Cada anillo rojo es una partícula varada, justo sobre la línea de costa.',
+      'La mancha con trama de líneas es la densidad y la línea fina encierra el 90 % del sargazo; ninguna se pinta sobre tierra. La línea gruesa azul es la trayectoria central.',
     ],
     alEntrar: () => {
       pausar();

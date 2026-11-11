@@ -18,8 +18,8 @@ información geográfica y la limpieza de la interfaz ([tabla](#qué-cambió-en-
 
 *Interfaz «carta náutica» en 1366×768. A la izquierda, el paso 3 con la tabla de arribos por
 tramo de costa; al tocar una fila el mapa va a ese tramo y a esa hora. En el mapa, la carta
-propia con la costa del modelo, las partículas con estela, los anillos de las varadas sobre la
-línea de costa, la densidad y el oleaje. Abajo a la derecha, las escalas (km, millas náuticas,
+propia con la costa del modelo, el sargazo en púrpura (partículas con estela y densidad con
+trama), los anillos rojos de las varadas sobre la línea de costa y el oleaje. Abajo a la derecha, las escalas (km, millas náuticas,
 ola de 1 m y densidad); al pie, la línea de tiempo con fechas en UTC y en hora de Quintana Roo.*
 
 ---
@@ -56,7 +56,7 @@ guiado** y la **hoja de la izquierda que guía paso a paso**, ahora actualizados
 | 1. Marca contacto con tierra donde no la hay | La costa del modelo era un polígono dibujado a mano de 92 vértices. Ahora es una **máscara de ~105 m derivada de la línea de costa de OpenStreetMap**, la misma que dibuja la carta. «Varado» es tocar esa línea; ninguna partícula se dibuja sobre tierra. [Detalle](#la-costa-del-modelo) |
 | 2. Interpolación | Auditadas y documentadas las tres (espacial, temporal y visual), con pruebas contra casos analíticos. Se corrigieron dos fallas: mar sin ola junto a la costa y direcciones que se cancelan. [Detalle](#interpolación) |
 | 3. Oleaje en movimiento | Trazos que fluyen hacia donde viaja la ola; largo y rapidez proporcionales a la altura, sincronizados con la hora. Interruptor para dejarlos fijos u ocultarlos; se apagan solos con `prefers-reduced-motion`. La interfaz dice si los bloques del archivo son idénticos |
-| 4. Que se note que el movimiento no es uniforme | Estela de 6 h detrás de cada partícula, más larga y más oscura cuanto más rápida; rapidez del conglomerado en nudos y km/h que cambia con la hora; en pausa, el cursor sobre una partícula da su rapidez y su rumbo |
+| 4. Que se note que el movimiento no es uniforme | Estela de 6 h detrás de cada partícula, más larga y de tono más intenso cuanto más rápida; rapidez del conglomerado en nudos y km/h que cambia con la hora; en pausa, el cursor sobre una partícula da su rapidez y su rumbo |
 | 5. Escalas | Barra doble en km y millas náuticas que sigue al zoom; flecha de ola de «1 m» a escala fija en cualquier zoom; densidad con unidades y rangos; línea de tiempo con fechas en UTC y en hora de Quintana Roo, marcas por día, «hora N de 120», saltos de 3/6/12 h y velocidad; km, MN y nudos en los resultados; coordenadas también en grados y minutos; radio inicial a escala del mapa |
 | 6. Información geográfica | Localidades, islas, cabos, bahías y puertos de OpenStreetMap, con rótulos que no se enciman y aparecen según el zoom. Tres mapas base: carta propia (no usa internet), satélite (Sentinel-2 cloudless 2016, CC BY 4.0) y calles |
 | 7. Mucha información | Por defecto solo el mapa, el paso actual, la línea de tiempo y un resultado principal. Lo demás, bajo «Ver detalle». [Qué se quitó](#qué-se-quitó-o-se-escondió) |
@@ -71,13 +71,10 @@ Además:
 - El modelo pasa a **`pms-browniano-0.4.0`** porque la costa y la interpolación cambian los
   resultados ([cuánto](#cuánto-cambian-los-resultados)).
 
-> **Pendiente:** la validación contra satélite de abajo se calculó con la v0.4.0 (modelo 0.3.0
-> y la costa anterior). Hay que repetirla con el modelo 0.4.0; la corrida completa se detuvo
-> por falta de memoria en el equipo y no se ha relanzado.
-
 ## ¿El modelo se mueve como el sargazo real?
 
-El profesor preguntó cómo sabemos que el comportamiento del modelo es real. La v0.4.0 lo midió:
+El profesor preguntó cómo sabemos que el comportamiento del modelo es real. La v0.4.0 lo midió
+y la v0.5.0 lo **repitió completo con su modelo (`pms-browniano-0.4.0`) y su costa**:
 toma días de 2022–2026 con sargazo visto por satélite (AFAI de USF en NOAA AOML), siembra
 partículas donde estaba, las mueve con el modelo usando el oleaje real de esas fechas
 (MFWAM de Copernicus Marine, escrito como `dirmarea.txt` en el formato de SEMAR) y compara
@@ -85,23 +82,49 @@ contra lo que el satélite vio 3, 5 y 7 días después. La referencia mínima es
 mueve** (persistencia, E0).
 
 <!-- validacion:inicio (generado por scripts/validar.py; no editar a mano) -->
-**Con datos satelitales 2022–2026, el modelo v0.3 (solo oleaje) no se distingue de suponer que el sargazo no se mueve; ni agregando corrientes (E4 Corriente SMOC total + browniano) se supera a la persistencia.**
+**Con datos satelitales 2022–2026, el modelo de PMS (solo oleaje) no se distingue de suponer que el sargazo no se mueve; ni agregando corrientes (E4 Corriente SMOC total + browniano) se supera a la persistencia.**
 
-FSS a 25 km (1 = perfecto) en 11 casos de evaluación 2025–2026 (γ y K_h de E3 calibrados con 14 casos anteriores), media e IC 95 %:
+FSS a 25 km (1 = perfecto) en 11 casos de evaluación 2025–2026 (γ y K_h de E3 calibrados con 13 casos anteriores), media e IC 95 %:
 
 | Experimento | +3 d | +5 d | +7 d |
 |---|---|---|---|
-| E0 Persistencia | 0.375 [0.291–0.452] | 0.354 [0.272–0.424] | 0.364 [0.308–0.411] |
-| E1 Solo browniano | 0.379 [0.294–0.455]<br>Δ vs E0 +0.004 [-0.001, +0.010] | 0.357 [0.275–0.429]<br>Δ vs E0 +0.003 [-0.004, +0.012] | 0.371 [0.313–0.420]<br>Δ vs E0 +0.007 [+0.001, +0.014] |
-| E2 PMS v0.3 | 0.377 [0.296–0.449]<br>Δ vs E0 +0.002 [-0.017, +0.024] | 0.332 [0.254–0.404]<br>Δ vs E0 -0.022 [-0.045, +0.001] | 0.345 [0.280–0.410]<br>Δ vs E0 -0.019 [-0.055, +0.018] |
-| E3 PMS calibrado | 0.378 [0.293–0.454]<br>Δ vs E0 +0.003 [-0.004, +0.009] | 0.352 [0.270–0.423]<br>Δ vs E0 -0.002 [-0.009, +0.006] | 0.363 [0.307–0.409]<br>Δ vs E0 -0.001 [-0.006, +0.005] |
-| E4 Corriente SMOC total + browniano | 0.359 [0.270–0.437]<br>Δ vs E0 -0.016 [-0.077, +0.049] | 0.283 [0.215–0.346]<br>Δ vs E0 -0.071 [-0.134, -0.006] | 0.254 [0.190–0.315]<br>Δ vs E0 -0.110 [-0.165, -0.049] |
-| E5 Corriente sin Stokes + viento 1 % + ola | 0.342 [0.261–0.416]<br>Δ vs E0 -0.033 [-0.091, +0.025] | 0.269 [0.200–0.333]<br>Δ vs E0 -0.085 [-0.144, -0.020] | 0.226 [0.162–0.289]<br>Δ vs E0 -0.138 [-0.187, -0.084] |
-| E5 Corriente sin Stokes + viento 2 % + ola | 0.297 [0.227–0.366]<br>Δ vs E0 -0.078 [-0.125, -0.034] | 0.255 [0.186–0.317]<br>Δ vs E0 -0.099 [-0.152, -0.041] | 0.199 [0.137–0.259]<br>Δ vs E0 -0.165 [-0.209, -0.122] |
-| E5 Corriente sin Stokes + viento 3 % + ola | 0.282 [0.213–0.351]<br>Δ vs E0 -0.093 [-0.145, -0.045] | 0.227 [0.169–0.280]<br>Δ vs E0 -0.126 [-0.173, -0.077] | 0.182 [0.122–0.244]<br>Δ vs E0 -0.182 [-0.228, -0.136] |
+| E0 Persistencia | 0.374 [0.291–0.451] | 0.353 [0.271–0.424] | 0.363 [0.307–0.409] |
+| E1 Solo browniano | 0.381 [0.296–0.458]<br>Δ vs E0 +0.007 [+0.000, +0.013] | 0.357 [0.274–0.429]<br>Δ vs E0 +0.003 [-0.006, +0.013] | 0.370 [0.312–0.418]<br>Δ vs E0 +0.007 [+0.000, +0.015] |
+| E2 PMS tal cual | 0.377 [0.296–0.449]<br>Δ vs E0 +0.002 [-0.018, +0.023] | 0.332 [0.254–0.404]<br>Δ vs E0 -0.021 [-0.044, +0.001] | 0.344 [0.278–0.407]<br>Δ vs E0 -0.020 [-0.055, +0.017] |
+| E3 PMS calibrado | 0.377 [0.293–0.453]<br>Δ vs E0 +0.003 [-0.003, +0.009] | 0.351 [0.270–0.423]<br>Δ vs E0 -0.002 [-0.009, +0.006] | 0.363 [0.308–0.409]<br>Δ vs E0 +0.000 [-0.005, +0.007] |
+| E4 Corriente SMOC total + browniano | 0.358 [0.271–0.435]<br>Δ vs E0 -0.016 [-0.075, +0.046] | 0.284 [0.218–0.348]<br>Δ vs E0 -0.069 [-0.132, -0.003] | 0.256 [0.191–0.318]<br>Δ vs E0 -0.107 [-0.164, -0.047] |
+| E5 Corriente sin Stokes + viento 1 % + ola | 0.340 [0.259–0.414]<br>Δ vs E0 -0.034 [-0.092, +0.024] | 0.270 [0.200–0.334]<br>Δ vs E0 -0.083 [-0.143, -0.017] | 0.225 [0.162–0.287]<br>Δ vs E0 -0.138 [-0.185, -0.085] |
+| E5 Corriente sin Stokes + viento 2 % + ola | 0.297 [0.226–0.366]<br>Δ vs E0 -0.078 [-0.125, -0.034] | 0.255 [0.187–0.317]<br>Δ vs E0 -0.099 [-0.152, -0.040] | 0.199 [0.137–0.259]<br>Δ vs E0 -0.164 [-0.208, -0.122] |
+| E5 Corriente sin Stokes + viento 3 % + ola | 0.282 [0.213–0.351]<br>Δ vs E0 -0.092 [-0.145, -0.044] | 0.227 [0.168–0.280]<br>Δ vs E0 -0.126 [-0.173, -0.076] | 0.180 [0.122–0.241]<br>Δ vs E0 -0.183 [-0.228, -0.137] |
 
 Reporte completo con método, casos y limitaciones: [docs/validacion.md](docs/validacion.md) · página en la app: `/validacion`.
 <!-- validacion:fin -->
+
+**Qué cambió respecto a la validación de la v0.4.0** (modelo 0.3.0 y costa manual), FSS a 25 km
+en los mismos 11 casos de evaluación, diferencia contra la persistencia (E0):
+
+| Experimento | +3 d | +5 d | +7 d |
+|---|---|---|---|
+| E2 PMS tal cual, v0.4.0 | +0.002 [−0.017, +0.024] | −0.022 [−0.045, +0.001] | −0.019 [−0.055, +0.018] |
+| E2 PMS tal cual, v0.5.0 | +0.002 [−0.018, +0.023] | −0.021 [−0.044, +0.001] | −0.020 [−0.055, +0.017] |
+| E3 PMS calibrado, v0.4.0 | +0.003 [−0.004, +0.009] | −0.002 [−0.009, +0.006] | −0.001 [−0.006, +0.005] |
+| E3 PMS calibrado, v0.5.0 | +0.003 [−0.003, +0.009] | −0.002 [−0.009, +0.006] | +0.000 [−0.005, +0.007] |
+
+**La conclusión no cambia**: ni E2 ni E3 se distinguen de la persistencia en ningún horizonte,
+y la calibración vuelve a elegir el mínimo movimiento de la rejilla (γ = 0, K_h = 1 m²/s). Las
+diferencias son de una a dos milésimas. Es lo esperable: la costa nueva cambia sobre todo qué
+pasa junto a la orilla, y el FSS se mide en todo el mar despejado, donde el modelo casi no
+mueve el sargazo en 3 a 7 días. Dos cosas sí se movieron:
+
+- **Casos de calibración: 13 en vez de 14.** El mar que se evalúa sale de la máscara de costa;
+  con la nueva cambia un poco la fracción despejada de cada día. Salen C20220304 y C20220623 y
+  entra C20220626. Los 11 casos de evaluación son los mismos.
+- **E1 (solo movimiento aleatorio) le gana a la persistencia a +3 y +7 días** por +0.007, con
+  el límite inferior del intervalo en +0.000; en la v0.4.0 solo a +7 días. Es una mejora
+  mínima, sin oleaje, y no se le puede atribuir a PMS.
+
+La corrida completa tardó 93 min en el equipo de 8 GB con 2 procesos
+(`python scripts/validar.py --procesos 2`); si se interrumpe, continúa desde la caché.
 
 ### Qué cambió en la v0.4.0
 
@@ -271,6 +294,23 @@ el error era al revés: el 42 % de las varadas quedaba dibujado tierra adentro.
 - Las posiciones se guardan redondeadas a 0.0002° (~22 m). El registro y el navegador cuidan
   que ese redondeo no meta a tierra una partícula que estaba en el mar.
 
+### La franja al norte de Cancún
+
+Al norte de Cancún, hacia Isla Contoy, la carta mostraba una hilera de anillos de «varado»
+sobre una línea que apenas se veía. **Esa franja es tierra real**: la barra de Isla Blanca,
+que en la máscara mide de 3 a 21 celdas de ancho (unos 300 m entre 21.34° y 21.36° N), e
+Isla Contoy, de unas 4 celdas. El modelo vara ahí correctamente; lo que fallaba era el
+dibujo. La carta tomaba una sola muestra de la máscara por pixel y pintaba el borde de la
+tierra con tinta de costa: en los zooms 9 y 10, donde un pixel abarca de 150 a 300 m, la
+barra quedaba como una línea de tinta de 1 o 2 pixeles o desaparecía.
+
+Ahora cada pixel toma hasta 4 × 4 muestras de la máscara y es tierra si alguna lo es, y la
+tierra de 2 pixeles o menos de ancho se rellena con el color de la tierra y lleva la tinta de
+la costa por fuera. **El modelo no cambió**, solo el dibujo. Con los datos de SEMAR y una
+liberación en 21.40° N, 86.65° O, las 1 922 partículas varadas tienen tierra o costa dibujada
+a 2 pixeles o menos en los zooms 8.5 a 11; lo comprueba la prueba
+`test_la_tierra_angosta_se_dibuja_y_lo_varado_queda_sobre_tierra_visible`.
+
 **Límites de la costa.** No resuelve canales ni bocas de menos de ~200 m: las lagunas que
 solo comunican por ahí (Nichupté, por ejemplo) cuentan como tierra. No distingue playa,
 manglar, arrecife ni muelle. Depende de cómo esté trazada la costa en OpenStreetMap.
@@ -368,10 +408,15 @@ leyenda mínima con las escalas. Los **tres pasos**, uno a la vez:
 - **Oleaje**: trazos que fluyen hacia donde viaja la ola. Su largo es la altura a 22 px por
   metro en cualquier zoom, y su rapidez también es proporcional a la altura. Se puede dejar
   fijo (una flecha por nodo con dato) u ocultar.
-- **Partículas**: posición interpolada entre horas, con estela de 6 h en tres tonos según la
-  rapidez (menos de 0.2 kn, de 0.2 a 0.4 kn, más de 0.4 kn). Anillo rojo para las varadas.
+- **Partículas**: cuadro púrpura con borde (rosa claro sobre el satélite) en la posición
+  interpolada entre horas, con estela de 6 h en tres tonos según la rapidez (menos de 0.2 kn,
+  de 0.2 a 0.4 kn, más de 0.4 kn). Anillo rojo hueco con halo para las varadas.
 - **Densidad** en cuatro clases (0.2–1, 1–5, 5–20 y ≥ 20 % del sargazo liberado por celda de
-  0.04°) y contorno punteado de la zona con el 90 %. No se pinta sobre tierra.
+  0.04°): mancha translúcida de bordes suaves con trama diagonal, recortada a la costa. La
+  zona con el 90 % es una línea fina. [Colores y contraste](#paleta-del-sargazo-y-contraste).
+- **Tierra angosta**: las barras e islas más delgadas que un pixel de la pantalla (la franja
+  de Isla Blanca al norte de Cancún, Isla Contoy) se dibujan como tierra con un ancho mínimo,
+  para que lo varado no parezca flotar en el mar. [Detalle](#la-franja-al-norte-de-cancún).
 - **Hover**: coordenadas en decimales y en grados y minutos, y la ola interpolada como en el
   modelo. En pausa, sobre una partícula: su rapidez (kn y km/h) y su rumbo.
 
@@ -387,6 +432,57 @@ fecha en UTC y en hora de Quintana Roo (UTC−5), rapidez y rumbo del conglomera
 **Estado** en una sola línea (validando / listo / calculando / error), con el detalle al hacer
 clic. Si el archivo no es válido, un velo muestra la causa, el archivo y la acción.
 **Historial** plegado: fecha, arribo principal y % varado; clic para reabrir.
+
+### Paleta del sargazo y contraste
+
+En la primera v0.5.0 el sargazo iba en dorado y sobre la carta se confundía con la tierra, que
+es de color ante: la partícula lenta daba 1.6:1 contra la tierra y la densidad parecían islas.
+Ahora va en **púrpura** sobre la carta y las calles y en **rosa claro** sobre el satélite, un
+tono que no tienen la tierra ni el mar de ningún mapa base, y no depende solo del tono:
+
+- **a flote**: cuadro relleno con borde del color contrario al mapa;
+- **varado**: anillo hueco rojo con halo;
+- **densidad**: mancha de bordes suaves con trama de líneas diagonales, recortada a la costa;
+- **zona con el 90 %**: una línea fina, sin esquinas rectas.
+
+<!-- contraste:inicio (generado por scripts/medir_contraste.py; no editar a mano) -->
+Razón de contraste WCAG (1 = igual, 21 = negro sobre blanco) contra la **mediana** de la tierra y del mar de cada mapa base; en negritas, lo que llega a 3:1, el mínimo de WCAG para objetos gráficos. Lo genera `python scripts/medir_contraste.py`; detalle y extremos claro y oscuro en [`docs/contraste.md`](docs/contraste.md).
+
+| Elemento | Forma | Carta: tierra · mar | Satélite: tierra · mar | Calles: tierra · mar |
+|---|---|---|---|---|
+| Partícula a flote, lenta | cuadro relleno con borde | **3.3** · **4.3** | **5.5** · **7.2** | **3.9** · **3.5** |
+| Partícula a flote, media | cuadro relleno con borde | **5.9** · **7.7** | **7.3** · **9.6** | **6.8** · **6.2** |
+| Partícula a flote, rápida | cuadro relleno con borde | **9.9** · **12.9** | **10.1** · **13.3** | **11.5** · **10.4** |
+| Densidad 0.2–1 % (línea de la trama) | trama diagonal | 1.0 · 1.3 | 1.1 · 1.4 | 1.4 · 1.3 |
+| Densidad 1–5 % (línea de la trama) | trama diagonal | 1.3 · 1.7 | 1.5 · 1.9 | 1.9 · 1.7 |
+| Densidad 5–20 % (línea de la trama) | trama diagonal | 1.8 · 2.4 | 2.2 · 2.9 | 2.5 · 2.3 |
+| Densidad ≥ 20 % (línea de la trama) | trama diagonal | 2.6 · **3.4** | **3.1** · **4.1** | **3.4** · **3.1** |
+| Zona con el 90 % (línea) | línea fina | **6.0** · **7.8** | **6.8** · **8.9** | **7.5** · **6.7** |
+| Varado | anillo hueco con halo | **3.7** · **4.8** | **3.9** · **5.2** | **4.2** · **3.8** |
+
+Fondos medidos: carta propia: tierra `#e3d3a8` y mar `#eef1ea`; calles: tierra `#e6e5c9` y mar `#cedcd6`; satélite: tierra `#223a35` y mar `#10223a`.
+
+Diferencia de color ΔE (CIE76; más de ~10 ya se distingue a simple vista) entre la partícula a flote media y lo que la rodea, con visión normal y con daltonismo simulado:
+
+| Mapa base | Visión | vs tierra | vs mar | vs varado |
+|---|---|---|---|---|
+| Carta propia | visión normal | 100 | 96 | 81 |
+| Carta propia | protanopía | 90 | 83 | 77 |
+| Carta propia | deuteranopía | 80 | 73 | 83 |
+| Carta propia | tritanopía | 59 | 72 | 52 |
+| Calles | visión normal | 100 | 92 | 81 |
+| Calles | protanopía | 87 | 76 | 77 |
+| Calles | deuteranopía | 77 | 65 | 83 |
+| Calles | tritanopía | 67 | 69 | 52 |
+| Satélite | visión normal | 81 | 78 | 82 |
+| Satélite | protanopía | 63 | 65 | 76 |
+| Satélite | deuteranopía | 64 | 70 | 80 |
+| Satélite | tritanopía | 72 | 80 | 61 |
+<!-- contraste:fin -->
+
+Lo que no llega a 3:1: las clases bajas de densidad, que son tenues a propósito (poca opacidad
+es poco sargazo), y las partículas sobre lo más claro del satélite (playas y zonas urbanas),
+donde las separa su borde oscuro.
 
 ### Qué se quitó o se escondió
 
@@ -501,9 +597,11 @@ python scripts/generar_dirmarea.py --fecha 2026-10-01       # dirmarea.txt con o
 ## Despliegue
 
 - **Vercel** (<https://pms-sargazo.vercel.app>), **v0.5.0**. El proyecto `pms-sargazo`
-  despliega `main` automáticamente en cada push. La función (`api/index.py`) incluye `src/`
-  (con la máscara de costa y las localidades) y `data/semar/dirmarea.txt`. En Vercel el
-  historial vive en `/tmp` (efímero) y la interfaz usa los endpoints síncronos. **La demo es
+  despliega **solo `main`**, en cada push; las demás ramas no crean despliegues de vista
+  previa. La función (`api/index.py`) incluye `src/` (con la máscara de costa y las
+  localidades), `data/semar/dirmarea.txt` y `docs/validacion/`. En Vercel el historial vive
+  en `/tmp` (efímero) y la interfaz usa los endpoints síncronos. Qué sube cada despliegue y
+  cómo limpiar los viejos: [más abajo](#almacenamiento-en-vercel). **La demo es
   pública**: cualquiera con la URL ve el oleaje. Si SEMAR no lo autoriza, hay que activar
   Deployment Protection o retirar el archivo.
 - **VPS de entrega para SEMAR** (<http://66.179.210.78:8000>): sigue en la **v0.4.0**. La
@@ -511,6 +609,65 @@ python scripts/generar_dirmarea.py --fecha 2026-10-01       # dirmarea.txt con o
   actualizar y revertir está en [`docs/despliegue_vps.md`](docs/despliegue_vps.md). Al
   actualizarlo, las simulaciones guardadas con el modelo 0.3.0 dejan de aparecer en el
   historial (usan otra costa); los archivos no se borran.
+
+### Almacenamiento en Vercel
+
+El plan Hobby da 10 GB de *Deployment Storage*. Según la
+[documentación de Vercel](https://vercel.com/docs/deployment-storage), ahí cuentan la salida de
+construcción y los archivos estáticos de **cada despliegue que se conserva**; los paquetes de
+las funciones se miden aparte (*Functions Storage*). Un despliegue deja de contar cuando se
+borra, pero la cifra de la página *Usage* es una ventana de 30 días con los máximos diarios ya
+registrados, así que tarda en bajar. Lo que se hizo el 11/11/2026 para que PMS no la llene:
+
+| Por despliegue de PMS | Antes | Ahora |
+|---|---|---|
+| Archivos estáticos publicados | 10.46 MB en 77 archivos | 150 bytes en 1 archivo |
+| Función `api/index` (paquete en Vercel) | 33.29 MB | sin cambio (ver la fila siguiente) |
+| Función sin comprimir, construida en local | 80.16 MB | 80.13 MB |
+| Despliegues conservados | 13 (12 de producción y 1 de vista previa) | 2 (producción vigente y la anterior) |
+
+- **Copias estáticas.** Vercel publicaba como archivos estáticos todo lo que subía del
+  repositorio, además de empaquetarlo en la función: `dirmarea.txt`, el código y la página de
+  validación estaban dos veces, y cualquiera podía bajar `/data/semar/dirmarea.txt` o
+  `/requirements.txt` directo. La carpeta `public/` (vacía a propósito) hace que solo se
+  publique esa carpeta; todo lo demás lo sirve la función, igual que antes.
+- **Lista blanca.** `.vercelignore` ya no enumera lo que sobra: ignora todo y solo deja pasar
+  `api/`, `src/`, `public/`, `requirements.txt`, `.python-version`, `vercel.json`,
+  `data/semar/dirmarea.txt` y `docs/validacion/`. Pruebas, capturas, documentación, el código y
+  los datos crudos de la validación, cachés y scripts no suben, tampoco los que se agreguen
+  después. `tests/test_despliegue.py` lo comprueba y falla si el proyecto pasa de 12 MB.
+- **La función no se pudo reducir.** De sus 80 MB sin comprimir, 52 son `numpy` y 10 son del
+  proyecto (5.1 de `dirmarea.txt` y 4.7 de las figuras y tablas de `/validacion`).
+- **Solo `main` despliega** (`git.deploymentEnabled` en `vercel.json`): una rama o un pull
+  request ya no crea un despliegue de vista previa. Las pruebas de la rama corren en el CI.
+- **Retención.** Vercel permite fijarla en todos los planes, pero solo desde el panel:
+  *Project → Settings → Build and Deployment → Deployment Retention Policy*. El proyecto tiene
+  el valor por defecto de Hobby (30 días en todos los estados). Pase lo que pase, Vercel
+  conserva el despliegue con el alias de producción y los 3 últimos de producción.
+
+**Medir** qué sube un despliegue, sin crear ninguno:
+
+```powershell
+vercel pull --yes --environment=production
+vercel build --prod --yes
+python scripts/tamano_despliegue.py        # lee .vercel/output
+vercel inspect https://pms-sargazo.vercel.app   # tamaño de la función ya desplegada
+```
+
+`vercel build` en local no aplica `.vercelignore`; para una medida fiel hay que construir en
+una copia que solo tenga los archivos que suben.
+
+**Limpiar** despliegues viejos, conservando siempre el de producción vigente y el anterior
+(para poder revertir con `vercel rollback`):
+
+```powershell
+vercel ls pms-sargazo                 # del más nuevo al más viejo
+vercel alias ls                       # a qué despliegue apunta cada dominio
+vercel rm <url-o-id-del-despliegue> --yes   # uno por uno; nunca los dos primeros de producción
+```
+
+Un despliegue borrado se puede restaurar unos días desde *Settings → Security → Recently
+Deleted Deployments*.
 
 ## API
 
@@ -540,7 +697,7 @@ Documentación interactiva en `/docs`.
 ```
 sargazo_prototipo/
 ├── main.py                       python main.py → http://localhost:8000
-├── api/index.py · vercel.json    Función sin servidor para Vercel
+├── api/index.py · vercel.json    Función sin servidor para Vercel (`public/` y `.vercelignore`: qué sube)
 ├── data/semar/                   dirmarea.txt de SEMAR (autorización de difusión por confirmar) y su README
 ├── data/simulations/             Simulaciones guardadas (JSON)
 ├── src/
@@ -550,7 +707,7 @@ sargazo_prototipo/
 │   │   └── datos/                costa.npz (máscara de 0.001°) · costa.json (procedencia) · localidades.json
 │   ├── api/                      app.py · servicios.py · almacen.py
 │   └── view/                     index.html · css/carta.css · js/ (main, capas, oleaje, datos, paneles, exportar, recorrido…)
-├── validacion/                   Validación v0.4.0: afai · inventario · casos · dirmarea · openmeteo · campos ·
+├── validacion/                   Validación contra satélite: afai · inventario · casos · dirmarea · openmeteo · campos ·
 │                                 experimentos · metricas · ejecutar · reporte · documento
 ├── data/validacion/              Caché de descargas de la validación (fuera de git y de Vercel)
 ├── data/costa/                   Caché de construir_costa.py (fuera de git y de Vercel)
@@ -564,9 +721,9 @@ sargazo_prototipo/
 
 ## Pruebas y rendimiento
 
-**209 pruebas rápidas** (`python -m pytest`, sin red) y **35 de interfaz** (`python -m pytest -m e2e`),
+**241 pruebas rápidas** (`python -m pytest`, sin red) y **36 de interfaz** (`python -m pytest -m e2e`),
 en verde en local y en el CI de GitHub Actions (Windows y Ubuntu, Python 3.12 y 3.14, más e2e):
-[corrida en verde](https://github.com/renecano/sargazo_prototipo/actions/runs/42744030178).
+[corrida en verde del PR #2](https://github.com/renecano/sargazo_prototipo/actions/runs/43119639243), con las 36 de interfaz.
 Para revisar a mano cada observación de SEMAR: [`docs/manual_pruebas.md`](docs/manual_pruebas.md).
 
 | Archivo | Qué comprueba |
@@ -578,6 +735,8 @@ Para revisar a mano cada observación de SEMAR: [`docs/manual_pruebas.md`](docs/
 | `tests/test_interpolacion.py` | Bilineal exacta en un campo lineal; valor del nodo sin desfase; continuidad; borde; seno y coseno; direcciones opuestas; nodos sin dato; franja costera de 2 nodos; rampa temporal, bloques irregulares y extremos; RK2 contra dos soluciones exactas y contra la integral con un campo real |
 | `tests/test_api.py` | 200 y guardado con huella; reproducibilidad; trabajos con progreso; 409, 422 y 404; sin datos; la máscara que recibe la interfaz es la del modelo; localidades; `/api/ola` igual al modelo; tabla de arribos y rapidez del conglomerado; el historial solo lista el modelo actual; página `/validacion` y sus figuras |
 | `tests/test_validacion.py` | Lector de ERDDAP con un recorte real (`tests/fixtures`); detección (franja, nubes y su borde, umbral adaptativo, regiones y franja de la costura); `generar_dirmarea` con formato idéntico al de SEMAR y aceptado por el validador y el modelo; Open-Meteo sin red (unidades, caché, cuota); campos encadenados y convenciones de corriente y viento; FSS analítico (1, 0, 2/3, 1 − d/n); MCC recupera desplazamientos sintéticos (también con nubes); Liu-Weisberg, bootstrap y contingencia; persistencia da FSS = 1 si nada se mueve; siembra; integrador del producto; selección de casos reproducible y sin traslape; veredicto contra E0 |
+| `tests/test_paleta.py` | La paleta del sargazo contra la tierra y el mar medidos de cada mapa base: partículas ≥ 3:1, borde y halo ≥ 4.5:1, ΔE ≥ 40 con visión normal y con los tres daltonismos simulados; varado distinto de flotante; `docs/contraste.md` y el bloque del README coinciden con la paleta |
+| `tests/test_despliegue.py` | `.vercelignore` deja subir a Vercel todo lo que la app usa (código, máscara, `dirmarea.txt`, página de validación con sus figuras y tablas) y nada de desarrollo; el proyecto no pasa de 12 MB; solo `main` despliega y no se publican copias estáticas |
 | `tests/e2e/test_interfaz.py` | La carta dibuja la costa del modelo y no pide teselas; navegador y modelo dan el mismo tierra/mar; ninguna partícula sobre tierra en 480 cuadros; radio inicial y barra de km y MN a escala en tres zooms; oleaje animado con largo y rapidez proporcionales a la altura, fijo, apagado y con movimiento reducido; con bloques distintos la ola del navegador coincide con la del modelo; animación continua y pausa; estelas; rapidez del conglomerado y de una partícula; línea de tiempo (fechas, marcas, saltos, velocidad); densidad con unidades y sin pintar tierra; localidades sin encimarse según el zoom; mapas base y atribuciones; tabla de arribos y clic en un tramo; imagen PNG y resumen de una página en PDF; recorrido de 14 pasos; historial; errores; sin datos; `/validacion` |
 
 **Rendimiento en local** (Windows 11, 8 GB de RAM; detalle en [`docs/rendimiento.md`](docs/rendimiento.md)):
@@ -616,8 +775,8 @@ Las estelas bajan de detalle solas cuando el equipo no alcanza y el oleaje anima
 | La app queda «lista» en el navegador (carta, costa, localidades y oleaje) | 2.2–3.5 s |
 
 Las pruebas de interfaz corren también contra el despliegue
-(`python -m pytest -m e2e --url-base https://pms-sargazo.vercel.app`): 32 pasan y 3 se omiten
-porque necesitan levantar un servidor con datos propios.
+(`python -m pytest -m e2e --url-base https://pms-sargazo.vercel.app`): el 09/11/2026 pasaron 32 y
+se omitieron 3, que necesitan levantar un servidor con datos propios.
 
 **Arranque en frío.** No se pudo forzar uno limpio en Vercel, porque la instancia de producción
 ya estaba caliente tras cada despliegue (`/api/salud` respondió en 0.36 s en la primera
@@ -628,10 +787,7 @@ de la función, así que no fue necesario optimizar la lectura del archivo.
 
 ## Límites honestos
 
-- **La validación publicada es de la versión anterior.** Se calculó con el modelo 0.3.0 y la
-  costa manual. El modelo 0.4.0 cambia dónde y cuándo vara el sargazo, así que hay que repetirla
-  antes de citar sus cifras para esta versión.
-- **El modelo no le gana a suponer que el sargazo no se mueve.** En la validación v0.4.0
+- **El modelo no le gana a suponer que el sargazo no se mueve.** En la validación de la v0.5.0
   (casos de evaluación 2025–2026, FSS a 25 km) la diferencia contra la persistencia no es
   distinguible de cero en ningún horizonte; la calibración eligió el mínimo movimiento de la
   rejilla (γ = 0). Hoy PMS no aporta información sobre hacia dónde se mueve el sargazo más allá

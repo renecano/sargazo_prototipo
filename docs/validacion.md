@@ -1,23 +1,23 @@
-# ¿El modelo se mueve como el sargazo real? — Validación de PMS v0.4.0
+# ¿El modelo se mueve como el sargazo real? — Validación de PMS v0.5.0
 
-> Generado por `python scripts/validar.py` el 2026-11-01 01:13 UTC. Cada número de este documento sale de ese script; las tablas completas están en [`docs/validacion/`](validacion/).
+> Generado por `python scripts/validar.py` el 2026-11-11 23:03 UTC. Cada número de este documento sale de ese script; las tablas completas están en [`docs/validacion/`](validacion/).
 
 ## Conclusión
 
-**Con datos satelitales 2022–2026, el modelo v0.3 (solo oleaje) no se distingue de suponer que el sargazo no se mueve; ni agregando corrientes (E4 Corriente SMOC total + browniano) se supera a la persistencia.**
+**Con datos satelitales 2022–2026, el modelo de PMS (solo oleaje) no se distingue de suponer que el sargazo no se mueve; ni agregando corrientes (E4 Corriente SMOC total + browniano) se supera a la persistencia.**
 
-Medido en 11 casos de evaluación (2025–2026) que no se usaron para calibrar, con el Fractions Skill Score a 25 km entre el sargazo que vio el satélite y el que simula el modelo a +3, +5 y +7 días. El modelo v0.3 (E2) no se distingue de la persistencia (+3 d: indistinguible; +5 d: indistinguible; +7 d: indistinguible).
+Medido en 11 casos de evaluación (2025–2026) que no se usaron para calibrar, con el Fractions Skill Score a 25 km entre el sargazo que vio el satélite y el que simula el modelo a +3, +5 y +7 días. El modelo de PMS (E2) no se distingue de la persistencia (+3 d: indistinguible; +5 d: indistinguible; +7 d: indistinguible).
 
 | Experimento | +3 d | +5 d | +7 d |
 |---|---|---|---|
-| E0 Persistencia | 0.375 [0.291–0.452] | 0.354 [0.272–0.424] | 0.364 [0.308–0.411] |
-| E1 Solo browniano | 0.379 [0.294–0.455]<br>Δ vs E0 +0.004 [-0.001, +0.010] | 0.357 [0.275–0.429]<br>Δ vs E0 +0.003 [-0.004, +0.012] | 0.371 [0.313–0.420]<br>Δ vs E0 +0.007 [+0.001, +0.014] |
-| E2 PMS v0.3 | 0.377 [0.296–0.449]<br>Δ vs E0 +0.002 [-0.017, +0.024] | 0.332 [0.254–0.404]<br>Δ vs E0 -0.022 [-0.045, +0.001] | 0.345 [0.280–0.410]<br>Δ vs E0 -0.019 [-0.055, +0.018] |
-| E3 PMS calibrado | 0.378 [0.293–0.454]<br>Δ vs E0 +0.003 [-0.004, +0.009] | 0.352 [0.270–0.423]<br>Δ vs E0 -0.002 [-0.009, +0.006] | 0.363 [0.307–0.409]<br>Δ vs E0 -0.001 [-0.006, +0.005] |
-| E4 Corriente SMOC total + browniano | 0.359 [0.270–0.437]<br>Δ vs E0 -0.016 [-0.077, +0.049] | 0.283 [0.215–0.346]<br>Δ vs E0 -0.071 [-0.134, -0.006] | 0.254 [0.190–0.315]<br>Δ vs E0 -0.110 [-0.165, -0.049] |
-| E5 Corriente sin Stokes + viento 1 % + ola | 0.342 [0.261–0.416]<br>Δ vs E0 -0.033 [-0.091, +0.025] | 0.269 [0.200–0.333]<br>Δ vs E0 -0.085 [-0.144, -0.020] | 0.226 [0.162–0.289]<br>Δ vs E0 -0.138 [-0.187, -0.084] |
-| E5 Corriente sin Stokes + viento 2 % + ola | 0.297 [0.227–0.366]<br>Δ vs E0 -0.078 [-0.125, -0.034] | 0.255 [0.186–0.317]<br>Δ vs E0 -0.099 [-0.152, -0.041] | 0.199 [0.137–0.259]<br>Δ vs E0 -0.165 [-0.209, -0.122] |
-| E5 Corriente sin Stokes + viento 3 % + ola | 0.282 [0.213–0.351]<br>Δ vs E0 -0.093 [-0.145, -0.045] | 0.227 [0.169–0.280]<br>Δ vs E0 -0.126 [-0.173, -0.077] | 0.182 [0.122–0.244]<br>Δ vs E0 -0.182 [-0.228, -0.136] |
+| E0 Persistencia | 0.374 [0.291–0.451] | 0.353 [0.271–0.424] | 0.363 [0.307–0.409] |
+| E1 Solo browniano | 0.381 [0.296–0.458]<br>Δ vs E0 +0.007 [+0.000, +0.013] | 0.357 [0.274–0.429]<br>Δ vs E0 +0.003 [-0.006, +0.013] | 0.370 [0.312–0.418]<br>Δ vs E0 +0.007 [+0.000, +0.015] |
+| E2 PMS tal cual | 0.377 [0.296–0.449]<br>Δ vs E0 +0.002 [-0.018, +0.023] | 0.332 [0.254–0.404]<br>Δ vs E0 -0.021 [-0.044, +0.001] | 0.344 [0.278–0.407]<br>Δ vs E0 -0.020 [-0.055, +0.017] |
+| E3 PMS calibrado | 0.377 [0.293–0.453]<br>Δ vs E0 +0.003 [-0.003, +0.009] | 0.351 [0.270–0.423]<br>Δ vs E0 -0.002 [-0.009, +0.006] | 0.363 [0.308–0.409]<br>Δ vs E0 +0.000 [-0.005, +0.007] |
+| E4 Corriente SMOC total + browniano | 0.358 [0.271–0.435]<br>Δ vs E0 -0.016 [-0.075, +0.046] | 0.284 [0.218–0.348]<br>Δ vs E0 -0.069 [-0.132, -0.003] | 0.256 [0.191–0.318]<br>Δ vs E0 -0.107 [-0.164, -0.047] |
+| E5 Corriente sin Stokes + viento 1 % + ola | 0.340 [0.259–0.414]<br>Δ vs E0 -0.034 [-0.092, +0.024] | 0.270 [0.200–0.334]<br>Δ vs E0 -0.083 [-0.143, -0.017] | 0.225 [0.162–0.287]<br>Δ vs E0 -0.138 [-0.185, -0.085] |
+| E5 Corriente sin Stokes + viento 2 % + ola | 0.297 [0.226–0.366]<br>Δ vs E0 -0.078 [-0.125, -0.034] | 0.255 [0.187–0.317]<br>Δ vs E0 -0.099 [-0.152, -0.040] | 0.199 [0.137–0.259]<br>Δ vs E0 -0.164 [-0.208, -0.122] |
+| E5 Corriente sin Stokes + viento 3 % + ola | 0.282 [0.213–0.351]<br>Δ vs E0 -0.092 [-0.145, -0.044] | 0.227 [0.168–0.280]<br>Δ vs E0 -0.126 [-0.173, -0.076] | 0.180 [0.122–0.241]<br>Δ vs E0 -0.183 [-0.228, -0.137] |
 
 FSS: 1 = coincidencia perfecta, 0 = ninguna. Entre corchetes, intervalo de confianza del 95 % por bootstrap de casos (2000 remuestreos). Δ vs E0: diferencia pareada caso a caso contra la persistencia; si su intervalo no incluye 0, la diferencia es real con esos casos.
 
@@ -53,7 +53,7 @@ La detección de Sentinel-3 OLCI (Debue et al., ESSD 2026) quedó como segunda o
 Se sigue a Wang & Hu (2016, *Remote Sensing of Environment* 183:350-367): ΔAFAI = AFAI − fondo, con el fondo = mediana en una ventana de 51 × 51 píxeles que excluye los candidatos (ΔAFAI preliminar > 2.55e-04); un píxel tiene sargazo si **ΔAFAI > 1.79e-04**, el umbral con el que esos autores capturan ~95 % de los píxeles con sargazo y confunden ~10 % de los vecinos sin sargazo. Diferencias con el artículo: el fondo sale de dos pasadas de mediana (sin el ajuste polinómico previo) y no hay máscara de sombra de nube.
 
 - **Nubes y píxeles sin dato**: AOML entrega NaN donde hay nube, brillo solar o tierra; además se descartan 2 píxeles alrededor de cada nube (efecto de adyacencia). Un píxel con nube en la imagen de destino no cuenta ni para lo observado ni para lo simulado.
-- **Mar evaluado**: 125 564 píxeles de ~1.6 km. Se excluyen la tierra del modelo, los píxeles observados menos de 30 veces en 2022–2026 (AOML no cubre la franja al sur de 21° N y al oeste de 90.5° O) y **5 409 píxeles brillantes persistentes** (sobre el umbral en ≥ 20% de sus observaciones: fondo somero, turbidez, arrecifes; el sargazo se mueve, un fondo no).
+- **Mar evaluado**: 126 370 píxeles de ~1.6 km. Se excluyen la tierra del modelo, los píxeles observados menos de 30 veces en 2022–2026 (AOML no cubre la franja al sur de 21° N y al oeste de 90.5° O) y **5 807 píxeles brillantes persistentes** (sobre el umbral en ≥ 20% de sus observaciones: fondo somero, turbidez, arrecifes; el sargazo se mueve, un fondo no).
 - **Umbral adaptado al ruido**: en este producto el ruido de ΔAFAI en el Caribe es del orden de T0, así que con T0 solo una parte grande del mar saldría con «sargazo» aun sin temporada. Por eso se exige además ΔAFAI > 3σ, con σ = 1.4826 × MAD de ΔAFAI en la misma ventana (umbral local por la distribución de la ventana, como Garcia et al., 2013, citado por Wang & Hu). Se fijó antes de correr cualquier experimento. Aun así queda ruido: la mediana mensual de la fracción de píxeles despejados con «sargazo» va de 1.9 % (2023-11) a 11.7 % (2026-07); el mes más bajo acota el piso de ruido ([`inventario_mensual.csv`](validacion/inventario_mensual.csv)).
 - **Dos regiones del producto**: el AFAI de AOML une dos regiones con ruido distinto y bordes rectos en 22.0° N y 90.0° O (salto brusco en la frecuencia de detección y en el número de observaciones). El fondo y el ruido se estiman por región; mezclarlas crea una franja falsa de «sargazo» junto a la costura que, por estar fija, favorecería a la persistencia. Aun así, del lado «Caribe» la frecuencia de detección sube de forma monótona en los 25 píxeles junto a la costura (de ~6 % a ~26 %; al otro lado se queda en 2–3 %): es un artefacto de los valores del producto en el borde y esa franja se excluye.
 
@@ -63,27 +63,27 @@ Se sigue a Wang & Hu (2016, *Remote Sensing of Environment* 183:350-367): ΔAFAI
 
 `scripts/generar_dirmarea.py` toma la ola de viento de MFWAM de Copernicus Marine a su resolución nativa (VHM0_WW, VMDR_WW «desde»), la interpola de forma bilineal a los nodos de 0.16° y escribe un `dirmarea.txt` idéntico en formato al de SEMAR: misma malla de 94 × 51 nodos, mismas columnas LON;LAT byte a byte, 41 bloques +0…+120 h, mismo relleno `-9.99e+08` en tierra (los nodos fuera del recuadro del modelo quedan con relleno). El validador del producto lo acepta sin cambios. Para llegar a +7 días se encadenan dos archivos (fecha base t0 y t0 + 5 d), cada uno validado por el producto. La corriente de SMOC se usa a su resolución nativa (0.083°, horaria), sin pasar por la malla de 0.16°.
 
-**Período y deriva de Stokes, verificados con el producto de oleaje** (25 casos, nodos del modelo cada 3 h de t0 a t0 + 7 d; mediana por caso y, entre paréntesis, el rango entre casos):
+**Período y deriva de Stokes, verificados con el producto de oleaje** (24 casos, nodos del modelo cada 3 h de t0 a t0 + 7 d; mediana por caso y, entre paréntesis, el rango entre casos):
 
 - T_real (VTM01_WW) / T_supuesto (4.0·√H): 1.01 (0.97–1.08).
-- Deriva de Stokes del producto (VSDX, VSDY; espectro completo, con mar de fondo) / fórmula del modelo con T supuesto: 1.01 (0.84–1.10); con el T real de la ola de viento: 1.00 (0.96–1.07).
+- Deriva de Stokes del producto (VSDX, VSDY; espectro completo, con mar de fondo) / fórmula del modelo con T supuesto: 1.00 (0.84–1.10); con el T real de la ola de viento: 1.00 (0.96–1.07).
 - Diferencia de dirección entre la deriva del producto y la del modelo: 5° (3°–7°).
 
 Un cociente distinto de 1 dice cuánto se aleja la deriva del modelo (solo ola de viento, fórmula de aguas profundas) de la que calcula el propio modelo de oleaje con todo el espectro; por caso en [`casos.csv`](validacion/casos.csv).
 
 ### Casos
 
-Se revisaron 1757 días (2022-01-01 a 2026-10-30 menos 7 días). Un día es candidato si tiene ≥ 150 píxeles con sargazo, ≥ 50% del mar despejado, imagen a +3, +5 y +7 días con ≥ 40% despejado y ≥ 40% despejado a ≤ 50 km del sargazo inicial. Los casos no comparten imágenes (t0 separados más de 7 días); se eligen de mayor a menor calidad. Hubo **66 días candidatos y 25 casos**: 14 de calibración (t0 antes de 2025-01-01) y 11 de evaluación (2025–2026). La separación por fechas se fijó antes de correr.
+Se revisaron 1757 días (2022-01-01 a 2026-10-30 menos 7 días). Un día es candidato si tiene ≥ 150 píxeles con sargazo, ≥ 50% del mar despejado, imagen a +3, +5 y +7 días con ≥ 40% despejado y ≥ 40% despejado a ≤ 50 km del sargazo inicial. Los casos no comparten imágenes (t0 separados más de 7 días); se eligen de mayor a menor calidad. Hubo **63 días candidatos y 24 casos**: 13 de calibración (t0 antes de 2025-01-01) y 11 de evaluación (2025–2026). La separación por fechas se fijó antes de correr.
 
 | Motivo de descarte (primer criterio que falla) | Días |
 |---|---|
 | Sin imagen AFAI ese día | 16 |
-| Menos de 150 píxeles con sargazo en t0 | 125 |
-| Menos de 50% del mar despejado en t0 | 1252 |
+| Menos de 150 píxeles con sargazo en t0 | 124 |
+| Menos de 50% del mar despejado en t0 | 1259 |
 | Falta la imagen de +3, +5 o +7 días | 1 |
-| Menos de 40% del mar despejado a +3, +5 o +7 días | 292 |
+| Menos de 40% del mar despejado a +3, +5 o +7 días | 289 |
 | Menos de 40% despejado a ≤ 50 km del sargazo a +3, +5 o +7 días | 5 |
-| Comparte imágenes con un caso de mejor calidad (t0 a 7 días o menos) | 41 |
+| Comparte imágenes con un caso de mejor calidad (t0 a 7 días o menos) | 39 |
 
 ![Inventario y casos](validacion/figuras/inventario.png)
 
@@ -91,14 +91,14 @@ Lista de casos: [`docs/validacion/casos.csv`](validacion/casos.csv).
 
 ### Experimentos
 
-Todos con las mismas 20 000 partículas (o una por píxel si hay más píxeles), sembradas en proporción a los píxeles con sargazo en t0 (cada píxel pesa 1), la misma semilla (2026) y el integrador del producto (Δt = 1 h, RK2, costa y varamiento iguales). La simulación empieza a las 18 UTC (hora aproximada de la imagen).
+Todos con las mismas 20 000 partículas (o una por píxel si hay más píxeles), sembradas en proporción a los píxeles con sargazo en t0 (cada píxel pesa 1), la misma semilla (2026) y el integrador del producto (Δt = 1 h, RK2, costa y varamiento iguales: la máscara de ~105 m derivada de OpenStreetMap). La simulación empieza a las 18 UTC (hora aproximada de la imagen).
 
 | | Qué mueve las partículas |
 |---|---|
 | E0 | Nada: persistencia |
 | E1 | Solo browniano (γ = 0, K_h = 10 m²/s) |
-| E2 | PMS v0.3 tal cual: deriva de Stokes de la ola real (γ = 1, K_h = 10) |
-| E3 | PMS con γ = 0 y K_h = 1, elegidos con los 14 casos de calibración (rejilla γ ∈ [0.0, 0.5, 1.0, 1.5, 2.0, 3.0], K_h ∈ [1.0, 10.0, 50.0, 100.0], máximo FSS 25 km medio) |
+| E2 | PMS tal cual: deriva de Stokes de la ola real (γ = 1, K_h = 10) |
+| E3 | PMS con γ = 0 y K_h = 1, elegidos con los 13 casos de calibración (rejilla γ ∈ [0.0, 0.5, 1.0, 1.5, 2.0, 3.0], K_h ∈ [1.0, 10.0, 50.0, 100.0], máximo FSS 25 km medio) |
 | E4 | Corriente superficial total de SMOC (euleriana + marea + deriva de Stokes) + browniano (experimental) |
 | E5 | Corriente de SMOC sin Stokes (euleriana + marea) + 1 %, 2 % o 3 % del viento a 10 m + ola del modelo (γ = 1) (experimental) |
 
@@ -121,44 +121,44 @@ SMOC entrega por separado la corriente euleriana (uo, vo), la marea (utide, vtid
 
 | Experimento | +3 d | +5 d | +7 d |
 |---|---|---|---|
-| E0 Persistencia | 0.264 [0.201–0.325] | 0.257 [0.195–0.314] | 0.254 [0.210–0.293] |
-| E1 Solo browniano | 0.273 [0.208–0.333]<br>Δ vs E0 +0.009 [+0.004, +0.014] | 0.264 [0.199–0.320]<br>Δ vs E0 +0.007 [-0.002, +0.017] | 0.268 [0.222–0.310]<br>Δ vs E0 +0.015 [+0.008, +0.022] |
-| E2 PMS v0.3 | 0.262 [0.198–0.323]<br>Δ vs E0 -0.003 [-0.021, +0.015] | 0.236 [0.176–0.293]<br>Δ vs E0 -0.020 [-0.045, +0.004] | 0.246 [0.190–0.302]<br>Δ vs E0 -0.008 [-0.041, +0.027] |
-| E3 PMS calibrado | 0.268 [0.204–0.329]<br>Δ vs E0 +0.004 [-0.001, +0.009] | 0.256 [0.193–0.312]<br>Δ vs E0 -0.000 [-0.007, +0.006] | 0.256 [0.212–0.295]<br>Δ vs E0 +0.002 [-0.001, +0.006] |
-| E4 Corriente SMOC total + browniano | 0.251 [0.186–0.308]<br>Δ vs E0 -0.013 [-0.059, +0.034] | 0.205 [0.153–0.256]<br>Δ vs E0 -0.052 [-0.107, +0.005] | 0.181 [0.135–0.223]<br>Δ vs E0 -0.073 [-0.114, -0.026] |
-| E5 Corriente sin Stokes + viento 1 % + ola | 0.241 [0.178–0.297]<br>Δ vs E0 -0.023 [-0.071, +0.023] | 0.192 [0.140–0.241]<br>Δ vs E0 -0.065 [-0.116, -0.010] | 0.160 [0.113–0.208]<br>Δ vs E0 -0.094 [-0.132, -0.051] |
-| E5 Corriente sin Stokes + viento 2 % + ola | 0.200 [0.149–0.253]<br>Δ vs E0 -0.065 [-0.103, -0.028] | 0.183 [0.131–0.230]<br>Δ vs E0 -0.073 [-0.123, -0.022] | 0.139 [0.094–0.184]<br>Δ vs E0 -0.115 [-0.148, -0.083] |
-| E5 Corriente sin Stokes + viento 3 % + ola | 0.193 [0.144–0.248]<br>Δ vs E0 -0.071 [-0.114, -0.034] | 0.161 [0.117–0.200]<br>Δ vs E0 -0.096 [-0.139, -0.054] | 0.128 [0.085–0.173]<br>Δ vs E0 -0.126 [-0.161, -0.091] |
+| E0 Persistencia | 0.264 [0.201–0.324] | 0.256 [0.193–0.313] | 0.253 [0.210–0.292] |
+| E1 Solo browniano | 0.274 [0.209–0.335]<br>Δ vs E0 +0.010 [+0.004, +0.016] | 0.263 [0.198–0.320]<br>Δ vs E0 +0.007 [-0.003, +0.018] | 0.268 [0.222–0.310]<br>Δ vs E0 +0.015 [+0.008, +0.023] |
+| E2 PMS tal cual | 0.261 [0.197–0.322]<br>Δ vs E0 -0.003 [-0.022, +0.014] | 0.237 [0.176–0.294]<br>Δ vs E0 -0.019 [-0.044, +0.005] | 0.245 [0.189–0.300]<br>Δ vs E0 -0.009 [-0.041, +0.027] |
+| E3 PMS calibrado | 0.267 [0.204–0.327]<br>Δ vs E0 +0.003 [-0.001, +0.008] | 0.255 [0.192–0.311]<br>Δ vs E0 -0.001 [-0.007, +0.006] | 0.256 [0.212–0.295]<br>Δ vs E0 +0.003 [-0.001, +0.008] |
+| E4 Corriente SMOC total + browniano | 0.251 [0.186–0.306]<br>Δ vs E0 -0.013 [-0.057, +0.032] | 0.206 [0.154–0.256]<br>Δ vs E0 -0.050 [-0.105, +0.008] | 0.182 [0.136–0.225]<br>Δ vs E0 -0.071 [-0.113, -0.024] |
+| E5 Corriente sin Stokes + viento 1 % + ola | 0.240 [0.177–0.297]<br>Δ vs E0 -0.024 [-0.071, +0.022] | 0.193 [0.140–0.242]<br>Δ vs E0 -0.063 [-0.116, -0.007] | 0.159 [0.113–0.206]<br>Δ vs E0 -0.094 [-0.131, -0.053] |
+| E5 Corriente sin Stokes + viento 2 % + ola | 0.200 [0.149–0.254]<br>Δ vs E0 -0.064 [-0.103, -0.027] | 0.183 [0.132–0.229]<br>Δ vs E0 -0.073 [-0.122, -0.022] | 0.139 [0.095–0.183]<br>Δ vs E0 -0.115 [-0.147, -0.083] |
+| E5 Corriente sin Stokes + viento 3 % + ola | 0.194 [0.144–0.249]<br>Δ vs E0 -0.070 [-0.113, -0.032] | 0.161 [0.117–0.200]<br>Δ vs E0 -0.095 [-0.139, -0.053] | 0.127 [0.085–0.171]<br>Δ vs E0 -0.126 [-0.160, -0.092] |
 
 **Vecindad de 25 km**
 
 | Experimento | +3 d | +5 d | +7 d |
 |---|---|---|---|
-| E0 Persistencia | 0.375 [0.291–0.452] | 0.354 [0.272–0.424] | 0.364 [0.308–0.411] |
-| E1 Solo browniano | 0.379 [0.294–0.455]<br>Δ vs E0 +0.004 [-0.001, +0.010] | 0.357 [0.275–0.429]<br>Δ vs E0 +0.003 [-0.004, +0.012] | 0.371 [0.313–0.420]<br>Δ vs E0 +0.007 [+0.001, +0.014] |
-| E2 PMS v0.3 | 0.377 [0.296–0.449]<br>Δ vs E0 +0.002 [-0.017, +0.024] | 0.332 [0.254–0.404]<br>Δ vs E0 -0.022 [-0.045, +0.001] | 0.345 [0.280–0.410]<br>Δ vs E0 -0.019 [-0.055, +0.018] |
-| E3 PMS calibrado | 0.378 [0.293–0.454]<br>Δ vs E0 +0.003 [-0.004, +0.009] | 0.352 [0.270–0.423]<br>Δ vs E0 -0.002 [-0.009, +0.006] | 0.363 [0.307–0.409]<br>Δ vs E0 -0.001 [-0.006, +0.005] |
-| E4 Corriente SMOC total + browniano | 0.359 [0.270–0.437]<br>Δ vs E0 -0.016 [-0.077, +0.049] | 0.283 [0.215–0.346]<br>Δ vs E0 -0.071 [-0.134, -0.006] | 0.254 [0.190–0.315]<br>Δ vs E0 -0.110 [-0.165, -0.049] |
-| E5 Corriente sin Stokes + viento 1 % + ola | 0.342 [0.261–0.416]<br>Δ vs E0 -0.033 [-0.091, +0.025] | 0.269 [0.200–0.333]<br>Δ vs E0 -0.085 [-0.144, -0.020] | 0.226 [0.162–0.289]<br>Δ vs E0 -0.138 [-0.187, -0.084] |
-| E5 Corriente sin Stokes + viento 2 % + ola | 0.297 [0.227–0.366]<br>Δ vs E0 -0.078 [-0.125, -0.034] | 0.255 [0.186–0.317]<br>Δ vs E0 -0.099 [-0.152, -0.041] | 0.199 [0.137–0.259]<br>Δ vs E0 -0.165 [-0.209, -0.122] |
-| E5 Corriente sin Stokes + viento 3 % + ola | 0.282 [0.213–0.351]<br>Δ vs E0 -0.093 [-0.145, -0.045] | 0.227 [0.169–0.280]<br>Δ vs E0 -0.126 [-0.173, -0.077] | 0.182 [0.122–0.244]<br>Δ vs E0 -0.182 [-0.228, -0.136] |
+| E0 Persistencia | 0.374 [0.291–0.451] | 0.353 [0.271–0.424] | 0.363 [0.307–0.409] |
+| E1 Solo browniano | 0.381 [0.296–0.458]<br>Δ vs E0 +0.007 [+0.000, +0.013] | 0.357 [0.274–0.429]<br>Δ vs E0 +0.003 [-0.006, +0.013] | 0.370 [0.312–0.418]<br>Δ vs E0 +0.007 [+0.000, +0.015] |
+| E2 PMS tal cual | 0.377 [0.296–0.449]<br>Δ vs E0 +0.002 [-0.018, +0.023] | 0.332 [0.254–0.404]<br>Δ vs E0 -0.021 [-0.044, +0.001] | 0.344 [0.278–0.407]<br>Δ vs E0 -0.020 [-0.055, +0.017] |
+| E3 PMS calibrado | 0.377 [0.293–0.453]<br>Δ vs E0 +0.003 [-0.003, +0.009] | 0.351 [0.270–0.423]<br>Δ vs E0 -0.002 [-0.009, +0.006] | 0.363 [0.308–0.409]<br>Δ vs E0 +0.000 [-0.005, +0.007] |
+| E4 Corriente SMOC total + browniano | 0.358 [0.271–0.435]<br>Δ vs E0 -0.016 [-0.075, +0.046] | 0.284 [0.218–0.348]<br>Δ vs E0 -0.069 [-0.132, -0.003] | 0.256 [0.191–0.318]<br>Δ vs E0 -0.107 [-0.164, -0.047] |
+| E5 Corriente sin Stokes + viento 1 % + ola | 0.340 [0.259–0.414]<br>Δ vs E0 -0.034 [-0.092, +0.024] | 0.270 [0.200–0.334]<br>Δ vs E0 -0.083 [-0.143, -0.017] | 0.225 [0.162–0.287]<br>Δ vs E0 -0.138 [-0.185, -0.085] |
+| E5 Corriente sin Stokes + viento 2 % + ola | 0.297 [0.226–0.366]<br>Δ vs E0 -0.078 [-0.125, -0.034] | 0.255 [0.187–0.317]<br>Δ vs E0 -0.099 [-0.152, -0.040] | 0.199 [0.137–0.259]<br>Δ vs E0 -0.164 [-0.208, -0.122] |
+| E5 Corriente sin Stokes + viento 3 % + ola | 0.282 [0.213–0.351]<br>Δ vs E0 -0.092 [-0.145, -0.044] | 0.227 [0.168–0.280]<br>Δ vs E0 -0.126 [-0.173, -0.076] | 0.180 [0.122–0.241]<br>Δ vs E0 -0.183 [-0.228, -0.137] |
 
 **Vecindad de 50 km**
 
 | Experimento | +3 d | +5 d | +7 d |
 |---|---|---|---|
-| E0 Persistencia | 0.520 [0.420–0.603] | 0.472 [0.371–0.552] | 0.507 [0.433–0.572] |
-| E1 Solo browniano | 0.523 [0.423–0.606]<br>Δ vs E0 +0.003 [-0.004, +0.010] | 0.471 [0.371–0.555]<br>Δ vs E0 -0.000 [-0.009, +0.009] | 0.508 [0.435–0.573]<br>Δ vs E0 +0.001 [-0.006, +0.008] |
-| E2 PMS v0.3 | 0.525 [0.429–0.604]<br>Δ vs E0 +0.006 [-0.012, +0.026] | 0.455 [0.358–0.541]<br>Δ vs E0 -0.017 [-0.037, +0.004] | 0.476 [0.404–0.544]<br>Δ vs E0 -0.031 [-0.052, -0.007] |
-| E3 PMS calibrado | 0.521 [0.422–0.605]<br>Δ vs E0 +0.001 [-0.007, +0.010] | 0.467 [0.366–0.550]<br>Δ vs E0 -0.005 [-0.013, +0.005] | 0.503 [0.430–0.568]<br>Δ vs E0 -0.004 [-0.011, +0.005] |
-| E4 Corriente SMOC total + browniano | 0.474 [0.364–0.574]<br>Δ vs E0 -0.046 [-0.115, +0.023] | 0.370 [0.286–0.449]<br>Δ vs E0 -0.102 [-0.174, -0.023] | 0.345 [0.260–0.428]<br>Δ vs E0 -0.162 [-0.216, -0.103] |
-| E5 Corriente sin Stokes + viento 1 % + ola | 0.452 [0.352–0.545]<br>Δ vs E0 -0.067 [-0.133, -0.008] | 0.356 [0.272–0.434]<br>Δ vs E0 -0.116 [-0.185, -0.038] | 0.306 [0.221–0.384]<br>Δ vs E0 -0.201 [-0.249, -0.151] |
-| E5 Corriente sin Stokes + viento 2 % + ola | 0.422 [0.330–0.507]<br>Δ vs E0 -0.098 [-0.157, -0.042] | 0.336 [0.256–0.408]<br>Δ vs E0 -0.136 [-0.199, -0.069] | 0.272 [0.189–0.353]<br>Δ vs E0 -0.235 [-0.281, -0.191] |
-| E5 Corriente sin Stokes + viento 3 % + ola | 0.403 [0.311–0.487]<br>Δ vs E0 -0.117 [-0.181, -0.057] | 0.303 [0.230–0.372]<br>Δ vs E0 -0.169 [-0.221, -0.110] | 0.249 [0.171–0.329]<br>Δ vs E0 -0.258 [-0.307, -0.206] |
+| E0 Persistencia | 0.520 [0.420–0.602] | 0.471 [0.371–0.552] | 0.506 [0.433–0.571] |
+| E1 Solo browniano | 0.524 [0.425–0.607]<br>Δ vs E0 +0.004 [-0.004, +0.012] | 0.470 [0.370–0.554]<br>Δ vs E0 -0.001 [-0.010, +0.009] | 0.506 [0.433–0.571]<br>Δ vs E0 +0.000 [-0.007, +0.008] |
+| E2 PMS tal cual | 0.525 [0.428–0.604]<br>Δ vs E0 +0.005 [-0.012, +0.026] | 0.455 [0.358–0.540]<br>Δ vs E0 -0.016 [-0.035, +0.004] | 0.475 [0.403–0.542]<br>Δ vs E0 -0.031 [-0.052, -0.008] |
+| E3 PMS calibrado | 0.521 [0.422–0.605]<br>Δ vs E0 +0.002 [-0.007, +0.010] | 0.467 [0.367–0.551]<br>Δ vs E0 -0.004 [-0.012, +0.006] | 0.503 [0.431–0.568]<br>Δ vs E0 -0.003 [-0.010, +0.006] |
+| E4 Corriente SMOC total + browniano | 0.474 [0.366–0.573]<br>Δ vs E0 -0.046 [-0.113, +0.022] | 0.372 [0.288–0.451]<br>Δ vs E0 -0.099 [-0.171, -0.020] | 0.346 [0.261–0.430]<br>Δ vs E0 -0.160 [-0.213, -0.101] |
+| E5 Corriente sin Stokes + viento 1 % + ola | 0.450 [0.350–0.541]<br>Δ vs E0 -0.070 [-0.134, -0.011] | 0.356 [0.273–0.434]<br>Δ vs E0 -0.115 [-0.185, -0.036] | 0.304 [0.220–0.382]<br>Δ vs E0 -0.202 [-0.248, -0.153] |
+| E5 Corriente sin Stokes + viento 2 % + ola | 0.420 [0.330–0.506]<br>Δ vs E0 -0.099 [-0.158, -0.044] | 0.335 [0.255–0.407]<br>Δ vs E0 -0.136 [-0.199, -0.068] | 0.271 [0.187–0.352]<br>Δ vs E0 -0.235 [-0.281, -0.191] |
+| E5 Corriente sin Stokes + viento 3 % + ola | 0.403 [0.312–0.487]<br>Δ vs E0 -0.117 [-0.182, -0.057] | 0.302 [0.229–0.369]<br>Δ vs E0 -0.169 [-0.222, -0.111] | 0.247 [0.171–0.327]<br>Δ vs E0 -0.259 [-0.309, -0.206] |
 
 FSS «útil» de Roberts & Lean (0.5 + f₀/2) en estos casos: 0.537 de media.
 
-Con los 14 casos de calibración y con todos los casos: [`fss_resumen.csv`](validacion/fss_resumen.csv).
+Con los 13 casos de calibración y con todos los casos: [`fss_resumen.csv`](validacion/fss_resumen.csv).
 
 ### Centroide y dirección (evaluación)
 
@@ -167,27 +167,27 @@ Con los 14 casos de calibración y con todos los casos: [`fss_resumen.csv`](vali
 | E0 Persistencia | +3 d | 83 [66–100] | 0 [0, 0] | —° (n = 0) | 0 % / 0 % |
 | E0 Persistencia | +5 d | 112 [77–150] | 0 [0, 0] | —° (n = 0) | 0 % / 0 % |
 | E0 Persistencia | +7 d | 70 [46–99] | 0 [0, 0] | —° (n = 0) | 0 % / 0 % |
-| E1 Solo browniano | +3 d | 82 [64–98] | -2 [-3, -0] | 33° (n = 11) | 0 % / 1 % |
-| E1 Solo browniano | +5 d | 110 [75–147] | -3 [-3, -2] | 46° (n = 10) | 0 % / 1 % |
-| E1 Solo browniano | +7 d | 71 [46–99] | 0 [-1, 3] | 105° (n = 10) | 0 % / 1 % |
-| E2 PMS v0.3 | +3 d | 85 [66–104] | 2 [-2, 7] | 107° (n = 11) | 1 % / 1 % |
-| E2 PMS v0.3 | +5 d | 109 [74–146] | -3 [-10, 4] | 79° (n = 11) | 2 % / 2 % |
-| E2 PMS v0.3 | +7 d | 75 [48–106] | 5 [-5, 16] | 76° (n = 11) | 5 % / 2 % |
-| E3 PMS calibrado | +3 d | 82 [65–98] | -1 [-3, 0] | 53° (n = 9) | 0 % / 1 % |
-| E3 PMS calibrado | +5 d | 111 [76–148] | -1 [-2, -1] | 53° (n = 8) | 0 % / 1 % |
-| E3 PMS calibrado | +7 d | 70 [46–98] | -0 [-1, 1] | 63° (n = 9) | 0 % / 1 % |
-| E4 Corriente SMOC total + browniano | +3 d | 106 [77–135] | 23 [8, 38] | 141° (n = 11) | 3 % / 14 % |
-| E4 Corriente SMOC total + browniano | +5 d | 137 [91–183] | 25 [-10, 54] | 132° (n = 11) | 6 % / 23 % |
-| E4 Corriente SMOC total + browniano | +7 d | 125 [75–177] | 54 [17, 95] | 107° (n = 11) | 9 % / 32 % |
-| E5 Corriente sin Stokes + viento 1 % + ola | +3 d | 116 [84–146] | 33 [14, 52] | 153° (n = 11) | 6 % / 14 % |
-| E5 Corriente sin Stokes + viento 1 % + ola | +5 d | 147 [99–193] | 34 [-6, 70] | 139° (n = 11) | 10 % / 24 % |
-| E5 Corriente sin Stokes + viento 1 % + ola | +7 d | 145 [92–203] | 75 [31, 122] | 117° (n = 11) | 14 % / 32 % |
-| E5 Corriente sin Stokes + viento 2 % + ola | +3 d | 126 [93–159] | 43 [22, 65] | 161° (n = 11) | 8 % / 14 % |
-| E5 Corriente sin Stokes + viento 2 % + ola | +5 d | 160 [118–199] | 48 [7, 85] | 141° (n = 11) | 13 % / 23 % |
-| E5 Corriente sin Stokes + viento 2 % + ola | +7 d | 164 [111–218] | 94 [48, 139] | 121° (n = 11) | 18 % / 33 % |
-| E5 Corriente sin Stokes + viento 3 % + ola | +3 d | 133 [99–166] | 50 [29, 72] | 157° (n = 11) | 10 % / 14 % |
-| E5 Corriente sin Stokes + viento 3 % + ola | +5 d | 175 [133–210] | 63 [23, 105] | 144° (n = 11) | 16 % / 24 % |
-| E5 Corriente sin Stokes + viento 3 % + ola | +7 d | 192 [136–247] | 122 [72, 168] | 116° (n = 11) | 24 % / 34 % |
+| E1 Solo browniano | +3 d | 81 [64–97] | -2 [-4, -1] | 31° (n = 11) | 0 % / 1 % |
+| E1 Solo browniano | +5 d | 109 [74–147] | -3 [-4, -2] | 43° (n = 11) | 0 % / 1 % |
+| E1 Solo browniano | +7 d | 71 [46–99] | 0 [-2, 3] | 88° (n = 10) | 0 % / 1 % |
+| E2 PMS tal cual | +3 d | 85 [65–104] | 2 [-3, 7] | 109° (n = 11) | 1 % / 1 % |
+| E2 PMS tal cual | +5 d | 109 [75–146] | -3 [-10, 4] | 78° (n = 11) | 3 % / 2 % |
+| E2 PMS tal cual | +7 d | 75 [48–107] | 5 [-6, 17] | 75° (n = 11) | 6 % / 3 % |
+| E3 PMS calibrado | +3 d | 82 [65–99] | -1 [-2, 0] | 65° (n = 11) | 0 % / 1 % |
+| E3 PMS calibrado | +5 d | 111 [76–148] | -1 [-2, -1] | 53° (n = 10) | 0 % / 1 % |
+| E3 PMS calibrado | +7 d | 70 [46–99] | 0 [-1, 1] | 60° (n = 9) | 0 % / 1 % |
+| E4 Corriente SMOC total + browniano | +3 d | 106 [77–134] | 23 [7, 38] | 138° (n = 11) | 3 % / 14 % |
+| E4 Corriente SMOC total + browniano | +5 d | 137 [91–183] | 25 [-10, 55] | 128° (n = 11) | 6 % / 23 % |
+| E4 Corriente SMOC total + browniano | +7 d | 125 [75–177] | 55 [17, 97] | 107° (n = 11) | 9 % / 32 % |
+| E5 Corriente sin Stokes + viento 1 % + ola | +3 d | 116 [83–146] | 32 [13, 52] | 154° (n = 11) | 6 % / 14 % |
+| E5 Corriente sin Stokes + viento 1 % + ola | +5 d | 145 [98–192] | 33 [-6, 69] | 136° (n = 11) | 11 % / 24 % |
+| E5 Corriente sin Stokes + viento 1 % + ola | +7 d | 144 [90–203] | 74 [29, 122] | 116° (n = 11) | 15 % / 32 % |
+| E5 Corriente sin Stokes + viento 2 % + ola | +3 d | 126 [92–159] | 43 [22, 65] | 162° (n = 11) | 9 % / 14 % |
+| E5 Corriente sin Stokes + viento 2 % + ola | +5 d | 159 [116–199] | 47 [6, 84] | 138° (n = 11) | 14 % / 23 % |
+| E5 Corriente sin Stokes + viento 2 % + ola | +7 d | 162 [108–219] | 92 [45, 139] | 122° (n = 11) | 20 % / 33 % |
+| E5 Corriente sin Stokes + viento 3 % + ola | +3 d | 133 [99–167] | 50 [28, 72] | 156° (n = 11) | 11 % / 14 % |
+| E5 Corriente sin Stokes + viento 3 % + ola | +5 d | 174 [133–209] | 62 [23, 104] | 144° (n = 11) | 18 % / 24 % |
+| E5 Corriente sin Stokes + viento 3 % + ola | +7 d | 191 [134–247] | 121 [71, 167] | 116° (n = 11) | 25 % / 34 % |
 
 El centroide resume todo el sargazo visible del recuadro en un punto; con nubes distintas entre imágenes es una medida ruidosa. Se reporta, pero el FSS es la métrica principal.
 
@@ -197,7 +197,7 @@ El centroide resume todo el sargazo visible del recuadro en un punto; con nubes 
 |---|---|---|---|---|---|---|
 | E0 Persistencia | 27 | 0.423 | 0.000 | 0.467 | —° | 0.00 [0.00–0.00] |
 | E1 Solo browniano | 27 | 0.423 | 0.000 | 0.467 | —° | 0.00 [0.00–0.00] |
-| E2 PMS v0.3 | 27 | 0.423 | 0.042 | 0.469 | 61° | 0.05 [0.02–0.09] |
+| E2 PMS tal cual | 27 | 0.423 | 0.042 | 0.469 | 61° | 0.05 [0.02–0.09] |
 | E3 PMS calibrado | 27 | 0.423 | 0.000 | 0.467 | —° | 0.00 [0.00–0.00] |
 | E4 Corriente SMOC total + browniano | 27 | 0.423 | 0.340 | 0.544 | 30° | 0.25 [0.11–0.43] |
 | E5 Corriente sin Stokes + viento 1 % + ola | 27 | 0.423 | 0.376 | 0.565 | 23° | 0.27 [0.10–0.47] |
@@ -210,30 +210,30 @@ El centroide resume todo el sargazo visible del recuadro en un punto; con nubes 
 
 | Experimento | Horizonte | Aciertos / fallos / falsas alarmas / negativos | POD | FAR | CSI |
 |---|---|---|---|---|---|
-| E0 Persistencia | +3 d | 20 / 6 / 6 / 38 | 0.77 | 0.23 | 0.62 |
-| E0 Persistencia | +5 d | 20 / 16 / 6 / 40 | 0.56 | 0.23 | 0.48 |
-| E0 Persistencia | +7 d | 18 / 10 / 8 / 35 | 0.64 | 0.31 | 0.50 |
-| E1 Solo browniano | +3 d | 20 / 6 / 4 / 40 | 0.77 | 0.17 | 0.67 |
-| E1 Solo browniano | +5 d | 20 / 16 / 5 / 41 | 0.56 | 0.20 | 0.49 |
-| E1 Solo browniano | +7 d | 15 / 13 / 8 / 35 | 0.54 | 0.35 | 0.42 |
-| E2 PMS v0.3 | +3 d | 19 / 7 / 10 / 34 | 0.73 | 0.34 | 0.53 |
-| E2 PMS v0.3 | +5 d | 23 / 13 / 19 / 27 | 0.64 | 0.45 | 0.42 |
-| E2 PMS v0.3 | +7 d | 20 / 8 / 19 / 24 | 0.71 | 0.49 | 0.43 |
-| E3 PMS calibrado | +3 d | 20 / 6 / 6 / 38 | 0.77 | 0.23 | 0.62 |
-| E3 PMS calibrado | +5 d | 20 / 16 / 6 / 40 | 0.56 | 0.23 | 0.48 |
-| E3 PMS calibrado | +7 d | 17 / 11 / 8 / 35 | 0.61 | 0.32 | 0.47 |
-| E4 Corriente SMOC total + browniano | +3 d | 22 / 4 / 9 / 35 | 0.85 | 0.29 | 0.63 |
-| E4 Corriente SMOC total + browniano | +5 d | 24 / 12 / 20 / 26 | 0.67 | 0.45 | 0.43 |
-| E4 Corriente SMOC total + browniano | +7 d | 23 / 5 / 19 / 24 | 0.82 | 0.45 | 0.49 |
-| E5 Corriente sin Stokes + viento 1 % + ola | +3 d | 20 / 6 / 16 / 28 | 0.77 | 0.44 | 0.48 |
-| E5 Corriente sin Stokes + viento 1 % + ola | +5 d | 25 / 11 / 24 / 22 | 0.69 | 0.49 | 0.42 |
-| E5 Corriente sin Stokes + viento 1 % + ola | +7 d | 23 / 5 / 22 / 21 | 0.82 | 0.49 | 0.46 |
-| E5 Corriente sin Stokes + viento 2 % + ola | +3 d | 20 / 6 / 15 / 29 | 0.77 | 0.43 | 0.49 |
-| E5 Corriente sin Stokes + viento 2 % + ola | +5 d | 27 / 9 / 27 / 19 | 0.75 | 0.50 | 0.43 |
-| E5 Corriente sin Stokes + viento 2 % + ola | +7 d | 22 / 6 / 28 / 15 | 0.79 | 0.56 | 0.39 |
-| E5 Corriente sin Stokes + viento 3 % + ola | +3 d | 21 / 5 / 21 / 23 | 0.81 | 0.50 | 0.45 |
-| E5 Corriente sin Stokes + viento 3 % + ola | +5 d | 28 / 8 / 30 / 16 | 0.78 | 0.52 | 0.42 |
-| E5 Corriente sin Stokes + viento 3 % + ola | +7 d | 23 / 5 / 28 / 15 | 0.82 | 0.55 | 0.41 |
+| E0 Persistencia | +3 d | 30 / 14 / 18 / 42 | 0.68 | 0.38 | 0.48 |
+| E0 Persistencia | +5 d | 33 / 21 / 15 / 48 | 0.61 | 0.31 | 0.48 |
+| E0 Persistencia | +7 d | 30 / 9 / 10 / 49 | 0.77 | 0.25 | 0.61 |
+| E1 Solo browniano | +3 d | 28 / 16 / 12 / 48 | 0.64 | 0.30 | 0.50 |
+| E1 Solo browniano | +5 d | 33 / 21 / 9 / 54 | 0.61 | 0.21 | 0.52 |
+| E1 Solo browniano | +7 d | 27 / 12 / 5 / 54 | 0.69 | 0.16 | 0.61 |
+| E2 PMS tal cual | +3 d | 29 / 15 / 20 / 40 | 0.66 | 0.41 | 0.45 |
+| E2 PMS tal cual | +5 d | 35 / 19 / 29 / 34 | 0.65 | 0.45 | 0.42 |
+| E2 PMS tal cual | +7 d | 28 / 11 / 28 / 31 | 0.72 | 0.50 | 0.42 |
+| E3 PMS calibrado | +3 d | 31 / 13 / 15 / 45 | 0.70 | 0.33 | 0.53 |
+| E3 PMS calibrado | +5 d | 33 / 21 / 12 / 51 | 0.61 | 0.27 | 0.50 |
+| E3 PMS calibrado | +7 d | 30 / 9 / 7 / 52 | 0.77 | 0.19 | 0.65 |
+| E4 Corriente SMOC total + browniano | +3 d | 30 / 14 / 23 / 37 | 0.68 | 0.43 | 0.45 |
+| E4 Corriente SMOC total + browniano | +5 d | 34 / 20 / 34 / 29 | 0.63 | 0.50 | 0.39 |
+| E4 Corriente SMOC total + browniano | +7 d | 31 / 8 / 30 / 29 | 0.79 | 0.49 | 0.45 |
+| E5 Corriente sin Stokes + viento 1 % + ola | +3 d | 31 / 13 / 27 / 33 | 0.70 | 0.47 | 0.44 |
+| E5 Corriente sin Stokes + viento 1 % + ola | +5 d | 37 / 17 / 35 / 28 | 0.69 | 0.49 | 0.42 |
+| E5 Corriente sin Stokes + viento 1 % + ola | +7 d | 33 / 6 / 32 / 27 | 0.85 | 0.49 | 0.46 |
+| E5 Corriente sin Stokes + viento 2 % + ola | +3 d | 33 / 11 / 35 / 25 | 0.75 | 0.51 | 0.42 |
+| E5 Corriente sin Stokes + viento 2 % + ola | +5 d | 42 / 12 / 40 / 23 | 0.78 | 0.49 | 0.45 |
+| E5 Corriente sin Stokes + viento 2 % + ola | +7 d | 35 / 4 / 37 / 22 | 0.90 | 0.51 | 0.46 |
+| E5 Corriente sin Stokes + viento 3 % + ola | +3 d | 37 / 7 / 38 / 22 | 0.84 | 0.51 | 0.45 |
+| E5 Corriente sin Stokes + viento 3 % + ola | +5 d | 43 / 11 / 40 / 23 | 0.80 | 0.48 | 0.46 |
+| E5 Corriente sin Stokes + viento 3 % + ola | +7 d | 35 / 4 / 39 / 20 | 0.90 | 0.53 | 0.45 |
 
 POD: fracción de tramos con sargazo costero observado que el modelo anticipó; FAR: fracción de avisos sin sargazo observado; CSI: aciertos / (aciertos + fallos + falsas alarmas).
 
@@ -254,10 +254,10 @@ POD: fracción de tramos con sargazo costero observado que el modelo anticipó; 
 
 | Experimento | FSS 25 km +3 d | FSS 25 km +5 d | FSS 25 km +7 d |
 |---|---|---|---|
-| E0 Persistencia | 0.059 | 0.185 | 0.048 |
-| E2 con el dirmarea.txt de SEMAR | 0.037 | 0.150 | 0.020 |
-| E2 PMS v0.3 | 0.062 | 0.146 | 0.023 |
-| E4 Corriente SMOC total + browniano | 0.033 | 0.033 | 0.064 |
+| E0 Persistencia | 0.065 | 0.186 | 0.048 |
+| E2 con el dirmarea.txt de SEMAR | 0.036 | 0.149 | 0.015 |
+| E2 PMS tal cual | 0.063 | 0.146 | 0.019 |
+| E4 Corriente SMOC total + browniano | 0.034 | 0.031 | 0.062 |
 
 ### Casos uno por uno
 

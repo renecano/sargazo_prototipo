@@ -1,14 +1,14 @@
 {
  "dias_revisados": 1757,
- "candidatos": 66,
- "casos": 25,
+ "candidatos": 63,
+ "casos": 24,
  "motivos": {
   "Sin imagen AFAI ese día": 16,
-  "Menos de 150 píxeles con sargazo en t0": 125,
-  "Menos de 50% del mar despejado en t0": 1252,
+  "Menos de 150 píxeles con sargazo en t0": 124,
+  "Menos de 50% del mar despejado en t0": 1259,
   "Falta la imagen de +3, +5 o +7 días": 1,
-  "Menos de 40% del mar despejado a +3, +5 o +7 días": 292,
+  "Menos de 40% del mar despejado a +3, +5 o +7 días": 289,
   "Menos de 40% despejado a ≤ 50 km del sargazo a +3, +5 o +7 días": 5,
-  "Comparte imágenes con un caso de mejor calidad (t0 a 7 días o menos)": 41
+  "Comparte imágenes con un caso de mejor calidad (t0 a 7 días o menos)": 39
  }
 }

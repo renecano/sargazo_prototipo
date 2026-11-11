@@ -1,0 +1,484 @@
+{
+ "generado": "2026-11-11 21:38 UTC",
+ "minimo_wcag": 3.0,
+ "zoom": 10,
+ "zonas": [
+  [
+   21.12,
+   -86.7
+  ],
+  [
+   20.5,
+   -87.0
+  ],
+  [
+   20.2,
+   -87.4
+  ],
+  [
+   18.7,
+   -87.65
+  ],
+  [
+   21.5,
+   -87.3
+  ],
+  [
+   21.3,
+   -89.6
+  ],
+  [
+   20.4,
+   -86.3
+  ],
+  [
+   19.6,
+   -87.5
+  ]
+ ],
+ "fondos": {
+  "carta": {
+   "tierra": {
+    "mediana": "#e3d3a8"
+   },
+   "mar": {
+    "mediana": "#eef1ea"
+   },
+   "origen": "constantes de la paleta (la carta se pinta con ellas)"
+  },
+  "satelite": {
+   "tierra": {
+    "mediana": "#223a35",
+    "claro": "#668267",
+    "oscuro": "#172c2a",
+    "pixeles": 141359
+   },
+   "mar": {
+    "mediana": "#10223a",
+    "claro": "#1f6364",
+    "oscuro": "#0c1c36",
+    "pixeles": 382929
+   },
+   "teselas": [
+    "10/265/450",
+    "10/264/452",
+    "10/263/453",
+    "10/262/457",
+    "10/263/449",
+    "10/257/449",
+    "10/266/452",
+    "10/263/455"
+   ],
+   "filtro": null,
+   "origen": "teselas de zoom 10 clasificadas con la máscara de costa del modelo"
+  },
+  "calles": {
+   "tierra": {
+    "mediana": "#e6e5c9",
+    "claro": "#f7f7ed",
+    "oscuro": "#aeb8a1",
+    "pixeles": 141359
+   },
+   "mar": {
+    "mediana": "#cedcd6",
+    "claro": "#cedcd6",
+    "oscuro": "#cedcd6",
+    "pixeles": 382929
+   },
+   "teselas": [
+    "10/265/450",
+    "10/264/452",
+    "10/263/453",
+    "10/262/457",
+    "10/263/449",
+    "10/257/449",
+    "10/266/452",
+    "10/263/455"
+   ],
+   "filtro": {
+    "sepia": 0.3,
+    "saturate": 0.72,
+    "brightness": 1.03,
+    "contrast": 0.94
+   },
+   "origen": "teselas de zoom 10 clasificadas con la máscara de costa del modelo"
+  }
+ },
+ "contraste": {
+  "carta": {
+   "tierra": "#e3d3a8",
+   "mar": "#eef1ea",
+   "elementos": [
+    {
+     "elemento": "Partícula a flote, lenta",
+     "color": "#a44ab8",
+     "forma": "cuadro relleno con borde",
+     "tierra": 3.33,
+     "mar": 4.33
+    },
+    {
+     "elemento": "Partícula a flote, media",
+     "color": "#7d1a8c",
+     "forma": "cuadro relleno con borde",
+     "tierra": 5.9,
+     "mar": 7.67
+    },
+    {
+     "elemento": "Partícula a flote, rápida",
+     "color": "#470852",
+     "forma": "cuadro relleno con borde",
+     "tierra": 9.93,
+     "mar": 12.92
+    },
+    {
+     "elemento": "Densidad 0.2–1 % (línea de la trama)",
+     "color": "#dccfdb",
+     "forma": "trama diagonal",
+     "tierra": 1.01,
+     "mar": 1.32
+    },
+    {
+     "elemento": "Densidad 1–5 % (línea de la trama)",
+     "color": "#ccb0ce",
+     "forma": "trama diagonal",
+     "tierra": 1.32,
+     "mar": 1.72
+    },
+    {
+     "elemento": "Densidad 5–20 % (línea de la trama)",
+     "color": "#ba8ebf",
+     "forma": "trama diagonal",
+     "tierra": 1.83,
+     "mar": 2.39
+    },
+    {
+     "elemento": "Densidad ≥ 20 % (línea de la trama)",
+     "color": "#a86cb0",
+     "forma": "trama diagonal",
+     "tierra": 2.61,
+     "mar": 3.4
+    },
+    {
+     "elemento": "Zona con el 90 % (línea)",
+     "color": "#683770",
+     "forma": "línea fina",
+     "tierra": 5.98,
+     "mar": 7.77
+    },
+    {
+     "elemento": "Varado",
+     "color": "#c0392b",
+     "forma": "anillo hueco con halo",
+     "tierra": 3.66,
+     "mar": 4.77
+    }
+   ],
+   "delta_e": {
+    "visión normal": {
+     "tierra": 100.5,
+     "mar": 95.9,
+     "varado": 81.1,
+     "borde": 97.8
+    },
+    "protanopía": {
+     "tierra": 89.8,
+     "mar": 83.1,
+     "varado": 76.7,
+     "borde": 86.4
+    },
+    "deuteranopía": {
+     "tierra": 80.2,
+     "mar": 73.3,
+     "varado": 82.7,
+     "borde": 77.3
+    },
+    "tritanopía": {
+     "tierra": 58.9,
+     "mar": 72.5,
+     "varado": 51.5,
+     "borde": 72.5
+    }
+   },
+   "borde_vs_particula": [
+    4.58,
+    8.12,
+    13.67
+   ],
+   "halo_vs_varado": 5.04
+  },
+  "calles": {
+   "tierra": "#e6e5c9",
+   "mar": "#cedcd6",
+   "elementos": [
+    {
+     "elemento": "Partícula a flote, lenta",
+     "color": "#a44ab8",
+     "forma": "cuadro relleno con borde",
+     "tierra": 3.86,
+     "mar": 3.49,
+     "tierra_claro": 4.58,
+     "tierra_oscuro": 2.39,
+     "mar_claro": 3.49,
+     "mar_oscuro": 3.49
+    },
+    {
+     "elemento": "Partícula a flote, media",
+     "color": "#7d1a8c",
+     "forma": "cuadro relleno con borde",
+     "tierra": 6.84,
+     "mar": 6.18,
+     "tierra_claro": 8.12,
+     "tierra_oscuro": 4.24,
+     "mar_claro": 6.18,
+     "mar_oscuro": 6.18
+    },
+    {
+     "elemento": "Partícula a flote, rápida",
+     "color": "#470852",
+     "forma": "cuadro relleno con borde",
+     "tierra": 11.52,
+     "mar": 10.41,
+     "tierra_claro": 13.68,
+     "tierra_oscuro": 7.14,
+     "mar_claro": 10.41,
+     "mar_oscuro": 10.41
+    },
+    {
+     "elemento": "Densidad 0.2–1 % (línea de la trama)",
+     "color": "#c1bdca",
+     "forma": "trama diagonal",
+     "tierra": 1.44,
+     "mar": 1.3,
+     "tierra_claro": 1.71,
+     "tierra_oscuro": 1.12,
+     "mar_claro": 1.3,
+     "mar_oscuro": 1.3
+    },
+    {
+     "elemento": "Densidad 1–5 % (línea de la trama)",
+     "color": "#b6a2c0",
+     "forma": "trama diagonal",
+     "tierra": 1.85,
+     "mar": 1.67,
+     "tierra_claro": 2.19,
+     "tierra_oscuro": 1.14,
+     "mar_claro": 1.67,
+     "mar_oscuro": 1.67
+    },
+    {
+     "elemento": "Densidad 5–20 % (línea de la trama)",
+     "color": "#a983b4",
+     "forma": "trama diagonal",
+     "tierra": 2.5,
+     "mar": 2.26,
+     "tierra_claro": 2.96,
+     "tierra_oscuro": 1.55,
+     "mar_claro": 2.26,
+     "mar_oscuro": 2.26
+    },
+    {
+     "elemento": "Densidad ≥ 20 % (línea de la trama)",
+     "color": "#9c64a8",
+     "forma": "trama diagonal",
+     "tierra": 3.43,
+     "mar": 3.1,
+     "tierra_claro": 4.07,
+     "tierra_oscuro": 2.12,
+     "mar_claro": 3.1,
+     "mar_oscuro": 3.1
+    },
+    {
+     "elemento": "Zona con el 90 % (línea)",
+     "color": "#62326c",
+     "forma": "línea fina",
+     "tierra": 7.46,
+     "mar": 6.74,
+     "tierra_claro": 8.85,
+     "tierra_oscuro": 4.62,
+     "mar_claro": 6.74,
+     "mar_oscuro": 6.74
+    },
+    {
+     "elemento": "Varado",
+     "color": "#c0392b",
+     "forma": "anillo hueco con halo",
+     "tierra": 4.25,
+     "mar": 3.84,
+     "tierra_claro": 5.05,
+     "tierra_oscuro": 2.63,
+     "mar_claro": 3.84,
+     "mar_oscuro": 3.84
+    }
+   ],
+   "delta_e": {
+    "visión normal": {
+     "tierra": 99.8,
+     "mar": 92.2,
+     "varado": 81.1,
+     "borde": 97.8
+    },
+    "protanopía": {
+     "tierra": 86.9,
+     "mar": 76.4,
+     "varado": 76.7,
+     "borde": 86.4
+    },
+    "deuteranopía": {
+     "tierra": 76.6,
+     "mar": 65.2,
+     "varado": 82.7,
+     "borde": 77.3
+    },
+    "tritanopía": {
+     "tierra": 67.1,
+     "mar": 68.7,
+     "varado": 51.5,
+     "borde": 72.5
+    }
+   },
+   "borde_vs_particula": [
+    4.58,
+    8.12,
+    13.67
+   ],
+   "halo_vs_varado": 5.04
+  },
+  "satelite": {
+   "tierra": "#223a35",
+   "mar": "#10223a",
+   "elementos": [
+    {
+     "elemento": "Partícula a flote, lenta",
+     "color": "#ff7dec",
+     "forma": "cuadro relleno con borde",
+     "tierra": 5.45,
+     "mar": 7.16,
+     "tierra_claro": 1.9,
+     "tierra_oscuro": 6.57,
+     "mar_claro": 3.1,
+     "mar_oscuro": 7.61
+    },
+    {
+     "elemento": "Partícula a flote, media",
+     "color": "#ffaef4",
+     "forma": "cuadro relleno con borde",
+     "tierra": 7.31,
+     "mar": 9.61,
+     "tierra_claro": 2.55,
+     "tierra_oscuro": 8.82,
+     "mar_claro": 4.17,
+     "mar_oscuro": 10.21
+    },
+    {
+     "elemento": "Partícula a flote, rápida",
+     "color": "#ffe1fc",
+     "forma": "cuadro relleno con borde",
+     "tierra": 10.11,
+     "mar": 13.28,
+     "tierra_claro": 3.52,
+     "tierra_oscuro": 12.19,
+     "mar_claro": 5.76,
+     "mar_oscuro": 14.11
+    },
+    {
+     "elemento": "Densidad 0.2–1 % (línea de la trama)",
+     "color": "#363657",
+     "forma": "trama diagonal",
+     "tierra": 1.05,
+     "mar": 1.39,
+     "tierra_claro": 2.72,
+     "tierra_oscuro": 1.27,
+     "mar_claro": 1.66,
+     "mar_oscuro": 1.47
+    },
+    {
+     "elemento": "Densidad 1–5 % (línea de la trama)",
+     "color": "#584771",
+     "forma": "trama diagonal",
+     "tierra": 1.48,
+     "mar": 1.94,
+     "tierra_claro": 1.94,
+     "tierra_oscuro": 1.78,
+     "mar_claro": 1.19,
+     "mar_oscuro": 2.06
+    },
+    {
+     "elemento": "Densidad 5–20 % (línea de la trama)",
+     "color": "#7e5b8e",
+     "forma": "trama diagonal",
+     "tierra": 2.18,
+     "mar": 2.87,
+     "tierra_claro": 1.32,
+     "tierra_oscuro": 2.63,
+     "mar_claro": 1.24,
+     "mar_oscuro": 3.04
+    },
+    {
+     "elemento": "Densidad ≥ 20 % (línea de la trama)",
+     "color": "#a46eab",
+     "forma": "trama diagonal",
+     "tierra": 3.14,
+     "mar": 4.13,
+     "tierra_claro": 1.09,
+     "tierra_oscuro": 3.79,
+     "mar_claro": 1.79,
+     "mar_oscuro": 4.39
+    },
+    {
+     "elemento": "Zona con el 90 % (línea)",
+     "color": "#cfbbd5",
+     "forma": "línea fina",
+     "tierra": 6.79,
+     "mar": 8.93,
+     "tierra_claro": 2.36,
+     "tierra_oscuro": 8.19,
+     "mar_claro": 3.87,
+     "mar_oscuro": 9.48
+    },
+    {
+     "elemento": "Varado",
+     "color": "#ff5a36",
+     "forma": "anillo hueco con halo",
+     "tierra": 3.92,
+     "mar": 5.16,
+     "tierra_claro": 1.37,
+     "tierra_oscuro": 4.73,
+     "mar_claro": 2.24,
+     "mar_oscuro": 5.48
+    }
+   ],
+   "delta_e": {
+    "visión normal": {
+     "tierra": 80.8,
+     "mar": 78.0,
+     "varado": 81.5,
+     "borde": 78.6
+    },
+    "protanopía": {
+     "tierra": 63.1,
+     "mar": 65.4,
+     "varado": 75.7,
+     "borde": 72.7
+    },
+    "deuteranopía": {
+     "tierra": 63.5,
+     "mar": 70.1,
+     "varado": 79.7,
+     "borde": 76.4
+    },
+    "tritanopía": {
+     "tierra": 72.5,
+     "mar": 79.5,
+     "varado": 61.3,
+     "borde": 79.2
+    }
+   },
+   "borde_vs_particula": [
+    8.31,
+    11.15,
+    15.41
+   ],
+   "halo_vs_varado": 5.98
+  }
+ }
+}
