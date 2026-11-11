@@ -154,6 +154,24 @@ def huella_canvas(pg, capa: str) -> str:
     }""", capa)
 
 
+def pixeles_canvas(pg, capa: str) -> dict:
+    """Cuántos píxeles tienen tinta y cuánta (suma de alfa) en una capa de canvas."""
+    return pg.evaluate("""(capa) => {
+        const c = document.querySelector(`canvas[data-capa="${capa}"]`);
+        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        let pintados = 0, alfa = 0;
+        for (let i = 3; i < d.length; i += 4) if (d[i]) { pintados++; alfa += d[i]; }
+        return { pintados, alfa };
+    }""", capa)
+
+
+def mismo_dibujo(a: dict, b: dict, tolerancia=0.02) -> bool:
+    """Igual salvo el suavizado de bordes: si la capa se redibuja con el origen del lienzo
+    corrido una fracción de píxel (pasa contra un despliegue real), los bytes cambian aunque
+    se vea idéntico."""
+    return all(abs(a[k] - b[k]) <= tolerancia * max(a[k], 1) for k in ("pintados", "alfa"))
+
+
 def hora(pg) -> int:
     """«Hora 49 de 120» → 49."""
     return int(pg.text_content("#lt-h").split()[1])
@@ -737,12 +755,17 @@ def test_estelas_por_rapidez_y_su_interruptor(pagina):
         r, g, b = (int(color[k:k + 2], 16) for k in (1, 3, 5))
         assert b > g + 60 and r > g + 40, f"{color} es púrpura: lejos del ante de la tierra y del crema del mar"
     assert len(pintado["leyenda"]) == 3 and all(c.startswith("rgb") for c in pintado["leyenda"])
+    tinta_con = pixeles_canvas(pagina, "particulas")
     capas(pagina, True)
     pagina.uncheck("#ver-estelas")
     assert huella_canvas(pagina, "particulas") != con
+    sin = pixeles_canvas(pagina, "particulas")
+    assert sin["pintados"] < 0.9 * tinta_con["pintados"], f"sin estelas queda menos tinta: {sin} vs {tinta_con}"
     pagina.check("#ver-estelas")
     pagina.wait_for_timeout(500)
-    assert huella_canvas(pagina, "particulas") == con
+    assert pagina.evaluate("window.pms.dibujo.tramosEstela") == 6
+    otra_vez = pixeles_canvas(pagina, "particulas")
+    assert mismo_dibujo(otra_vez, tinta_con), f"al reencenderlas vuelven las mismas estelas: {otra_vez} vs {tinta_con}"
     capas(pagina, False)
 
 
