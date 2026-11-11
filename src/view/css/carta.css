@@ -241,7 +241,7 @@ input[type="range"] { width: 100%; accent-color: var(--tinta); }
 .tooltip { position: fixed; z-index: 1200; pointer-events: none; padding: 7px 10px; background: var(--papel-claro); border: 1px solid var(--tinta); border-radius: 4px; font: 12px/1.45 var(--mono); box-shadow: var(--sombra); white-space: nowrap; }
 .tooltip b { font-weight: 600; }
 .tooltip .tt-gm { color: var(--tinta-3); font-size: 11px; }
-.tooltip .tt-particula { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--linea-suave); color: var(--ambar); }
+.tooltip .tt-particula { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--linea-suave); color: var(--sargazo); }
 
 /* Velo cuando no hay datos o no son válidos */
 .velo { position: fixed; inset: 0; z-index: 760; display: grid; place-items: center; background: rgba(244, 236, 216, 0.82); }

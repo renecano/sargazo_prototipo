@@ -38,6 +38,27 @@ from src.config import ARCHIVO_OLEAJE, DIR_SEMAR  # noqa: E402
 
 DOCS = RAIZ / "docs"
 TAMANOS = [(1366, 768), (1920, 1080)]
+AVISOS: list[str] = []   # capturas que salieron incompletas; el script termina con error si hay alguna
+
+# Teselas de imagen visibles en el mapa que Leaflet aún no marca como cargadas.
+JS_TESELAS_PENDIENTES = """() => {
+  const caja = document.querySelector('#mapa').getBoundingClientRect();
+  return [...document.querySelectorAll('#mapa img.leaflet-tile')].filter(t => {
+    const r = t.getBoundingClientRect();
+    const visible = r.right > caja.left && r.left < caja.right && r.bottom > caja.top && r.top < caja.bottom;
+    return visible && !(t.classList.contains('leaflet-tile-loaded') && t.complete && t.naturalWidth > 0);
+  }).length;
+}"""
+
+
+def _esperar_teselas(pg, plazo_s: float = 60.0) -> int:
+    """Espera a que todas las teselas visibles del mapa base estén cargadas; devuelve las que faltan."""
+    fin = time.monotonic() + plazo_s
+    faltan = pg.evaluate(JS_TESELAS_PENDIENTES)
+    while faltan and time.monotonic() < fin:
+        pg.wait_for_timeout(500)
+        faltan = pg.evaluate(JS_TESELAS_PENDIENTES)
+    return faltan
 
 
 def _servidor(dir_semar: Path, dir_sims: Path):
@@ -142,11 +163,10 @@ def _sesion(nav, url, ancho, alto, sufijo):
     # Mapa base de satélite, con el panel de capas abierto.
     pg.click("#btn-capas")
     pg.check('input[name="base"][value="satelite"]')
-    try:
-        pg.wait_for_load_state("networkidle", timeout=20_000)
-    except Exception:  # noqa: BLE001 — sin internet la captura sale con las teselas que haya
-        pass
-    pg.wait_for_timeout(1500)
+    faltan = _esperar_teselas(pg)
+    if faltan:
+        AVISOS.append(f"satelite-{sufijo}.png: {faltan} teselas sin cargar (¿sin internet o EOX lento?)")
+    pg.wait_for_timeout(800)
     _captura(pg, DOCS / "capturas" / f"satelite-{sufijo}.png")
     pg.check('input[name="base"][value="carta"]')
     pg.click("#btn-capas")
@@ -192,7 +212,9 @@ def principal() -> int:
     for nombre in ("recorrido", "resultado", "arribos", "satelite", "listo", "error"):
         shutil.copy(DOCS / "capturas" / f"{nombre}-1366x768.png", DOCS / f"captura_{nombre}.png")
     shutil.copy(DOCS / "capturas" / "resumen-a4.png", DOCS / "captura_resumen.png")
-    return 0
+    for aviso in AVISOS:
+        print(f"[incompleta] {aviso}")
+    return 1 if AVISOS else 0
 
 
 if __name__ == "__main__":
