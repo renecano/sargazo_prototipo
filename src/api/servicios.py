@@ -1,6 +1,7 @@
 """Servicios de la API: datos de SEMAR validados (en caché) y trabajos en segundo plano."""
 from __future__ import annotations
 
+import logging
 import secrets
 import threading
 import traceback
@@ -18,6 +19,20 @@ from src.model.campos import NODOS_EXTRAPOLACION, R_MINIMA, CamposOleaje
 from src.model import costa
 from src.model.metricas import resumir
 from src.model.simulacion import Parametros, simular
+
+# Los avisos de validación del archivo no se muestran al operador (solo con ?tecnico=1); quedan en
+# la API (/api/validacion) y aquí, en el registro del servidor.
+registro = logging.getLogger("pms.datos")
+
+
+def registrar_validacion(reporte: ReporteValidacion) -> None:
+    for h in reporte.errores:
+        registro.error("dirmarea.txt: %s%s", h.detalle, f" → {h.accion}" if h.accion else "")
+    for h in reporte.advertencias:
+        registro.warning("dirmarea.txt: %s%s", h.detalle, f" → {h.accion}" if h.accion else "")
+    registro.info("dirmarea.txt validado en %.2f s: %s, %d avisos", reporte.duracion_s,
+                  "válido" if reporte.valido else "con errores", len(reporte.advertencias))
+
 
 class ErrorConAccion(Exception):
     """Error que la interfaz muestra con su causa y la acción para corregirlo."""
@@ -59,6 +74,7 @@ class ServicioDatos:
                     progreso(1, 1, "Resultado de validación en caché (archivos sin cambios)")
                 return self._cache[1], self._cache[2]
         reporte, conjunto = validar_conjunto(self.dir_semar, progreso)
+        registrar_validacion(reporte)
         with self._lock:
             self._cache = (huella, reporte, conjunto)
         return reporte, conjunto

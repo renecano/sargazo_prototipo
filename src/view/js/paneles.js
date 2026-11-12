@@ -34,7 +34,7 @@ export function arribosEnOrden(sim) {
 }
 
 // Paso 3. Resultado principal: la tabla de arribos por tramo de costa. Lo demás, en «Ver detalle».
-export function renderResultado(contenedor, sim, { alElegir, alExportarImagen, alImprimir }) {
+export function renderResultado(contenedor, sim, { alElegir, alExportarImagen, alImprimir, tecnico = false }) {
   const r = sim.reg, s = r.resumen, p = r.parametros;
   const arribos = arribosEnOrden(sim);
   const radio = s.radio_p90_km[String(sim.H)] ?? sim.series.radio_p90_km[sim.H];
@@ -48,7 +48,7 @@ export function renderResultado(contenedor, sim, { alElegir, alExportarImagen, a
       el('b', {}, fmtFechaQRoo(sim.fecha(arribos[0].primer_arribo_h))), ` (hora ${arribos[0].primer_arribo_h} de ${sim.H}).`)
     : el('p', { class: 'titular', 'data-prueba': 'titular' },
       `Ninguna partícula llegó a la costa en ${sim.H} h: `, el('b', {}, `${fmtNum(s.a_flote_pct, 1)} %`), ' sigue a flote',
-      s.fuera_pct ? ` y ${fmtNum(s.fuera_pct, 1)} % salió del dominio.` : '.');
+      s.fuera_pct ? ` y ${fmtNum(s.fuera_pct, 1)} % salió del área de cálculo.` : '.');
 
   const tabla = arribos.length ? el('div', { class: 'arribos', role: 'table', 'aria-label': 'Arribos por tramo de costa', 'data-prueba': 'arribos' },
     el('div', { class: 'arribos-cab', role: 'row' },
@@ -72,22 +72,23 @@ export function renderResultado(contenedor, sim, { alElegir, alExportarImagen, a
     el('details', { class: 'detalles', id: 'detalle-resultado' },
       el('summary', {}, 'Ver detalle'),
       el('dl', {},
-        el('dt', {}, 'Varado al final'), el('dd', { 'data-prueba': 'varadas' }, `${fmtNum(s.varadas_pct, 1)} % · a flote ${fmtNum(s.a_flote_pct, 1)} % · fuera ${fmtNum(s.fuera_pct, 1)} %`),
-        el('dt', {}, 'Radio P90'), el('dd', {}, radio === null || radio === undefined ? 'sin partículas a flote' : `${fmtDistancia(radio)} a la hora ${sim.H}`),
+        el('dt', {}, 'Varado al final'), el('dd', { 'data-prueba': 'varadas' }, `${fmtNum(s.varadas_pct, 1)} % · a flote ${fmtNum(s.a_flote_pct, 1)} % · fuera del área ${fmtNum(s.fuera_pct, 1)} %`),
+        el('dt', {}, 'Radio con el 90 %'), el('dd', {}, radio === null || radio === undefined ? 'sin partículas a flote' : `${fmtDistancia(radio)} a la hora ${sim.H}`),
         el('dt', {}, 'Trayectoria central'), el('dd', {}, `${fmtDistancia(s.distancia_centroide_km)} · rumbo neto ${fmtRumbo(s.rumbo_neto_grados)}`),
         el('dt', {}, 'Rapidez media'), el('dd', {}, media === null ? '—' : fmtRapidez(media)),
         el('dt', {}, 'Liberación'), el('dd', {}, fmtCoord(p.lat, p.lon), el('br'), fmtCoordGM(p.lat, p.lon)),
         el('dt', {}, 'Partículas'), el('dd', {}, `${fmtNum(p.particulas)} en un radio de ${fmtDistancia(p.radio_km)}`),
         el('dt', {}, 'γ · K_h'), el('dd', {}, `${fmtNum(p.gamma, 1)} · ${fmtNum(p.kh_m2s, 1)} m²/s · semilla ${p.semilla}`),
-        el('dt', {}, 'Modelo'), el('dd', {}, r.version_modelo),
-        el('dt', {}, 'Simulación'), el('dd', {}, r.id),
-        el('dt', {}, r.datos.archivo), el('dd', {}, `SHA-256 ${r.datos.huella_sha256.slice(0, 16)}…`)),
+        tecnico ? [
+          el('dt', {}, 'Modelo'), el('dd', {}, r.version_modelo),
+          el('dt', {}, 'Simulación'), el('dd', {}, r.id),
+          el('dt', {}, r.datos.archivo), el('dd', {}, `SHA-256 ${r.datos.huella_sha256.slice(0, 16)}…`)] : null),
       arribos.length ? el('table', { class: 'tabla-detalle' },
         el('thead', {}, el('tr', {}, el('th', {}, 'Tramo'), el('th', {}, 'Primer arribo (UTC)'), el('th', {}, 'Mediano'), el('th', {}, 'Partículas'))),
         el('tbody', {}, arribos.map((a) => el('tr', { title: zonas.get(a.zona)?.limites ? `Límites del tramo: ${zonas.get(a.zona).limites}` : '' },
           el('td', {}, a.nombre), el('td', {}, fmtFechaUTC(sim.fecha(a.primer_arribo_h))),
           el('td', {}, `hora ${a.arribo_mediano_h}`), el('td', {}, `${fmtNum(a.particulas)} · ${a.etiqueta}`))))) : null,
-      el('ul', {}, s.advertencias.map((a) => el('li', {}, a)))),
+      tecnico ? el('ul', { 'data-prueba': 'advertencias' }, s.advertencias.map((a) => el('li', {}, a))) : null),
     el('div', { class: 'exportar' },
       el('button', { type: 'button', class: 'boton-linea', id: 'btn-exportar-imagen', onclick: alExportarImagen }, 'Guardar imagen del mapa'),
       el('button', { type: 'button', class: 'boton-linea', id: 'btn-imprimir', onclick: alImprimir }, 'Resumen de una página')),

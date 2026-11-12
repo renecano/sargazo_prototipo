@@ -18,18 +18,18 @@ guía; lo que se dice va entre comillas.
 | Tiempo | Observación | Qué hacer | Qué decir |
 |---|---|---|---|
 | 0:00 | Apertura | Nada: deja ver la carta con el oleaje fluyendo | «Tomamos sus siete observaciones. Esta es la versión 0.5. Lo primero que cambió es lo que ven: el mar se mueve.» |
-| 0:15 | 3. Oleaje en movimiento | Señala los trazos y la leyenda | «Cada trazo viaja hacia donde va la ola; es más largo y corre más donde la ola es más alta. La leyenda avisa que el archivo de muestra trae 41 bloques idénticos, por eso no cambia con la hora.» |
+| 0:15 | 3. Oleaje en movimiento | Señala los trazos y la leyenda | «Cada trazo viaja hacia donde va la ola; es más largo y corre más donde la ola es más alta.» |
 | 0:30 | 6. Geografía | Acerca el mapa a Cancún con la rueda | «Ya hay ciudades y puertos; aparecen al acercar y no se enciman. El rombo marca los que tienen puerto.» |
 | 0:45 | 1. Tierra y mar | Con el zoom cerca, señala la Bahía de Mujeres | «El error de contacto con tierra venía de una costa dibujada a mano, de 92 puntos. Aquí, entre Cancún e Isla Mujeres, el modelo creía que había tierra. Ahora la costa es la de OpenStreetMap, a 100 metros, y la que dibuja la carta es la misma que usa el modelo.» |
 | 1:00 | Simular | «Continuar a Ajustes» y «Simular» | «Soltamos 2 000 partículas frente a Cancún, a 120 horas.» |
 | 1:10 | 4. Movimiento no uniforme | Deja correr unos segundos y pausa con la barra espaciadora; pasa el cursor sobre una partícula | «Cada partícula deja una estela: más larga y de tono más intenso, más rápida. Abajo, la rapidez del conglomerado en nudos y kilómetros por hora cambia con la hora. Y en pausa cada partícula dice su rapidez y su rumbo.» |
 | 1:30 | 1. Tierra y mar | «Mapa y capas» → Satélite; vuelve a Carta | «Sobre la imagen de satélite los anillos rojos quedan en la playa, no en el mar. Y ninguna partícula cruza tierra.» |
-| 1:45 | 5. Escalas | Señala la leyenda; acerca y aleja una vez | «La escala está en kilómetros y en millas náuticas y sigue al zoom. La flecha de ola de un metro mide lo mismo en cualquier zoom. La densidad tiene unidad: porcentaje del sargazo por celda de 4.4 kilómetros.» |
+| 1:45 | 5. Escalas | Señala la leyenda; acerca y aleja una vez | «La escala está en kilómetros y en millas náuticas y sigue al zoom. La flecha de ola de un metro mide lo mismo en cualquier zoom. La densidad tiene unidad: porcentaje del sargazo por celda de unos 4 kilómetros.» |
 | 2:00 | 5. Línea de tiempo | Pulsa +6 h dos veces; señala las fechas | «La línea de tiempo dice la hora del pronóstico, la fecha en UTC y la hora de Quintana Roo, con una marca por día, saltos de 3, 6 y 12 horas y velocidad.» |
 | 2:15 | Tabla de arribos | Señala la tabla del paso 3 y toca la última fila | «Este es el resultado principal: para cada tramo de costa, cuándo llega lo primero, cuánto llega y cuánto recorre, en kilómetros y millas náuticas. Toco un tramo y el mapa va a ese lugar y a esa hora.» |
-| 2:30 | 7. Interfaz limpia | Abre y cierra «Ver detalle» | «A la vista solo queda lo esencial. Lo demás está en Ver detalle: parámetros, horas en UTC y advertencias.» |
-| 2:40 | Exportar | «Resumen de una página» (cancela la impresión) | «Y se lleva: una hoja con la fecha, los parámetros, la tabla de arribos, las escalas y los límites del modelo, o la imagen del mapa.» |
-| 2:50 | 2. Interpolación y cierre | Señala el enlace «Validación contra satélite» | «Revisamos las tres interpolaciones. Encontramos y corregimos una franja de mar junto a la costa donde las partículas se quedaban sin oleaje. Y seguimos midiendo el modelo contra el satélite: hoy, solo con oleaje, todavía no le gana a suponer que el sargazo no se mueve. Eso está publicado aquí.» |
+| 2:30 | 7. Interfaz limpia | Abre y cierra «Ver detalle» | «A la vista solo queda lo esencial. Lo demás está en Ver detalle: parámetros y horas en UTC.» |
+| 2:40 | Exportar | «Resumen de una página» (cancela la impresión) | «Y se lleva: una hoja con la fecha, los parámetros, la tabla de arribos y las escalas, o la imagen del mapa.» |
+| 2:50 | 2. Interpolación y cierre | Abre «Acerca del modelo» y señala el enlace «Validación contra satélite» | «Revisamos las tres interpolaciones. Encontramos y corregimos una franja de mar junto a la costa donde las partículas se quedaban sin oleaje. Y seguimos midiendo el modelo contra el satélite: hoy, solo con oleaje, todavía no le gana a suponer que el sargazo no se mueve. Eso está publicado aquí.» |
 
 ## Si preguntan
 

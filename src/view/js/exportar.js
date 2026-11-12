@@ -2,7 +2,7 @@
 // guardar como PDF. La imagen se compone en un lienzo propio con el mapa base, las capas, la
 // escala gráfica (km y MN), la referencia de ola, la fecha y las atribuciones, de modo que las
 // escalas siguen siendo verdad a cualquier tamaño de impresión.
-import { CLASES_DENSIDAD, CELDA_DENSIDAD } from './datos.js';
+import { CLASES_DENSIDAD } from './datos.js';
 import { ALFA_DENSIDAD, medirEscala, paleta, pintarCarta, PX_POR_METRO, trazarFlecha } from './capas.js';
 import { conAlfa } from './paleta.js';
 import { arribosEnOrden } from './paneles.js';
@@ -98,7 +98,7 @@ function dibujarCartela(ctx, est, ancho) {
   } else if (est.campos) {
     lineas.push(`Oleaje de SEMAR · ${fmtFechaUTC(new Date(est.campos.inicio.getTime() + est.hora * 3600e3))}`);
   }
-  lineas.push('Pronóstico probabilístico; solo oleaje, sin viento ni corrientes.');
+  if (est.tecnico) lineas.push('Pronóstico probabilístico; solo oleaje, sin viento ni corrientes.');
   const alto = 30 + lineas.length * 15;
   const w = Math.min(ancho - 24, 560);
   caja(ctx, 12, 12, w, alto);
@@ -160,7 +160,7 @@ function dibujarEscalas(ctx, mapa, est, ancho, alto, atribucion) {
       ctx.fillText(tope ? `${v}–${tope}` : `≥ ${v}`, xx + 22, y + 66);
     });
     ctx.fillStyle = TINTA_2;
-    ctx.fillText(`% del sargazo liberado por celda de ${CELDA_DENSIDAD}° (≈ 4.4 × 4.2 km)`, x + 12, y + 85);
+    ctx.fillText('Densidad: % del sargazo liberado por celda de ≈ 4 km', x + 12, y + 85);
   }
   // Atribuciones
   ctx.font = `9.5px ${MONO}`;
@@ -232,7 +232,13 @@ export function descargarLienzo(lienzo, nombre) {
 }
 
 // Resumen de una página: se arma en #informe (oculto en pantalla, único visible al imprimir).
-export function armarInforme(contenedor, mapa, est, lienzo, { atribucion, fuentes }) {
+// Al pie, una sola línea neutral sobre el alcance; los límites completos están en /validacion y
+// en el README (y en el resumen del modo técnico).
+export function lineaAlcance(validacion) {
+  return `Pronóstico probabilístico calculado con el oleaje de SEMAR. Método, alcances y validación: ${validacion}`;
+}
+
+export function armarInforme(contenedor, mapa, est, lienzo, { atribucion, fuentes, validacion }) {
   const { sim } = est;
   const r = sim.reg, s = r.resumen, p = r.parametros;
   const arribos = arribosEnOrden(sim);
@@ -243,25 +249,26 @@ export function armarInforme(contenedor, mapa, est, lienzo, { atribucion, fuente
   contenedor.replaceChildren(
     el('header', {},
       el('h1', {}, 'PMS · Predicción de Movimiento del Sargazo'),
-      el('p', {}, `Resumen de la simulación ${r.id} · generado el ${fmtFechaLarga(new Date())} · PMS ${r.version_app}, modelo ${r.version_modelo}`)),
+      el('p', {}, `Resumen de la simulación ${r.id} · generado el ${fmtFechaLarga(new Date())} · PMS ${r.version_app}`
+        + (est.tecnico ? `, modelo ${r.version_modelo}` : ''))),
     el('div', { class: 'inf-dos' },
       el('table', { class: 'inf-param' },
         el('caption', {}, 'Simulación'),
         el('tbody', {},
-          fila('Datos de oleaje', `${r.datos.archivo} de ${r.datos.fuente}, inicio ${fmtFechaUTC(sim.inicio)}${r.datos.bloques_identicos ? ' (bloques idénticos: oleaje constante)' : ''}`),
+          fila('Datos de oleaje', `${r.datos.archivo} de ${r.datos.fuente}, inicio ${fmtFechaUTC(sim.inicio)}${est.tecnico && r.datos.bloques_identicos ? ' (bloques idénticos: oleaje constante)' : ''}`),
           fila('Punto de liberación', `${fmtCoord(p.lat, p.lon)} · ${fmtCoordGM(p.lat, p.lon)}`),
           fila('Conglomerado', `${fmtNum(p.particulas)} partículas en un radio de ${fmtDistancia(p.radio_km)}`),
           fila('Horizonte', `${sim.H} h (hasta ${fmtFechaUTC(sim.fecha(sim.H))})`),
           fila('Parámetros', `γ = ${fmtNum(p.gamma, 1)} · K_h = ${fmtNum(p.kh_m2s, 1)} m²/s · semilla ${p.semilla}`),
-          fila('Huella del archivo', `SHA-256 ${r.datos.huella_sha256.slice(0, 24)}…`))),
+          est.tecnico ? fila('Huella del archivo', `SHA-256 ${r.datos.huella_sha256.slice(0, 24)}…`) : null)),
       el('table', { class: 'inf-param' },
         el('caption', {}, 'Resultado'),
         el('tbody', {},
-          fila('Varado al final', `${fmtNum(s.varadas_pct, 1)} % · a flote ${fmtNum(s.a_flote_pct, 1)} % · fuera del dominio ${fmtNum(s.fuera_pct, 1)} %`),
+          fila('Varado al final', `${fmtNum(s.varadas_pct, 1)} % · a flote ${fmtNum(s.a_flote_pct, 1)} % · fuera del área ${fmtNum(s.fuera_pct, 1)} %`),
           fila('Trayectoria central', `${fmtDistancia(s.distancia_centroide_km)} · rumbo neto ${fmtRumbo(s.rumbo_neto_grados)}`),
           fila('Rapidez media', media === null ? '—' : fmtRapidez(media)),
           fila('Mapa', `Hora ${fmtNum(est.hora, 0)} de ${sim.H}: ${fmtFechaUTC(sim.fecha(est.hora))} · ${fmtFechaQRoo(sim.fecha(est.hora))} hora de Quintana Roo`),
-          fila('Escalas', `Gráficas, dibujadas en el mapa: ${fmtNum(e.km)} km y ${fmtNum(e.mn)} MN; flecha de ola de 1 m; densidad en % del sargazo por celda de ${CELDA_DENSIDAD}°`)))),
+          fila('Escalas', `Gráficas, dibujadas en el mapa: ${fmtNum(e.km)} km y ${fmtNum(e.mn)} MN; flecha de ola de 1 m; densidad en % del sargazo liberado por celda de ≈ 4 km`)))),
     el('img', { class: 'inf-mapa', src: lienzo.toDataURL('image/png'), alt: 'Mapa de la simulación' }),
     el('table', { class: 'inf-arribos', 'data-prueba': 'informe-arribos' },
       el('caption', {}, 'Arribos por tramo de costa (hora de Quintana Roo, UTC−5)'),
@@ -275,7 +282,8 @@ export function armarInforme(contenedor, mapa, est, lienzo, { atribucion, fuente
         el('td', {}, fmtDistancia(a.distancia_km))))
         : el('tr', {}, el('td', { colspan: 6 }, `Ninguna partícula llegó a la costa en ${sim.H} h.`)))),
     el('div', { class: 'inf-pie' },
-      el('div', {}, el('h2', {}, 'Límites del modelo'), el('ul', {}, LIMITES_MODELO.map((t) => el('li', {}, t)))),
+      est.tecnico ? el('div', {}, el('h2', {}, 'Límites del modelo'), el('ul', {}, LIMITES_MODELO.map((t) => el('li', {}, t)))) : null,
       el('div', {}, el('h2', {}, 'Fuentes'), el('ul', {}, fuentes.map((t) => el('li', {}, t)), el('li', {}, `Mapa: ${atribucion}`)))),
+    el('p', { class: 'inf-alcance', 'data-prueba': 'informe-alcance' }, lineaAlcance(validacion)),
   );
 }

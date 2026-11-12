@@ -1,4 +1,4 @@
-// Orquestador de la interfaz de PMS v0.5.0 («carta náutica»): pasos 1→2→3, mapa base y capas,
+// Orquestador de la interfaz de PMS v0.5.1 («carta náutica»): pasos 1→2→3, mapa base y capas,
 // línea de tiempo con fechas reales, escalas, hover, tabla de arribos, exportación, historial,
 // estado del sistema y recorrido guiado.
 /* global L */
@@ -14,9 +14,16 @@ import { cajaError, detalleValidacion, renderHistorial, renderResultado } from '
 import { armarInforme, componerImagen, descargarLienzo, nombreArchivo } from './exportar.js';
 import { Recorrido, recorridoVisto } from './recorrido.js';
 import {
-  acotar, el, fmtCoord, fmtCoordGM, fmtDiaMes, fmtFechaQRoo, fmtFechaUTC, fmtLat, fmtLon, fmtNum, fmtRapidez, fmtRumbo, rumbo16,
-  sumarHoras,
+  acotar, el, fmtCoord, fmtCoordGM, fmtDiaMes, fmtFechaDatos, fmtFechaQRoo, fmtFechaUTC, fmtLat, fmtLon, fmtNum, fmtRapidez, fmtRumbo,
+  rumbo16, sumarHoras,
 } from './util.js';
+
+// Modo técnico (?tecnico=1): avisos de validación del archivo, notas del oleaje, huella, versión del
+// modelo y advertencias. Sin el parámetro la interfaz solo muestra lo que el operador necesita.
+const TECNICO = new URLSearchParams(window.location.search).get('tecnico') === '1';
+document.body.classList.toggle('tecnico', TECNICO);
+document.querySelectorAll('.solo-tecnico').forEach((n) => { if (!TECNICO) n.remove(); });
+const MSJ_DATOS = 'No se pudieron cargar los datos de oleaje. Revise el archivo dirmarea.txt.';
 
 const $ = (id) => document.getElementById(id);
 const DOMINIO = { oeste: -92.08, este: -84.08, sur: 16.92, norte: 23 };
@@ -50,6 +57,7 @@ const est = {
   dibujo: null,              // cuenta de partículas del último cuadro
   escala: null,
   ultimaExportacion: null,
+  tecnico: TECNICO,
 };
 window.pms = est; // facilita la inspección desde la consola y las pruebas de interfaz
 
@@ -64,7 +72,7 @@ mapa.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>')
 mapa.attributionControl.addAttribution('costa y localidades © <a href="https://www.openstreetmap.org/copyright">colaboradores de OpenStreetMap</a>');
 
 const ATRIBUCION = {
-  carta: 'Carta propia: costa de OpenStreetMap (ODbL); tierra fuera del dominio de Natural Earth',
+  carta: 'Carta propia: costa de OpenStreetMap (ODbL); tierra fuera del área de Natural Earth',
   satelite: 'Sentinel-2 cloudless 2016 de EOX IT Services GmbH (contiene datos Copernicus Sentinel modificados), CC BY 4.0',
   calles: '© colaboradores de OpenStreetMap',
 };
@@ -166,11 +174,12 @@ function ponerEstado(nombre, texto, detalle = null) {
   est.estado = nombre;
   $('estado').dataset.estado = nombre;
   $('estado-texto').textContent = texto;
-  detalleEstado = [detalle].flat().filter(Boolean);
+  detalleEstado = TECNICO ? [detalle].flat().filter(Boolean) : [];
   $('estado-mas').hidden = detalleEstado.length === 0;
   $('estado-detalle').replaceChildren(...detalleEstado);
   $('estado-detalle').hidden = true;
   $('estado').setAttribute('aria-expanded', 'false');
+  if (detalleEstado.length) $('estado').title = 'Ver detalle del estado'; else $('estado').removeAttribute('title');
   $('btn-simular').disabled = !est.campos || !est.costa || nombre === 'calculando' || nombre === 'validando';
 }
 $('estado').addEventListener('click', () => {
@@ -194,12 +203,12 @@ async function cargarCosta() {
     api.binario(`${info.mascara_url}?v=${info.sha256.slice(0, 12)}`), api.binario(info.contexto_url),
   ]);
   est.costa = new Costa(info, tierra, contexto);
-  bases.carta = new CapaCarta({ costa: est.costa, minZoom: 5, maxZoom: 11, attribution: 'tierra fuera del dominio: Natural Earth' });
+  bases.carta = new CapaCarta({ costa: est.costa, minZoom: 5, maxZoom: 11, attribution: 'tierra fuera del área: Natural Earth' });
   ponerBase(est.base);
   fijarPunto(est.punto.lat, est.punto.lon);
   const f = info.fuentes;
   $('fuentes').textContent = `Fuentes. Costa: ${f.costa.fuente}, ${f.costa.licencia}, datos al ${f.costa.datos_al.slice(0, 10)}. `
-    + `Localidades y puertos: OpenStreetMap, ${f.localidades.licencia}. Tierra fuera del dominio: ${f.contexto.fuente} (${f.contexto.licencia}). `
+    + `Localidades y puertos: OpenStreetMap, ${f.localidades.licencia}. Tierra fuera del área: ${f.contexto.fuente} (${f.contexto.licencia}). `
     + 'Satélite: Sentinel-2 cloudless 2016 de EOX IT Services GmbH, CC BY 4.0.';
   try {
     est.localidades = (await api.localidades()).localidades;
@@ -213,13 +222,15 @@ async function iniciar() {
     salud = await api.salud();
   } catch (e) {
     ponerEstado('error', 'Sin conexión con el servidor', cajaError(e.detalle || { causa: e.message }));
+    mostrarVelo([el('h2', {}, 'Sin conexión con el servidor'), el('p', {}, 'Recargue la página en unos momentos.'),
+      TECNICO ? cajaError(e.detalle || { causa: e.message }) : null]);
     return;
   }
   document.title = `PMS ${salud.version_app} · Predicción de Movimiento del Sargazo`;
   est.sinServidor = salud.trabajos_en_segundo_plano === false;
   $('aviso-historial').hidden = !salud.almacenamiento_efimero;
   const costaLista = cargarCosta().catch((e) => {
-    ponerEstado('error', 'No se pudo cargar la costa del modelo', cajaError(e.detalle || { causa: e.message, accion: 'Recarga la página.' }));
+    ponerEstado('error', 'No se pudo cargar el mapa. Recargue la página.', cajaError(e.detalle || { causa: e.message, accion: 'Recarga la página.' }));
     throw e;
   });
   if (!salud.datos_disponibles) { costaLista.catch(() => {}); sinDatos(); return; }
@@ -229,11 +240,12 @@ async function iniciar() {
 
 function sinDatos() {
   est.campos = null;
-  ponerEstado('sin-datos', 'Sin datos de SEMAR', el('p', {}, 'Copia dirmarea.txt en data/semar/ y recarga la página.'));
+  ponerEstado('sin-datos', 'Sin datos de oleaje', el('p', {}, 'Copia dirmarea.txt en data/semar/ y recarga la página.'));
   mostrarVelo([
-    el('h2', {}, 'Falta el archivo de oleaje de SEMAR'),
-    el('p', {}, 'Copia ', el('code', {}, 'dirmarea.txt'), ' en ', el('code', {}, 'data/semar/'), ' y recarga la página.'),
-    el('p', {}, 'Formato y origen del archivo: data/semar/README.md.'),
+    el('h2', {}, 'No se pudieron cargar los datos de oleaje'),
+    el('p', {}, 'Revise el archivo dirmarea.txt.'),
+    TECNICO ? el('p', { 'data-prueba': 'velo-tecnico' }, 'Falta el archivo. Copia ', el('code', {}, 'dirmarea.txt'), ' en ', el('code', {}, 'data/semar/'),
+      ' y recarga la página. Formato y origen del archivo: data/semar/README.md.') : null,
   ]);
 }
 
@@ -241,44 +253,50 @@ async function validar(forzar = false) {
   pausar();
   est.campos = null;
   mostrarVelo(null);
-  ponerEstado('validando', 'Validando dirmarea.txt…');
+  ponerEstado('validando', 'Cargando datos…');
   let rep;
   try {
     if (est.sinServidor) {
       rep = await api.validacion(forzar);
     } else {
       const { trabajo_id } = await api.validar(forzar);
-      const t = await esperarTrabajo(trabajo_id, (tr) => { $('estado-texto').textContent = `Validando · ${tr.mensaje || ''}`; });
+      const t = await esperarTrabajo(trabajo_id, (tr) => { if (TECNICO) $('estado-texto').textContent = `Validando · ${tr.mensaje || ''}`; });
       if (t.estado === 'error') throw Object.assign(new Error(t.error.causa), { detalle: t.error });
       rep = t.resultado;
     }
   } catch (e) {
-    ponerEstado('error', 'No se pudo validar el archivo', cajaError(e.detalle || { causa: e.message }));
+    ponerEstado('error', 'No se pudieron cargar los datos', cajaError(e.detalle || { causa: e.message }));
+    mostrarVelo([el('h2', {}, 'No se pudieron cargar los datos de oleaje'), el('p', {}, 'Revise el archivo dirmarea.txt.'),
+      TECNICO ? cajaError(e.detalle || { causa: e.message }) : null]);
     return;
   }
   if (!rep.valido) {
     const errores = rep.verificaciones.flatMap((v) => v.hallazgos.filter((h) => h.nivel === 'error'));
     const primero = errores[0] || { detalle: 'Error de validación.' };
-    ponerEstado('error', `Error en los datos: ${primero.detalle}`,
+    ponerEstado('error', TECNICO ? `Error en los datos: ${primero.detalle}` : 'No se pudieron cargar los datos',
       [cajaError({ causa: primero.detalle, archivo: primero.archivo, accion: primero.accion }),
         errores.length > 1 ? detalleValidacion(rep, { soloErrores: true }) : null]);
     mostrarVelo([
-      el('h2', {}, 'El archivo de oleaje no pasó la validación'),
-      el('p', {}, 'No se puede simular hasta corregirlo.'),
-      cajaError({ causa: primero.detalle, archivo: primero.archivo, accion: primero.accion }),
-      errores.length > 1 ? el('p', {}, `Hay ${errores.length} errores en total: ábralos en «detalle», arriba a la izquierda.`) : null,
+      el('h2', {}, 'No se pudieron cargar los datos de oleaje'),
+      el('p', {}, 'Revise el archivo dirmarea.txt. No se puede simular hasta corregirlo.'),
+      TECNICO ? cajaError({ causa: primero.detalle, archivo: primero.archivo, accion: primero.accion }) : null,
+      TECNICO && errores.length > 1 ? el('p', {}, `Hay ${errores.length} errores en total: ábralos en «detalle», arriba a la izquierda.`) : null,
     ]);
     return;
   }
   try {
     est.campos = new Campos(await api.campos());
   } catch (e) {
-    ponerEstado('error', 'No se pudieron cargar los datos de oleaje', cajaError(e.detalle || { causa: e.message }));
+    ponerEstado('error', 'No se pudieron cargar los datos', cajaError(e.detalle || { causa: e.message }));
+    mostrarVelo([el('h2', {}, 'No se pudieron cargar los datos de oleaje'), el('p', {}, 'Revise el archivo dirmarea.txt.'),
+      TECNICO ? cajaError(e.detalle || { causa: e.message }) : null]);
     return;
   }
   const avisos = rep.verificaciones.reduce((n, v) => n + v.hallazgos.filter((h) => h.nivel === 'advertencia').length, 0);
   if (est.sim) estadoResultado();
-  else ponerEstado('listo', `Listo · dirmarea.txt validado${avisos ? ` (${avisos} avisos)` : ''}`, avisos ? detalleValidacion(rep) : null);
+  else estadoListo();
+  est.avisosDatos = avisos ? detalleValidacion(rep) : null;
+  if (est.avisosDatos && TECNICO) ponerEstado(est.estado, `${$('estado-texto').textContent} · ${avisos} avisos`, est.avisosDatos);
   configurarLineaTiempo();
   ajustarOleaje();
   redibujar();
@@ -290,7 +308,7 @@ async function validar(forzar = false) {
 // ---------------------------------------------------------------------------
 function problemaPunto(lat, lon) {
   if (!(lat >= DOMINIO.sur && lat <= DOMINIO.norte && lon >= DOMINIO.oeste && lon <= DOMINIO.este)) {
-    return 'Fuera del recuadro punteado de la malla (lat 16.92…23.00, lon −92.08…−84.08).';
+    return 'Ese punto está fuera de la zona con datos de oleaje. Elige un punto dentro del recuadro punteado.';
   }
   if (est.costa && est.costa.enTierra(lon, lat)) return 'El punto está en tierra. Elige un punto en el mar.';
   return null;
@@ -344,7 +362,7 @@ async function simular() {
   }
   const p = leerParametros();
   const problema = problemaPunto(p.lat, p.lon);
-  if (problema) { mostrarError({ causa: problema, accion: 'Vuelve al paso 1 y haz clic en el mar dentro del recuadro punteado.' }); return; }
+  if (problema) { mostrarError({ causa: problema, accion: 'Vuelve al paso 1 y haz clic en el mar dentro del recuadro punteado.' }, problema); return; }
   pausar();
   ponerEstado('calculando', `Calculando ${p.horizonte_h} h…`);
   let reg;
@@ -366,13 +384,19 @@ async function simular() {
   est.resultadoEn = performance.now();
 }
 
-function mostrarError(detalle) {
-  ponerEstado('error', `Error: ${detalle.causa}`, cajaError(detalle));
+// En pantalla, un mensaje sencillo; la causa técnica, en el detalle del modo técnico.
+function mostrarError(detalle, sencillo = 'No se pudo completar la simulación. Intente de nuevo.') {
+  ponerEstado('error', TECNICO ? `Error: ${detalle.causa}` : sencillo, cajaError(detalle));
   $('btn-simular').disabled = !est.campos;
 }
 
+const fechaDatos = () => (est.campos ? ` · datos del ${fmtFechaDatos(est.campos.inicio)}` : '');
+function estadoListo() {
+  ponerEstado('listo', `Listo${fechaDatos()}`, est.avisosDatos);
+}
+
 function estadoResultado() {
-  ponerEstado('resultado', `Resultado de ${est.sim.H} h guardado · ${fmtNum(est.sim.reg.resumen.varadas_pct, 1)} % varado`);
+  ponerEstado('resultado', `Listo${fechaDatos()}`, est.avisosDatos);
 }
 
 async function abrirSimulacion(reg, { reproducir = false } = {}) {
@@ -383,7 +407,7 @@ async function abrirSimulacion(reg, { reproducir = false } = {}) {
   configurarLineaTiempo();
   lineaFutura.setLatLngs(reg.resultados.series.centroide.filter(Boolean).map((c) => [c[1], c[0]]));
   grupoTrayectoria.addTo(mapa);
-  renderResultado($('resultado'), est.sim, { alElegir: irAlArribo, alExportarImagen: exportarImagen, alImprimir: imprimirResumen });
+  renderResultado($('resultado'), est.sim, { alElegir: irAlArribo, alExportarImagen: exportarImagen, alImprimir: imprimirResumen, tecnico: TECNICO });
   $('pasos').querySelector('[data-paso="3"]').disabled = false;
   $('ley-sim').hidden = false;
   $('lt-rapidez').hidden = false;
@@ -544,6 +568,7 @@ function ajustarOleaje() {
 
 function notaOleaje() {
   const n = $('nota-ola');
+  if (!n) return;
   if (!est.campos || !est.ver.oleaje) { n.hidden = true; return; }
   n.hidden = false;
   const texto = est.campos.identicos
@@ -605,8 +630,8 @@ function mostrarHover(e) {
   if (est.campos) {
     const enTierra = est.costa && est.costa.enTierra(lon, lat);
     const ola = enTierra ? null : est.campos.olaEn(lon, lat, est.hora);
-    lineas.push(el('div', { 'data-prueba': 'tt-ola' }, enTierra ? 'Tierra (costa del modelo)'
-      : ola ? `Ola ${fmtNum(ola.altura, 2)} m · desde ${fmtNum(ola.desde)}° (${rumbo16(ola.desde)})${ola.extendida ? ' · extendida a la costa' : ''}`
+    lineas.push(el('div', { 'data-prueba': 'tt-ola' }, enTierra ? 'Tierra'
+      : ola ? `Ola ${fmtNum(ola.altura, 2)} m · desde ${fmtNum(ola.desde)}° (${rumbo16(ola.desde)})${ola.extendida && TECNICO ? ' · extendida a la costa' : ''}`
         : 'Sin dato de ola en esta zona'));
   }
   if (est.sim && !est.reproduciendo && e.containerPoint) {
@@ -656,9 +681,9 @@ async function imprimirResumen() {
     atribucion: atribucionTexto(),
     fuentes: [
       `Oleaje: ${est.sim.reg.datos.archivo} de ${est.sim.reg.datos.fuente}.`,
-      `Costa del modelo: ${f.costa.fuente}; ${f.costa.atribucion}, ${f.costa.licencia}.`,
-      'Validación contra sargazo observado por satélite: página /validacion.',
+      `Costa: ${f.costa.fuente}; ${f.costa.atribucion}, ${f.costa.licencia}.`,
     ],
+    validacion: `${window.location.origin}/validacion`,
   });
   const img = $('informe').querySelector('img');
   if (img && img.decode) { try { await img.decode(); } catch { /* se imprime igual */ } }
@@ -680,7 +705,7 @@ function marcarHistorial() {
 }
 
 function mostrarPanel(id, boton, abierto) {
-  for (const [otro, b] of [['historial', 'btn-historial'], ['capas', 'btn-capas']]) {
+  for (const [otro, b] of [['historial', 'btn-historial'], ['capas', 'btn-capas'], ['acerca', 'btn-acerca']]) {
     const ver = otro === id ? abierto : false;
     $(otro).hidden = !ver;
     $(b).setAttribute('aria-expanded', String(ver));
@@ -688,6 +713,7 @@ function mostrarPanel(id, boton, abierto) {
 }
 const mostrarHistorial = (abierto) => mostrarPanel('historial', 'btn-historial', abierto);
 const mostrarCapas = (abierto) => mostrarPanel('capas', 'btn-capas', abierto);
+const mostrarAcerca = (abierto) => mostrarPanel('acerca', 'btn-acerca', abierto);
 
 async function abrirDesdeHistorial(id) {
   if (est.estado === 'calculando' || est.estado === 'validando' || !est.campos) return;
@@ -695,7 +721,7 @@ async function abrirDesdeHistorial(id) {
     await abrirSimulacion(await api.simulacion(id));
     mostrarHistorial(false);
   } catch (e) {
-    mostrarError(e.detalle || { causa: e.message });
+    mostrarError(e.detalle || { causa: e.message }, 'No se pudo abrir la simulación guardada.');
   }
 }
 
@@ -717,13 +743,13 @@ const recorrido = new Recorrido($('recorrido'), [
       'PMS estima hacia dónde podría derivar un conglomerado de sargazo frente a la Península de Yucatán durante los próximos 5 días y a qué tramos de costa llegaría primero.',
       'Este recorrido le muestra cada función con una simulación real frente a Cancún. Toma unos tres minutos; puede saltarlo y volver a abrirlo con «Recorrido guiado».',
     ],
-    alEntrar: () => { pausar(); mostrarHistorial(false); mostrarCapas(false); $('estado-detalle').hidden = true; },
+    alEntrar: () => { pausar(); mostrarHistorial(false); mostrarCapas(false); mostrarAcerca(false); $('estado-detalle').hidden = true; },
   },
   {
     titulo: 'Los datos: el oleaje de SEMAR',
     texto: [
-      'PMS usa un solo archivo de SEMAR, dirmarea.txt: altura y dirección de la ola de viento en una malla de 0.16° (unos 17 km), cada 3 horas hasta 120 h.',
-      'Los trazos del mapa fluyen hacia donde viaja la ola: son más largos y corren más donde la ola es más alta. La flecha «1 m» de este recuadro mide lo mismo en cualquier zoom. El archivo actual es una muestra: sus 41 bloques son idénticos y por eso el oleaje no cambia con la hora.',
+      'PMS usa un solo archivo de SEMAR, dirmarea.txt: la altura y la dirección de la ola de viento en puntos separados unos 17 km, cada 3 horas hasta 120 h.',
+      'Los trazos del mapa fluyen hacia donde viaja la ola: son más largos y corren más donde la ola es más alta. La flecha «1 m» de este recuadro mide lo mismo en cualquier zoom.',
     ],
     objetivo: () => $('escalas'),
   },
@@ -763,8 +789,8 @@ const recorrido = new Recorrido($('recorrido'), [
   {
     titulo: 'γ y K_h: los parámetros del modelo',
     texto: [
-      'PMS mueve cada partícula con la deriva de Stokes de la ola más un movimiento browniano. γ escala esa deriva (0 la apaga, 1 es la estimación base); K_h es la intensidad del movimiento aleatorio que dispersa las partículas.',
-      'Como el archivo no trae el período de la ola, se supone T = 4.0·√H. Ambos parámetros son preliminares y no están calibrados; los dejaremos en sus valores por defecto.',
+      'PMS mueve cada partícula con el empuje de la ola más un movimiento aleatorio. γ escala ese empuje (0 lo apaga, 1 es el valor base); K_h es la intensidad del movimiento aleatorio que dispersa las partículas.',
+      'Para este recorrido los dejaremos en sus valores por defecto.',
     ],
     alEntrar: () => { irPaso(2); $('avanzado').open = true; },
     alSalir: () => { $('avanzado').open = false; },
@@ -797,8 +823,8 @@ const recorrido = new Recorrido($('recorrido'), [
   {
     titulo: 'Escalas y leyenda',
     texto: [
-      'La barra doble mide kilómetros y millas náuticas y se ajusta al hacer zoom. La densidad se lee en porcentaje del sargazo liberado por celda de unos 4.4 km.',
-      '«Ver detalle» explica cada símbolo y lista las fuentes. El aviso de límites y el enlace a la validación contra satélite están siempre al pie.',
+      'La barra doble mide kilómetros y millas náuticas y se ajusta al hacer zoom. La densidad se lee en porcentaje del sargazo por celda de unos 4 km; abajo, los símbolos del sargazo a flote, lo varado, la trayectoria y la zona probable.',
+      '«Acerca del modelo», arriba a la derecha, explica cada símbolo y lista las fuentes.',
     ],
     objetivo: () => $('leyenda'),
   },
@@ -814,7 +840,7 @@ const recorrido = new Recorrido($('recorrido'), [
     titulo: 'Paso 3 · La tabla de arribos',
     texto: [
       'Es el resultado principal: para cada tramo de costa, cuándo llega la primera partícula (fecha y hora de Quintana Roo), qué porcentaje del sargazo llega y cuánto recorre, en kilómetros y millas náuticas.',
-      'Toque una fila y el mapa irá a ese tramo y a ese momento. Son fracciones de partículas simuladas, no certezas; «Ver detalle» tiene los parámetros, las horas en UTC y las advertencias.',
+      'Toque una fila y el mapa irá a ese tramo y a ese momento. Son fracciones de partículas simuladas, no certezas; «Ver detalle» tiene los parámetros y las horas en UTC.',
     ],
     alEntrar: () => irPaso(3),
     objetivo: () => $('hoja'),
@@ -822,7 +848,7 @@ const recorrido = new Recorrido($('recorrido'), [
   {
     titulo: 'Exportar el resultado',
     texto: [
-      '«Guardar imagen del mapa» descarga el mapa como está, con fecha, escalas y fuentes. «Resumen de una página» arma una hoja para imprimir o guardar como PDF con los parámetros, la tabla de arribos, las escalas y los límites del modelo.',
+      '«Guardar imagen del mapa» descarga el mapa como está, con fecha, escalas y fuentes. «Resumen de una página» arma una hoja para imprimir o guardar como PDF con los parámetros, la tabla de arribos y las escalas.',
     ],
     alEntrar: () => { irPaso(3); const d = document.querySelector('#resultado .exportar'); if (d) d.scrollIntoView({ block: 'nearest' }); },
     objetivo: () => document.querySelector('#resultado .exportar'),
@@ -838,7 +864,7 @@ const recorrido = new Recorrido($('recorrido'), [
     titulo: 'Listo',
     texto: [
       'Ya conoce el flujo completo: punto de liberación, ajustes, resultado y exportación. Puede repetir este recorrido cuando quiera con el botón «Recorrido guiado».',
-      'Recuerde que PMS es un pronóstico probabilístico de muestra, solo con oleaje: úselo para explorar escenarios, no como una predicción de arribo exacta.',
+      'Recuerde que los porcentajes son probabilidades, no certezas: úselo para explorar escenarios, no como una predicción de arribo exacta.',
     ],
   },
 ]);
@@ -875,6 +901,7 @@ $('btn-simular').addEventListener('click', simular);
 
 $('btn-historial').addEventListener('click', () => mostrarHistorial($('historial').hidden));
 $('btn-capas').addEventListener('click', () => mostrarCapas($('capas').hidden));
+$('btn-acerca').addEventListener('click', () => mostrarAcerca($('acerca').hidden));
 document.querySelectorAll('input[name="base"]').forEach((r) => r.addEventListener('change', () => { if (r.checked) ponerBase(r.value); }));
 for (const [id, clave] of [['ver-oleaje', 'oleaje'], ['ver-animar', 'animar'], ['ver-estelas', 'estelas'], ['ver-densidad', 'densidad'], ['ver-localidades', 'localidades']]) {
   $(id).checked = est.ver[clave];
@@ -904,7 +931,7 @@ mapa.on('moveend zoomend resize', actualizarEscala);
 document.addEventListener('keydown', (e) => {
   if (window.pmsRecorridoActivo) return;
   // Escape cierra los paneles aunque el foco esté en una de sus casillas.
-  if (e.code === 'Escape') { mostrarHistorial(false); mostrarCapas(false); $('estado-detalle').hidden = true; return; }
+  if (e.code === 'Escape') { mostrarHistorial(false); mostrarCapas(false); mostrarAcerca(false); $('estado-detalle').hidden = true; return; }
   const activo = document.activeElement;
   if (activo && ['INPUT', 'SELECT', 'TEXTAREA'].includes(activo.tagName) && activo.type !== 'range') return;
   if (e.code === 'Space') { e.preventDefault(); if (est.reproduciendo) pausar(); else reproducir_(); }
