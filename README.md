@@ -1,6 +1,6 @@
 # PMS · Predicción de Movimiento del Sargazo
 
-**v0.5.0 · demo: <https://pms-sargazo.vercel.app> · validación: <https://pms-sargazo.vercel.app/validacion>**
+**v0.5.1 · demo: <https://pms-sargazo.vercel.app> · validación: <https://pms-sargazo.vercel.app/validacion>**
 
 PMS estima hacia dónde podría derivar un conglomerado de sargazo frente a la Península de
 Yucatán durante los próximos 5 días (120 h) y **a qué tramos de costa llegaría primero**. Lo
@@ -45,6 +45,42 @@ ola de 1 m y densidad); al pie, la línea de tiempo con fechas en UTC y en hora 
 17. [Créditos y atribuciones](#créditos-y-atribuciones)
 
 ---
+
+## Qué cambió en la v0.5.1
+
+**Textos para el operador.** La interfaz mostraba información de desarrollo que no le sirve a
+quien opera PMS en SEMAR. Ahora solo dice lo que se necesita para usarla; lo técnico sigue
+disponible en el **modo técnico**, que aparece al abrir la app con `?tecnico=1`
+(<https://pms-sargazo.vercel.app/?tecnico=1>). Los avisos también siguen en la API
+(`/api/validacion`), en el registro del servidor (`pms.datos`) y en esta documentación. Ni el
+modelo ni los resultados cambian.
+
+| Texto que se quitó de la pantalla | Dónde quedó |
+|---|---|
+| Cabecera «Listo · dirmarea.txt validado (2 avisos)» y el enlace «detalle» | Cabecera: «Listo · datos del 1 oct 2026». El conteo de avisos y el «detalle», en modo técnico |
+| Panel de avisos del archivo: «Variación en el tiempo… → Pedir a SEMAR el pronóstico real…», «Máscara de mar de los datos vs costa del modelo: 64 nodos… → Esperable…», «6 verificaciones sin observaciones · 0.37 s» | Modo técnico (clic en el estado), `/api/validacion` y el registro del servidor |
+| «Validando · …» con los mensajes internos de la validación | «Cargando datos…»; el progreso interno, en modo técnico |
+| Leyenda: «Oleaje constante: los 41 bloques del archivo son idénticos» | Modo técnico (o «Oleaje del pronóstico: bloque +N h» si el archivo cambia) |
+| Leyenda: «Pronóstico probabilístico de muestra: solo oleaje, sin viento ni corrientes» | Una línea neutral al pie del resumen exportado; los límites completos, en este README y en `/validacion` |
+| Leyenda: enlace «Validación contra satélite →» | Discreto, en «Acerca del modelo» (menú de arriba a la derecha) |
+| Leyenda: «Ver detalle» (símbolos explicados y fuentes) | «Acerca del modelo» |
+| Paso 2: «γ y K_h son preliminares, sin calibrar. El período de la ola se supone T = 4.0·√H» | Modo técnico |
+| Paso 2: «Escala la deriva de Stokes…» | «Cuánto empuja la ola al sargazo…» |
+| Paso 1: «Fuera del recuadro punteado de la malla (lat 16.92…23.00, lon −92.08…−84.08)» | «Ese punto está fuera de la zona con datos de oleaje…» |
+| Resultado, «Ver detalle»: versión del modelo, identificador de la simulación, huella SHA-256 y advertencias | Modo técnico. «Radio P90» pasa a «Radio con el 90 %» y «fuera» a «fuera del área» |
+| Tooltip: «Tierra (costa del modelo)» y «extendida a la costa» | «Tierra»; «extendida a la costa», en modo técnico |
+| Errores con «Causa / Archivo / Acción» y rutas como `data/semar/` o `python main.py` | «No se pudieron cargar los datos de oleaje. Revise el archivo dirmarea.txt.»; la causa técnica, en modo técnico |
+| Recorrido guiado: «sus 41 bloques son idénticos», «preliminares y no calibrados», «T = 4.0·√H», «deriva de Stokes», «malla de 0.16°», «pronóstico de muestra, solo con oleaje», «el aviso de límites al pie» | Reescritos sin esos datos; el paso de la leyenda remite a «Acerca del modelo» |
+| Imagen exportada: «Pronóstico probabilístico; solo oleaje, sin viento ni corrientes» | Modo técnico |
+| Resumen exportado: «Límites del modelo» (5 puntos), «Huella del archivo», «bloques idénticos», versión del modelo | Una línea neutral al pie con el enlace a `/validacion`; lo demás, en el resumen del modo técnico |
+| Leyenda de densidad: «% del sargazo liberado por celda de 0.04° (≈ 4.4 × 4.2 km)» | «Densidad: % del sargazo liberado por celda de ≈ 4 km» |
+
+La leyenda queda con lo que se lee en el mapa: escala km/MN, norte, flecha de ola de 1 m, las
+clases de densidad y los símbolos de sargazo a flote, varado, trayectoria central y zona
+probable. Las clases de densidad se quedan porque son parte del mapa y fueron la respuesta a
+la observación 5 de SEMAR (densidad con unidades y rangos). Las pruebas
+`test_sin_tecnico_no_aparecen_textos_de_desarrollo` y `test_con_tecnico_aparecen_los_avisos`
+recorren toda la interfaz, el recorrido guiado y el resumen exportado en los dos modos.
 
 ## Qué cambió en la v0.5.0
 
@@ -133,7 +169,7 @@ La corrida completa tardó 93 min en el equipo de 8 GB con 2 procesos
   [`docs/validacion/`](docs/validacion/), reporte en [`docs/validacion.md`](docs/validacion.md)
   (lo genera el script; verifica sus propios conteos),
   fuentes en [`docs/fuentes_validacion.md`](docs/fuentes_validacion.md) y página `/validacion`
-  enlazada desde la leyenda.
+  enlazada desde «Acerca del modelo».
 - **Forzamientos de Copernicus Marine** (toolbox `copernicusmarine`, cuenta gratuita con
   `copernicusmarine login`; las credenciales no entran al repositorio): ola de viento MFWAM a
   0.083° (reanálisis de 0.2° antes de nov 2022) y corriente SMOC a 0.083°. El viento de E5 viene
@@ -393,9 +429,10 @@ leyenda mínima con las escalas. Los **tres pasos**, uno a la vez:
 2. **Ajustes**: horizonte y, plegado en «Avanzado», radio, partículas, γ, K_h y semilla.
 3. **Resultado**: la **tabla de arribos** por tramo de costa (primer arribo en hora de
    Quintana Roo, porcentaje que llega y distancia en km y MN). Tocar una fila lleva el mapa a
-   ese tramo y a esa hora. «Ver detalle» tiene el porcentaje varado, el radio P90, la rapidez
-   media, las horas en UTC, los parámetros, la huella del archivo y las advertencias. Dos
-   botones exportan la imagen del mapa y el resumen de una página.
+   ese tramo y a esa hora. «Ver detalle» tiene el porcentaje varado, el radio con el 90 %, la
+   rapidez media, las horas en UTC y los parámetros (en modo técnico, además, la versión del
+   modelo, la huella del archivo y las advertencias). Dos botones exportan la imagen del mapa y
+   el resumen de una página.
 
 **El mapa.**
 
@@ -421,16 +458,23 @@ leyenda mínima con las escalas. Los **tres pasos**, uno a la vez:
   modelo. En pausa, sobre una partícula: su rapidez (kn y km/h) y su rumbo.
 
 **Escalas y leyenda** (abajo a la derecha): barra doble en km y millas náuticas que sigue al
-zoom, norte, flecha de ola de 1 m, clases de densidad con su unidad y símbolos. «Ver detalle»
-explica cada uno y lista las fuentes. Al pie, discretos, el aviso de límites y el enlace a la
-validación.
+zoom, norte, flecha de ola de 1 m, clases de densidad con su unidad y los símbolos (a flote,
+varado, trayectoria central y zona probable). **«Acerca del modelo»** (arriba a la derecha)
+explica cada símbolo, lista las fuentes y, discreto, enlaza la validación contra satélite.
 
 **Línea de tiempo**: reproducir o pausar, «Hora N de 120», deslizador con una marca por día,
 fecha en UTC y en hora de Quintana Roo (UTC−5), rapidez y rumbo del conglomerado, saltos de 3,
 6 o 12 h y velocidad de 3 a 24 h/s. Teclas: espacio; ← y → una hora; con Mayús, un salto.
 
-**Estado** en una sola línea (validando / listo / calculando / error), con el detalle al hacer
-clic. Si el archivo no es válido, un velo muestra la causa, el archivo y la acción.
+**Estado** en una sola línea: «Cargando datos…», «Listo · datos del 1 oct 2026»,
+«Calculando…» o el error en lenguaje sencillo. Si el archivo falta o no es válido, un velo dice
+«No se pudieron cargar los datos de oleaje. Revise el archivo dirmarea.txt.»
+
+**Modo técnico** (`?tecnico=1`): el estado lleva el conteo de avisos y un «detalle» con cada
+verificación del archivo (causa y acción); la leyenda, la nota de los bloques del archivo; el
+paso 2, la nota sobre γ, K_h y el período de ola; el resultado, la versión del modelo, la
+huella del archivo y las advertencias; los errores, su causa, el archivo y la acción; el
+resumen exportado, los límites del modelo y la huella.
 **Historial** plegado: fecha, arribo principal y % varado; clic para reabrir.
 
 ### Paleta del sargazo y contraste
@@ -596,7 +640,7 @@ python scripts/generar_dirmarea.py --fecha 2026-10-01       # dirmarea.txt con o
 
 ## Despliegue
 
-- **Vercel** (<https://pms-sargazo.vercel.app>), **v0.5.0**. El proyecto `pms-sargazo`
+- **Vercel** (<https://pms-sargazo.vercel.app>), **v0.5.1**. El proyecto `pms-sargazo`
   despliega **solo `main`**, en cada push; las demás ramas no crean despliegues de vista
   previa. La función (`api/index.py`) incluye `src/` (con la máscara de costa y las
   localidades), `data/semar/dirmarea.txt` y `docs/validacion/`. En Vercel el historial vive
@@ -721,9 +765,9 @@ sargazo_prototipo/
 
 ## Pruebas y rendimiento
 
-**241 pruebas rápidas** (`python -m pytest`, sin red) y **36 de interfaz** (`python -m pytest -m e2e`),
+**242 pruebas rápidas** (`python -m pytest`, sin red) y **38 de interfaz** (`python -m pytest -m e2e`),
 en verde en local y en el CI de GitHub Actions (Windows y Ubuntu, Python 3.12 y 3.14, más e2e):
-[corrida en verde del PR #2](https://github.com/renecano/sargazo_prototipo/actions/runs/43119639243), con las 36 de interfaz.
+[corrida en verde del PR #3](https://github.com/renecano/sargazo_prototipo/actions/runs/43125763107), con las 38 de interfaz.
 Para revisar a mano cada observación de SEMAR: [`docs/manual_pruebas.md`](docs/manual_pruebas.md).
 
 | Archivo | Qué comprueba |
@@ -733,11 +777,11 @@ Para revisar a mano cada observación de SEMAR: [`docs/manual_pruebas.md`](docs/
 | `tests/test_modelo.py` | Deriva de Stokes contra la fórmula y contra el desplazamiento analítico con K_h = 0 (en la dirección correcta, con cos(lat)), γ, reproducibilidad, dispersión √(2·K_h·t) ± 5 %, interpolación entre bloques y por seno/coseno, nodos de tierra ignorados, ninguna partícula sobre tierra, salida de dominio, métricas |
 | `tests/test_costa.py` | La máscara es la de su procedencia y cubre el dominio; mar que la costa anterior marcaba como tierra (Bahía de Mujeres, Ascensión, Chetumal, Yalahau); islas (Cozumel, Isla Mujeres, Holbox, Chinchorro, Alacranes); área de tierra contra GSHHG; tramos de las islas sin costa del continente; el caso de SEMAR vara a menos de 150 m de la costa y nunca sobre tierra; Isla Mujeres y Cozumel reciben arribos propios; mar abierto no vara; ninguna partícula salta una franja de 150 m; la recta entre horas no cruza tierra; el redondeo de 22 m no mete posiciones a tierra; localidades con id de OSM |
 | `tests/test_interpolacion.py` | Bilineal exacta en un campo lineal; valor del nodo sin desfase; continuidad; borde; seno y coseno; direcciones opuestas; nodos sin dato; franja costera de 2 nodos; rampa temporal, bloques irregulares y extremos; RK2 contra dos soluciones exactas y contra la integral con un campo real |
-| `tests/test_api.py` | 200 y guardado con huella; reproducibilidad; trabajos con progreso; 409, 422 y 404; sin datos; la máscara que recibe la interfaz es la del modelo; localidades; `/api/ola` igual al modelo; tabla de arribos y rapidez del conglomerado; el historial solo lista el modelo actual; página `/validacion` y sus figuras |
+| `tests/test_api.py` | 200 y guardado con huella; reproducibilidad; trabajos con progreso; 409, 422 y 404; sin datos; la máscara que recibe la interfaz es la del modelo; localidades; `/api/ola` igual al modelo; tabla de arribos y rapidez del conglomerado; el historial solo lista el modelo actual; página `/validacion` y sus figuras; los avisos de validación quedan en la API y en el registro del servidor |
 | `tests/test_validacion.py` | Lector de ERDDAP con un recorte real (`tests/fixtures`); detección (franja, nubes y su borde, umbral adaptativo, regiones y franja de la costura); `generar_dirmarea` con formato idéntico al de SEMAR y aceptado por el validador y el modelo; Open-Meteo sin red (unidades, caché, cuota); campos encadenados y convenciones de corriente y viento; FSS analítico (1, 0, 2/3, 1 − d/n); MCC recupera desplazamientos sintéticos (también con nubes); Liu-Weisberg, bootstrap y contingencia; persistencia da FSS = 1 si nada se mueve; siembra; integrador del producto; selección de casos reproducible y sin traslape; veredicto contra E0 |
 | `tests/test_paleta.py` | La paleta del sargazo contra la tierra y el mar medidos de cada mapa base: partículas ≥ 3:1, borde y halo ≥ 4.5:1, ΔE ≥ 40 con visión normal y con los tres daltonismos simulados; varado distinto de flotante; `docs/contraste.md` y el bloque del README coinciden con la paleta |
 | `tests/test_despliegue.py` | `.vercelignore` deja subir a Vercel todo lo que la app usa (código, máscara, `dirmarea.txt`, página de validación con sus figuras y tablas) y nada de desarrollo; el proyecto no pasa de 12 MB; solo `main` despliega y no se publican copias estáticas |
-| `tests/e2e/test_interfaz.py` | La carta dibuja la costa del modelo y no pide teselas; navegador y modelo dan el mismo tierra/mar; ninguna partícula sobre tierra en 480 cuadros; radio inicial y barra de km y MN a escala en tres zooms; oleaje animado con largo y rapidez proporcionales a la altura, fijo, apagado y con movimiento reducido; con bloques distintos la ola del navegador coincide con la del modelo; animación continua y pausa; estelas; rapidez del conglomerado y de una partícula; línea de tiempo (fechas, marcas, saltos, velocidad); densidad con unidades y sin pintar tierra; localidades sin encimarse según el zoom; mapas base y atribuciones; tabla de arribos y clic en un tramo; imagen PNG y resumen de una página en PDF; recorrido de 14 pasos; historial; errores; sin datos; `/validacion` |
+| `tests/e2e/test_interfaz.py` | La carta dibuja la costa del modelo y no pide teselas; navegador y modelo dan el mismo tierra/mar; ninguna partícula sobre tierra en 480 cuadros; radio inicial y barra de km y MN a escala en tres zooms; oleaje animado con largo y rapidez proporcionales a la altura, fijo, apagado y con movimiento reducido; con bloques distintos la ola del navegador coincide con la del modelo; animación continua y pausa; estelas; rapidez del conglomerado y de una partícula; línea de tiempo (fechas, marcas, saltos, velocidad); densidad con unidades y sin pintar tierra; localidades sin encimarse según el zoom; mapas base y atribuciones; tabla de arribos y clic en un tramo; imagen PNG y resumen de una página en PDF; recorrido de 14 pasos; historial; errores; sin datos; `/validacion` desde «Acerca del modelo»; sin `?tecnico=1` ningún texto de desarrollo en toda la interfaz, el recorrido y el resumen, y con `?tecnico=1` los avisos, la huella y los límites |
 
 **Rendimiento en local** (Windows 11, 8 GB de RAM; detalle en [`docs/rendimiento.md`](docs/rendimiento.md)):
 

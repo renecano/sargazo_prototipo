@@ -79,6 +79,21 @@ def test_datos_invalidos_responden_409(semar, tmp_path):
     assert c.get("/api/campos").status_code == 409
 
 
+def test_los_avisos_de_validacion_quedan_en_la_api_y_en_el_registro(cliente, semar, tmp_path, caplog):
+    """La interfaz ya no los muestra al operador (solo con ?tecnico=1): siguen en la API y en el log."""
+    with caplog.at_level("INFO", logger="pms.datos"):
+        rep = cliente.get("/api/validacion").json()
+    avisos = [h["detalle"] for v in rep["verificaciones"] for h in v["hallazgos"] if h["nivel"] == "advertencia"]
+    assert avisos, "el archivo de prueba tiene bloques idénticos: hay al menos un aviso"
+    registrados = [r for r in caplog.records if r.name == "pms.datos"]
+    assert {r.getMessage().removeprefix("dirmarea.txt: ").split(" → ")[0] for r in registrados if r.levelname == "WARNING"} == set(avisos)
+    assert any("validado" in r.getMessage() and r.levelname == "INFO" for r in registrados)
+    editar_lineas(semar / ARCHIVO_OLEAJE, lambda l: [l[0], "FECHA ROTA"] + l[2:])
+    with caplog.at_level("INFO", logger="pms.datos"):
+        TestClient(crear_app(semar, tmp_path / "sims2")).get("/api/validacion")
+    assert any(r.levelname == "ERROR" and r.name == "pms.datos" for r in caplog.records), "los errores también"
+
+
 def test_sin_datos(tmp_path):
     c = TestClient(crear_app(tmp_path / "vacio", tmp_path / "sims"))
     assert c.get("/api/salud").json()["datos_disponibles"] is False
@@ -113,7 +128,7 @@ def test_trabajo_inexistente_404(cliente):
 
 def test_interfaz_y_salud(cliente):
     salud = cliente.get("/api/salud").json()
-    assert salud["estado"] == "ok" and salud["version_app"] == "0.5.0" and salud["version_modelo"] == "pms-browniano-0.4.0"
+    assert salud["estado"] == "ok" and salud["version_app"] == "0.5.1" and salud["version_modelo"] == "pms-browniano-0.4.0"
     assert salud["datos_disponibles"] is True and salud["trabajos_en_segundo_plano"] is True
     html = cliente.get("/")
     assert html.status_code == 200 and "Predicción de Movimiento del Sargazo" in html.text and "Recorrido guiado" in html.text

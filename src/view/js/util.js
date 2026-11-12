@@ -82,6 +82,11 @@ export function fmtFechaQRoo(d) {
   const l = local(d);
   return `${DIAS[l.getUTCDay()]} ${dos(l.getUTCDate())} ${MESES[l.getUTCMonth()]} · ${dos(l.getUTCHours())}:${dos(l.getUTCMinutes())}`;
 }
+// Fecha de inicio de los datos de oleaje para la cabecera: «1 oct 2026».
+export function fmtFechaDatos(d) {
+  return `${d.getUTCDate()} ${MESES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
 export function fmtDiaMes(d) {
   return `${dos(d.getUTCDate())} ${MESES[d.getUTCMonth()]}`;
 }

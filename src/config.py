@@ -18,7 +18,7 @@ DIR_VALIDACION = RAIZ / "docs" / "validacion"   # resultados de scripts/validar.
 # petición puede caer en otra instancia: no hay trabajos en segundo plano compartidos.
 SERVERLESS = os.environ.get("VERCEL") == "1"
 
-VERSION_APP = "0.5.0"
+VERSION_APP = "0.5.1"
 VERSION_MODELO = "pms-browniano-0.4.0"
 
 # Malla nativa de dirmarea.txt: 0.16°, lon −98.00…−83.12, lat 15…23. El modelo usa el

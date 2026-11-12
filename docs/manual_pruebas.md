@@ -17,8 +17,8 @@ Para probar un servidor ya desplegado, usa su dirección en lugar de `localhost:
 
 | Comando | Qué corre | Duración aproximada |
 |---|---|---|
-| `python -m pytest` | 241 pruebas rápidas: lector, validador, modelo, costa, interpolación, API, validación, paleta y despliegue | 1 min |
-| `python -m pytest -m e2e` | 36 pruebas de interfaz con un navegador real | 3 min |
+| `python -m pytest` | 242 pruebas rápidas: lector, validador, modelo, costa, interpolación, API, validación, paleta y despliegue | 1 min |
+| `python -m pytest -m e2e` | 38 pruebas de interfaz con un navegador real | 3 min |
 | `python -m pytest -m e2e --url-base https://pms-sargazo.vercel.app` | Las de interfaz contra un servidor desplegado (omite las que necesitan datos propios) | 3 min |
 | `python scripts/medir_rendimiento.py` | Tiempos del servidor y cuadros por segundo de la interfaz → `docs/rendimiento.md` | 3 min |
 | `python scripts/capturar_pantalla.py` | Capturas de `docs/` en 1366×768 y 1920×1080 | 2 min |
@@ -65,15 +65,16 @@ python -c "from scripts.generar_fixtures import crear_fixture; crear_fixture('tm
 python main.py --datos tmp\variable --puerto 8001
 ```
 
-Con ese archivo la leyenda dice «Oleaje del pronóstico: bloque +N h» y el oleaje cambia al
-mover la línea de tiempo. Sus valores son sintéticos.
+Con ese archivo el oleaje cambia al mover la línea de tiempo; en modo técnico
+(`http://127.0.0.1:8001/?tecnico=1`) la leyenda dice «Oleaje del pronóstico: bloque +N h». Sus
+valores son sintéticos.
 
 ### 3. Oleaje en movimiento
 
 | Paso | Qué debe verse |
 |---|---|
 | Al abrir | Trazos que fluyen hacia el ONO frente a Cancún; más largos y más rápidos mar adentro, donde la ola es más alta |
-| Leyenda | «Oleaje constante: los 41 bloques del archivo son idénticos.» |
+| Leyenda | Sin notas sobre el archivo; con `?tecnico=1`, «Oleaje constante: los 41 bloques del archivo son idénticos.» |
 | «Mapa y capas» → desmarca «Animado» | Quedan flechas fijas, una por nodo con dato |
 | Desmarca «Oleaje» | Desaparecen las flechas y la referencia «ola de 1 m» |
 | Activa «reducir movimiento» en el sistema y recarga | El oleaje arranca fijo y el panel lo explica |
@@ -94,7 +95,7 @@ mover la línea de tiempo. Sus valores son sintéticos.
 | Acerca y aleja el mapa | La barra doble cambia de valor y de largo: km arriba, MN abajo, siempre en números redondos |
 | Mide con la barra el círculo punteado (radio 5 km) | El diámetro es de 10 km en cualquier zoom |
 | Compara una flecha de oleaje con «ola de 1 m» | Donde la ola es de ~1 m (pasa el cursor), el trazo mide lo mismo que la referencia, en cualquier zoom |
-| Leyenda con una simulación | Cuatro clases de densidad: 0.2–1, 1–5, 5–20 y ≥ 20 % del sargazo liberado por celda de 0.04° |
+| Leyenda con una simulación | Cuatro clases de densidad: 0.2–1, 1–5, 5–20 y ≥ 20 % del sargazo liberado por celda de ≈ 4 km |
 | Mira la densidad y la zona con el 90 % en los tres mapas base | Manchas púrpura translúcidas de bordes suaves, con trama diagonal y sin bloques rectangulares ni borde grueso; no se pintan sobre tierra. La zona es una línea fina. Nada se confunde con la tierra ni con el mar |
 | Suelta el conglomerado en 21.40° N, 86.65° O, simula y acerca el mapa al norte de Cancún (zooms 9 a 11) | La barra de Isla Blanca e Isla Contoy se ven como tierra; cada anillo rojo queda sobre tierra dibujada |
 | Línea de tiempo | «Hora N de 120», fecha en UTC y en hora de Quintana Roo (5 horas menos), una marca por día |
@@ -118,10 +119,13 @@ mover la línea de tiempo. Sus valores son sintéticos.
 
 | Paso | Qué debe verse |
 |---|---|
-| Al abrir | Solo la cabecera, la hoja del paso 1, la línea de tiempo y la leyenda con las escalas |
+| Al abrir | Solo la cabecera («Listo · datos del 1 oct 2026», sin conteo de avisos ni «detalle»), la hoja del paso 1, la línea de tiempo y la leyenda con las escalas |
 | Paso 3 | El titular, la tabla de arribos, «Ver detalle» y dos botones para exportar |
-| «Ver detalle» del resultado y de la leyenda | Ahí están las cifras secundarias, los símbolos explicados y las fuentes |
-| Pie de la leyenda | El aviso de límites y el enlace «Validación contra satélite», en letra pequeña |
+| «Ver detalle» del resultado | Las cifras secundarias y los parámetros; sin versión del modelo, huella ni advertencias |
+| «Acerca del modelo» | Los símbolos explicados, las fuentes y el enlace «Validación contra satélite», en letra pequeña |
+| La leyenda | Solo escalas, flecha de ola, clases de densidad y símbolos; ningún aviso ni enlace |
+| Abre la app con `?tecnico=1` | El estado dice «· 2 avisos» y ofrece «detalle» con cada verificación; la leyenda, la nota de los bloques; el resultado, versión, huella y advertencias |
+| Renombra `data/semar/dirmarea.txt` y recarga | «No se pudieron cargar los datos de oleaje. Revise el archivo dirmarea.txt.» Sin rutas ni jerga; con `?tecnico=1`, la ruta y la acción |
 
 ### Tabla de arribos y exportación
 

@@ -1,4 +1,4 @@
-"""Prueba de interfaz de punta a punta con Playwright (Edge o Chromium), versión 0.5.0.
+"""Prueba de interfaz de punta a punta con Playwright (Edge o Chromium), versión 0.5.1.
 
 Levanta la app real sobre un dirmarea.txt de fixture (dominio completo, formato real de
 SEMAR, valores sintéticos) y recorre, en el orden de las observaciones de SEMAR:
@@ -154,6 +154,24 @@ def huella_canvas(pg, capa: str) -> str:
     }""", capa)
 
 
+def pixeles_canvas(pg, capa: str) -> dict:
+    """Cuántos píxeles tienen tinta y cuánta (suma de alfa) en una capa de canvas."""
+    return pg.evaluate("""(capa) => {
+        const c = document.querySelector(`canvas[data-capa="${capa}"]`);
+        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        let pintados = 0, alfa = 0;
+        for (let i = 3; i < d.length; i += 4) if (d[i]) { pintados++; alfa += d[i]; }
+        return { pintados, alfa };
+    }""", capa)
+
+
+def mismo_dibujo(a: dict, b: dict, tolerancia=0.02) -> bool:
+    """Igual salvo el suavizado de bordes: si la capa se redibuja con el origen del lienzo
+    corrido una fracción de píxel (pasa contra un despliegue real), los bytes cambian aunque
+    se vea idéntico."""
+    return all(abs(a[k] - b[k]) <= tolerancia * max(a[k], 1) for k in ("pintados", "alfa"))
+
+
 def hora(pg) -> int:
     """«Hora 49 de 120» → 49."""
     return int(pg.text_content("#lt-h").split()[1])
@@ -263,13 +281,12 @@ def test_recorrido_se_abre_solo_la_primera_vez_y_saltar_lo_cierra(pagina):
     assert pagina.locator(RECORRIDO).count() == 0, "no debe volver a abrirse solo"
 
 
-def test_estado_en_una_linea_con_detalle_al_clic(pagina):
-    assert "dirmarea.txt validado" in pagina.text_content("#estado-texto")
-    assert pagina.is_hidden("#estado-detalle")
+def test_estado_simple_listo_con_la_fecha_de_los_datos(pagina):
+    texto = pagina.text_content("#estado-texto")
+    assert re.fullmatch(r"Listo · datos del \d{1,2} [a-z]{3} \d{4}", texto), texto
+    assert pagina.is_hidden("#estado-mas") and pagina.get_attribute("#estado", "title") is None
     pagina.click("#estado")
-    assert "idénticos" in pagina.text_content("#estado-detalle")
-    pagina.click("#estado")
-    assert pagina.is_hidden("#estado-detalle")
+    assert pagina.is_hidden("#estado-detalle"), "sin ?tecnico=1 el estado no tiene detalle"
 
 
 # --- 7. Interfaz limpia -----------------------------------------------------------------------
@@ -278,16 +295,15 @@ def test_por_defecto_solo_lo_esencial(pagina):
     """Mapa, paso actual, línea de tiempo y una leyenda mínima. Lo demás, plegado."""
     assert pagina.locator(".rosa").count() == 0, "se quitó la rosa de los vientos"
     assert pagina.locator("#chip-oleaje").count() == 0, "el interruptor de oleaje vive en «Mapa y capas»"
-    for oculto in ("#capas", "#historial", "#estado-detalle", "#ley-sim", "#lt-rapidez", "#velo"):
+    for oculto in ("#capas", "#historial", "#acerca", "#estado-detalle", "#ley-sim", "#lt-rapidez", "#velo"):
         assert pagina.is_hidden(oculto), oculto
-    assert pagina.get_attribute("#ley-detalle", "open") is None, "el detalle de la leyenda está plegado"
     assert pagina.get_attribute("#avanzado", "open") is None
     visibles = pagina.evaluate("""() => [...document.querySelectorAll('.cabecera > *, .hoja, .leyenda, .linea-tiempo, .flotante')]
         .filter((n) => n.offsetParent !== null || getComputedStyle(n).position === 'fixed' && !n.hidden).map((n) => n.className)""")
     assert len(visibles) == 6, visibles           # marca, pasos, acciones, hoja, leyenda, línea de tiempo
-    aviso = pagina.locator(".leyenda .aviso")
-    assert "sin viento ni corrientes" in aviso.inner_text() and "Validación" in aviso.inner_text()
-    assert pagina.evaluate("parseFloat(getComputedStyle(document.querySelector('.leyenda .aviso')).fontSize)") <= 11, "discreto"
+    leyenda = pagina.inner_text("#leyenda")
+    assert "km" in leyenda and "MN" in leyenda and "ola de 1 m" in leyenda
+    assert pagina.locator("#leyenda a, #leyenda details, #leyenda .aviso").count() == 0, "la leyenda solo tiene lo que se lee en el mapa"
     assert len(pagina.inner_text('.paso[data-paso="1"] .guia')) < 60, "una sola línea de guía"
 
 
@@ -484,7 +500,7 @@ def test_oleaje_animado_fluye_y_su_escala_vale_en_cualquier_zoom(pagina):
     assert len(avance) > 20
     razones = [d / h for d, h in avance]
     assert max(razones) == pytest.approx(min(razones), rel=0.02), "px por segundo proporcionales a la altura"
-    assert "constante" in pagina.text_content("#nota-ola") and "idénticos" in pagina.text_content("#nota-ola")
+    assert pagina.locator("#nota-ola").count() == 0, "la nota de los bloques del archivo solo existe en modo técnico"
 
 
 def test_el_oleaje_se_puede_dejar_fijo_o_apagar(pagina):
@@ -499,7 +515,7 @@ def test_el_oleaje_se_puede_dejar_fijo_o_apagar(pagina):
     nodos = pagina.evaluate("window.pms.flechas.map((f) => [(f.lon + 92.08) / 0.16, (f.lat - 16.92) / 0.16])")
     assert len(nodos) > 20 and all(abs(a - round(a)) < 1e-6 and abs(b - round(b)) < 1e-6 for a, b in nodos), "una flecha por nodo con dato"
     pagina.uncheck("#ver-oleaje")
-    assert pagina.evaluate("window.pms.flechas.length") == 0 and pagina.is_hidden("#ref-ola") and pagina.is_hidden("#nota-ola")
+    assert pagina.evaluate("window.pms.flechas.length") == 0 and pagina.is_hidden("#ref-ola")
     assert pagina.is_disabled("#ver-animar")
     vacio = huella_canvas(pagina, "oleaje")
     assert vacio != f1
@@ -611,8 +627,9 @@ def test_la_tabla_de_arribos_es_el_resultado_principal(pagina):
     assert pagina.is_hidden('[data-prueba="varadas"]')
     pagina.click("#detalle-resultado summary")
     detalle = pagina.inner_text("#detalle-resultado")
-    for esperado in ("Varado al final", "Radio P90", "Trayectoria central", "Rapidez media", "kn", "MN", "UTC", "pms-browniano-0.4.0"):
+    for esperado in ("Varado al final", "Radio con el 90 %", "Trayectoria central", "Rapidez media", "kn", "MN", "UTC"):
         assert esperado in detalle, esperado
+    assert "pms-browniano" not in detalle and "SHA-256" not in detalle, "versión del modelo y huella, solo en modo técnico"
     assert PATRON_GM.search(detalle), "la liberación también en grados y minutos"
     pagina.click("#detalle-resultado summary")
 
@@ -737,12 +754,17 @@ def test_estelas_por_rapidez_y_su_interruptor(pagina):
         r, g, b = (int(color[k:k + 2], 16) for k in (1, 3, 5))
         assert b > g + 60 and r > g + 40, f"{color} es púrpura: lejos del ante de la tierra y del crema del mar"
     assert len(pintado["leyenda"]) == 3 and all(c.startswith("rgb") for c in pintado["leyenda"])
+    tinta_con = pixeles_canvas(pagina, "particulas")
     capas(pagina, True)
     pagina.uncheck("#ver-estelas")
     assert huella_canvas(pagina, "particulas") != con
+    sin = pixeles_canvas(pagina, "particulas")
+    assert sin["pintados"] < 0.9 * tinta_con["pintados"], f"sin estelas queda menos tinta: {sin} vs {tinta_con}"
     pagina.check("#ver-estelas")
     pagina.wait_for_timeout(500)
-    assert huella_canvas(pagina, "particulas") == con
+    assert pagina.evaluate("window.pms.dibujo.tramosEstela") == 6
+    otra_vez = pixeles_canvas(pagina, "particulas")
+    assert mismo_dibujo(otra_vez, tinta_con), f"al reencenderlas vuelven las mismas estelas: {otra_vez} vs {tinta_con}"
     capas(pagina, False)
 
 
@@ -838,7 +860,7 @@ def test_linea_de_tiempo_con_fechas_saltos_y_velocidad(pagina):
 def test_leyenda_de_densidad_con_unidades_y_sin_pintar_tierra(pagina):
     assert pagina.locator("#ley-densidad .clase").all_inner_texts() == ["0.2–1", "1–5", "5–20", "≥ 20"]
     unidad = pagina.inner_text(".ley-unidad")
-    assert "% del sargazo liberado" in unidad and "0.04°" in unidad and "km" in unidad
+    assert "% del sargazo liberado" in unidad and "km" in unidad and "°" not in unidad, unidad
     r = pagina.evaluate("""() => {
         const d = window.pmsDepurar, s = window.pms.sim;
         d.ponerHora(s.H);
@@ -915,7 +937,7 @@ def test_hover_muestra_coordenadas_en_dos_formatos_y_la_ola_del_modelo(pagina):
     assert float(m.group(2)) == pytest.approx(modelo["direccion_desde"], abs=1.5)
     pagina.mouse.move(*punto_en_pantalla(pagina, 21.16, -86.86))     # tierra: ciudad de Cancún
     pagina.wait_for_timeout(300)
-    assert "Tierra (costa del modelo)" in pagina.inner_text("#tooltip")
+    assert "Tierra" in pagina.inner_text("#tooltip") and "costa del modelo" not in pagina.inner_text("#tooltip")
 
 
 # --- Exportar ----------------------------------------------------------------------------------------
@@ -936,7 +958,7 @@ def test_exportar_la_imagen_del_mapa(pagina, tmp_path):
     assert exp["tipo"] == "imagen" and exp["sustituido"] is False and exp["bytes"] == len(crudo)
 
 
-def test_resumen_de_una_pagina_con_parametros_arribos_escalas_y_limites(pagina):
+def test_resumen_de_una_pagina_con_parametros_arribos_escalas_y_alcance(pagina):
     pausar(pagina)
     # Como función: si la expresión evaluada fuera la propia flecha, Playwright la ejecutaría.
     pagina.evaluate("() => { window.__impreso = 0; window.print = () => { window.__impreso += 1; }; }")
@@ -951,8 +973,12 @@ def test_resumen_de_una_pagina_con_parametros_arribos_escalas_y_limites(pagina):
         texto = pagina.inner_text("#informe")
         for esperado in ("Resumen de la simulación sim-", "generado el", "Punto de liberación", "Parámetros", "γ = 1.0",
                          "Arribos por tramo de costa", "Primer arribo", "MN", "kn", "Escalas", "flecha de ola de 1 m",
-                         "Límites del modelo", "sin viento ni corrientes", "Fuentes", "OpenStreetMap", "/validacion"):
+                         "Fuentes", "OpenStreetMap", "/validacion"):
             assert esperado.lower() in texto.lower(), esperado
+        for quitado in ("Límites del modelo", "sin viento ni corrientes", "Huella del archivo", "SHA-256", "bloques idénticos", "pms-browniano"):
+            assert quitado.lower() not in texto.lower(), quitado
+        alcance = pagina.inner_text('[data-prueba="informe-alcance"]')
+        assert "\n" not in alcance.strip() and "/validacion" in alcance, "una sola línea neutral al pie"
         assert PATRON_GM.search(texto)
         pagina.wait_for_function("(() => { const i = document.querySelector('#informe img'); return i.complete && i.naturalWidth === 1366; })()")
         pdf = pagina.pdf(format="A4", print_background=True)
@@ -992,7 +1018,7 @@ def test_punto_en_tierra_muestra_error_con_accion(pagina):
     esperar_estado(pagina, "error")
     assert "tierra" in pagina.text_content("#estado-texto")
     pagina.click("#estado")
-    assert "Acción" in pagina.text_content('[data-prueba="caja-error"]')
+    assert pagina.locator('[data-prueba="caja-error"]').count() == 0 or pagina.is_hidden("#estado-detalle")
 
 
 def test_sin_errores_de_javascript(pagina):
@@ -1027,7 +1053,7 @@ def test_con_bloques_distintos_el_oleaje_cambia_con_la_hora_y_coincide_con_el_mo
     datos = crear_fixture(tmp_path / "semar", completo=True, identicos=False)
     servidor, url = _levantar(datos, tmp_path / "sims")
     try:
-        ctx, pg = abrir(navegador, url, reduced_motion="reduce")
+        ctx, pg = abrir(navegador, f"{url}/?tecnico=1", reduced_motion="reduce")
         esperar_lista(pg)
         assert "bloque +0 h" in pg.inner_text("#nota-ola") and "idénticos" not in pg.inner_text("#nota-ola")
         en_cero = huella_canvas(pg, "oleaje")
@@ -1113,6 +1139,116 @@ def test_recorrido_guiado_completo(navegador, app_url):
     ctx.close()
 
 
+# --- v0.5.1: textos para el operador y modo técnico --------------------------------------------------
+
+TEXTOS_TECNICOS = [
+    "validado", "avisos", "verificaciones", "Pedir a SEMAR", "nodos", "sin observaciones",
+    "solo oleaje", "sin viento ni corrientes", "de muestra", "bloques", "idénticos", "SHA-256", "pms-browniano",
+    "preliminares", "sin calibrar", "T = 4.0", "Stokes", "extendida a la costa", "del dominio", "malla",
+]
+
+
+def _texto_visible(pg) -> str:
+    """Todo el texto que se ve: cabecera, hoja, leyenda, paneles abiertos, línea de tiempo, tooltip y velo."""
+    return pg.evaluate("""() => {
+        const vis = (n) => { for (let e = n; e && e !== document.body; e = e.parentElement) {
+            if (e.hidden || getComputedStyle(e).display === 'none' || getComputedStyle(e).visibility === 'hidden') return false; } return true; };
+        const textos = [];
+        const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        for (let n = w.nextNode(); n; n = w.nextNode()) {
+            const p = n.parentElement;
+            if (!p || ['SCRIPT', 'STYLE'].includes(p.tagName) || p.closest('#informe') || p.closest('.leaflet-control-attribution')) continue;
+            if (n.textContent.trim() && vis(p)) textos.push(n.textContent.trim());
+        }
+        for (const e of document.querySelectorAll('[title]')) if (vis(e)) textos.push(e.getAttribute('title'));
+        return textos.join(' \\n ');
+    }""")
+
+
+def _recorrer_interfaz(pg) -> list[str]:
+    """Pasa por cada parte de la interfaz y junta el texto visible de cada una."""
+    textos = [_texto_visible(pg)]
+    pg.click('#pasos [data-paso="2"]')
+    pg.click("#avanzado summary")
+    textos.append(_texto_visible(pg))
+    pg.click("#btn-simular")
+    esperar_estado(pg, "resultado")
+    pausar(pg)
+    poner_hora(pg, 30)
+    pg.click("#detalle-resultado summary")
+    textos.append(_texto_visible(pg))
+    for boton in ("#btn-capas", "#btn-historial", "#btn-acerca"):
+        pg.click(boton)
+        textos.append(_texto_visible(pg))
+        pg.keyboard.press("Escape")
+    x, y = punto_en_pantalla(pg, 21.15, -86.80)                       # tooltip sobre el mar junto a la costa
+    pg.mouse.move(x, y)
+    pg.wait_for_selector("#tooltip:not([hidden])")
+    textos.append(_texto_visible(pg))
+    pg.click("#estado")
+    textos.append(_texto_visible(pg))
+    pg.keyboard.press("Escape")
+    # El resumen exportado, tal como se imprime.
+    pg.evaluate("() => { window.print = () => {}; }")
+    pg.click("#btn-imprimir")
+    pg.wait_for_function("document.querySelector('[data-prueba=\"informe-alcance\"]')")
+    textos.append(pg.evaluate("document.getElementById('informe').innerText"))
+    # Y la imagen exportada: la cartela se dibuja en el lienzo; se revisa su texto.
+    return textos
+
+
+def test_sin_tecnico_no_aparecen_textos_de_desarrollo(navegador, app_url):
+    ctx, pg = abrir(navegador, app_url)
+    try:
+        esperar_lista(pg)
+        textos = _recorrer_interfaz(pg)
+        todo = " ".join(textos)
+        # El recorrido guiado completo (títulos, textos y mensajes de espera), aunque no se abra.
+        todo += " " + pg.evaluate("""() => window.pmsRecorrido.pasos.map((p) => [p.titulo, ...(p.texto || []),
+            p.esperar ? p.esperar.texto : ''].join(' ')).join(' ')""")
+        assert "detalle" not in pg.inner_text(".cabecera").lower(), "la cabecera no ofrece «detalle»"
+        encontrados = sorted({t for t in TEXTOS_TECNICOS if t.lower() in todo.lower()})
+        contexto = {w: todo[max(0, todo.lower().find(w.lower()) - 60): todo.lower().find(w.lower()) + 60] for w in encontrados}
+        assert not encontrados, f"textos de desarrollo visibles sin ?tecnico=1: {contexto}"
+        assert re.search(r"Listo · datos del \d{1,2} [a-z]{3} \d{4}", todo)
+        assert pg.locator("#nota-ola, #nota-parametros, [data-prueba='advertencias']").count() == 0
+        assert pg.errores == []
+    finally:
+        ctx.close()
+
+
+def test_con_tecnico_aparecen_los_avisos(navegador, app_url):
+    ctx, pg = abrir(navegador, f"{app_url}/?tecnico=1")
+    try:
+        esperar_lista(pg)
+        assert pg.evaluate("window.pms.tecnico") is True
+        if pg.evaluate("!!window.pms.avisosDatos"):
+            assert re.search(r"\d+ avisos", pg.text_content("#estado-texto"))
+            assert pg.is_visible("#estado-mas")
+            pg.click("#estado")
+            assert "sin observaciones" in pg.text_content("#estado-detalle")
+            pg.keyboard.press("Escape")
+        assert pg.is_visible("#nota-ola") and "bloque" in pg.inner_text("#nota-ola")
+        pg.click('#pasos [data-paso="2"]')
+        pg.click("#avanzado summary")
+        assert "sin calibrar" in pg.inner_text("#nota-parametros")
+        pg.click("#btn-simular")
+        esperar_estado(pg, "resultado")
+        pausar(pg)
+        pg.click("#detalle-resultado summary")
+        detalle = pg.inner_text("#detalle-resultado")
+        assert "SHA-256" in detalle and "pms-browniano" in detalle
+        assert pg.locator('[data-prueba="advertencias"] li').count() >= 1
+        pg.evaluate("() => { window.print = () => {}; }")
+        pg.click("#btn-imprimir")
+        pg.wait_for_function("document.querySelector('[data-prueba=\"informe-alcance\"]')")
+        informe = pg.evaluate("document.getElementById('informe').innerText")
+        assert "Límites del modelo" in informe and "Huella del archivo" in informe
+        assert pg.errores == []
+    finally:
+        ctx.close()
+
+
 # --- Datos inválidos y sin datos ------------------------------------------------------------
 
 def test_datos_invalidos_muestran_error(navegador, tmp_path, url_externa):
@@ -1123,13 +1259,18 @@ def test_datos_invalidos_muestran_error(navegador, tmp_path, url_externa):
     try:
         ctx, pg = abrir(navegador, url, visto=False)
         esperar_estado(pg, "error", timeout=20_000)
+        velo = pg.text_content("#velo")
+        assert pg.is_visible("#velo") and "No se pudieron cargar los datos de oleaje" in velo and "Revise el archivo dirmarea.txt" in velo
+        assert "Acción" not in velo and "Causa" not in velo, "sin jerga para el operador"
+        assert pg.is_disabled("#btn-simular")
+        assert pg.locator(RECORRIDO).count() == 0, "el recorrido no se abre si los datos no son válidos"
+        ctx.close()
+        ctx, pg = abrir(navegador, f"{url}/?tecnico=1", visto=False)       # en modo técnico, la causa y la acción
+        esperar_estado(pg, "error", timeout=20_000)
         assert "Error en los datos" in pg.text_content("#estado-texto")
-        assert pg.is_visible("#velo") and ARCHIVO_OLEAJE in pg.text_content("#velo")
         assert "Acción" in pg.text_content("#velo")
         pg.click("#estado")                                            # el velo no tapa el estado
         assert pg.is_visible("#estado-detalle")
-        assert pg.is_disabled("#btn-simular")
-        assert pg.locator(RECORRIDO).count() == 0, "el recorrido no se abre si los datos no son válidos"
         ctx.close()
     finally:
         servidor.should_exit = True
@@ -1141,20 +1282,26 @@ def test_estado_sin_datos(navegador, tmp_path, url_externa):
     try:
         ctx, pg = abrir(navegador, url, visto=False)
         esperar_estado(pg, "sin-datos", timeout=15_000)
-        assert "data/semar/" in pg.text_content("#velo")
+        assert "Revise el archivo dirmarea.txt" in pg.text_content("#velo") and "data/semar/" not in pg.text_content("#velo")
         assert pg.is_disabled("#btn-simular")
+        ctx.close()
+        ctx, pg = abrir(navegador, f"{url}/?tecnico=1", visto=False)
+        esperar_estado(pg, "sin-datos", timeout=15_000)
+        assert "data/semar/" in pg.text_content("#velo")
         ctx.close()
     finally:
         servidor.should_exit = True
 
 
-def test_pagina_validacion_desde_el_enlace_de_la_leyenda(navegador, app_url, url_externa):
-    """El enlace discreto de la leyenda abre /validacion con conclusión, tabla y figuras."""
+def test_pagina_validacion_desde_acerca_del_modelo(navegador, app_url, url_externa):
+    """El enlace discreto de «Acerca del modelo» abre /validacion con conclusión, tabla y figuras."""
     from src.config import DIR_VALIDACION
     if not url_externa and not (DIR_VALIDACION / "index.html").is_file():
         pytest.skip("Aún no hay resultados de validación en docs/validacion/")
     ctx, pagina = abrir(navegador, app_url)
     enlace = pagina.locator("#enlace-validacion")
+    assert enlace.is_hidden(), "no está en la pantalla principal"
+    pagina.click("#btn-acerca")
     enlace.wait_for(state="visible")
     assert "Validación" in enlace.inner_text()
     enlace.click()
