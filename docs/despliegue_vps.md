@@ -3,6 +3,10 @@
 Guía para instalar PMS en un servidor Linux propio (por ejemplo, el de SEMAR). No contiene
 credenciales: donde haga falta un usuario se escribe `<usuario>`.
 
+> **Estado al 14/11/2026:** PMS **v0.5.1** en dos servidores, el de entrega
+> (<http://66.179.210.78:8000>) y uno alternativo (<http://74.208.218.146:8443>). Ver
+> [Servidores con PMS](#servidores-con-pms-14112026).
+>
 > **Ejecutada el 03/11/2026 en Ubuntu 26.04.1 LTS** (kernel 7.0, glibc 2.43, Python 3.14.4 del
 > sistema, 1 CPU, 809 MB de RAM sin swap, 8.6 GB de disco), en el servidor de entrega
 > **http://66.179.210.78:8000** con PMS **v0.4.0** (commit `6401852`, etiqueta `v0.4.0`).
@@ -20,7 +24,9 @@ credenciales: donde haga falta un usuario se escribe `<usuario>`.
 - Los navegadores de los usuarios necesitan internet para las teselas de OpenStreetMap y la
   tipografía; el servidor no.
 
-Solo si faltan Git o `venv` (en Ubuntu 26.04 ya venían; **no** hace falta actualizar el sistema):
+Solo si faltan Git o `venv` (**no** hace falta actualizar el sistema). En el 66.179.210.78 ya venían; en el
+74.208.218.146 faltaba `ensurepip` y se instaló `python3-venv` (antes, `apt-get install -s` confirmó que
+solo agregaba 4 paquetes y no actualizaba el Python del sistema):
 
 ```bash
 sudo apt install -y git python3-venv
@@ -33,9 +39,12 @@ trabajó como `root` por SSH con llave: `ssh -i ~/.ssh/<llave> <usuario>@<ip-del
 
 ```bash
 sudo useradd --system --create-home --home-dir /var/lib/pms --shell /usr/sbin/nologin pms
+# Si el servidor tiene contenedores (Docker), elige un uid que no use ningún proceso: con
+# --system, useradd suele dar el 999, el mismo que usan Postgres y MySQL dentro de sus imágenes.
+# Así se hizo en el 74.208.218.146: groupadd --system --gid 980 pms; useradd --system --uid 980 --gid 980 …
 sudo git clone https://github.com/renecano/sargazo_prototipo.git /opt/pms
 cd /opt/pms
-sudo git checkout -B main v0.4.0                 # Ajuste: fija la versión entregada
+sudo git checkout -B main v0.5.1                 # Ajuste: fija la versión entregada
 sudo git branch --set-upstream-to=origin/main main
 sudo chown -R pms:pms /opt/pms
 sudo -u pms git -C /opt/pms log --oneline -1     # debe mostrar el commit de la v0.4.0
@@ -210,6 +219,73 @@ sudo rm -rf /opt/pms          # borra también el historial de simulaciones
 sudo userdel -r pms
 ```
 
+## Servidores con PMS (14/11/2026)
+
+| | Servidor de entrega | Servidor alternativo (respaldo) |
+|---|---|---|
+| URL | **<http://66.179.210.78:8000>** | **<http://74.208.218.146:8443>** |
+| Versión | v0.5.1 (`09f02a7`, modelo `pms-browniano-0.4.0`) | v0.5.1 (`09f02a7`) |
+| Servicio | `pms`, usuario `pms` (uid 999), `MemoryMax=450M`, `MemorySwapMax=0` | `pms`, usuario `pms` (uid y gid 980), `MemoryMax=450M`, `MemorySwapMax=0` |
+| Puerto | 8000 | 8443: el firewall del proveedor filtra el 8010 y casi todos los demás; el 8000 es de la app de otro equipo |
+| Pico de memoria, simulación máxima | 143 MB (al sistema le quedan 44 MB) | 135 MB (al sistema le quedan 553 MB) |
+| Respaldo previo | `/root/respaldo_pms_20261114` (unidad, LEEME, commit anterior `6401852`, `pip freeze`, 30 simulaciones) | `/root/respaldo_pms_20261114` (instalación nueva; unidad con el 8010 y con el 8443) |
+| Cambios fuera de `/opt/pms` | ninguno | `apt install python3-venv` (4 paquetes nuevos, ninguno actualizado: faltaba `ensurepip`) |
+
+**Memoria medida** el 14/11/2026 con la v0.5.1, igual que en la sección 3: servicio recién
+reiniciado, interfaz abierta y 5 000 partículas × 120 h (radio 50 km) en 21.00° N, 86.30° O.
+
+| Momento | 66.179.210.78 | 74.208.218.146 |
+|---|---|---|
+| Arranque | 93 MB | 44 MB |
+| Interfaz abierta (validación, campos, costa, localidades) | 98 MB | 86 MB |
+| Simulación máxima, endpoint síncrono | 132 MB (0.75 s; registro de 3.3 MB) | 126 MB (0.60 s) |
+| Simulación máxima en segundo plano (lo que usa la interfaz) | **143 MB** | **135 MB** |
+
+La v0.5.1 pide unos 25 MB más que la v0.4.0 (116 MB) por la máscara de costa de ~100 m y las
+localidades. Cabe con margen en `MemoryMax=450M`; lo que no alcanza en el 66 es la memoria del
+servidor completo (abajo). No se repitió la prueba de dos simulaciones a la vez en el 66 para no
+provocar una muerte por memoria de procesos ajenos.
+
+### Por qué falló el 66 el 13/11/2026
+
+**No era la versión ni la copia nueva.** El puerto 8000 lo seguía sirviendo `/opt/pms` en la
+v0.4.0. Las copias de `/root/sargazo_prototipo` y `/root/equipo4/hidrocarburos/sargazo_prototipo`
+son la v0.2.0 de octubre, con un `.venv` hecho en Windows, y no las sirve ningún servicio (no se
+tocaron). **La causa es la memoria del servidor completo**: 809 MB de RAM sin swap, con Docker
+(XAMPP, que trae Apache y MySQL, y Postgres: ~190 MB), `unattended-upgrades`, `apt` y `fwupd`. Del 6 al
+14/11 el kernel mató 65 procesos por falta de memoria; a PMS lo mató 15 veces (7 el 13/11, entre
+las 02:18 y las 04:16 UTC), siempre muy por debajo de su límite (pico de 41 a 97 MB): eran muertes
+del sistema, no del `MemoryMax`. systemd lo reinició cada vez en 5–10 s, pero mientras tanto la
+página no respondía. El disco está al 91 % (839 MB libres).
+
+Se pasó el servicio a la v0.5.1 sin cambiar la unidad ni el venv (el `requirements.txt` de la
+v0.5.1 es idéntico al de la v0.4.0 y el venv tenía exactamente esas dependencias). Lo que lo
+haría estable no es de PMS y no se tocó: agregar swap (p. ej. 1 GB), quitar contenedores o
+servicios que no se usen, o darle más RAM al servidor.
+
+### Comparación (medido el 14/11/2026)
+
+| | 66.179.210.78 | 74.208.218.146 |
+|---|---|---|
+| Sistema | Ubuntu 26.04.1, Python 3.14.4 | Ubuntu 26.04.1, Python 3.14.4 |
+| CPU | 1 vCPU AMD EPYC-Milan | 2 vCPU AMD EPYC-Milan |
+| RAM total / disponible en reposo | 809 MB / 57–92 MB | 1 815 MB / 598–651 MB |
+| Swap | ninguna | 1 GB, llena (1 015–1 023 MB usados) |
+| Disco libre | 839 MB (91 % usado) | 65 GB (16 % usado) |
+| Carga (1/5/15 min) | 0.72 / 0.40 / 0.33 | 0.21 / 0.17 / 0.12 |
+| Qué más corre | Docker: XAMPP (Apache y MySQL) y Postgres | 8 contenedores (MySQL ×2, Postgres ×2, phpMyAdmin ×4), nginx en 80/443, app de otro equipo en el 8000 |
+| Muertes por memoria del 6 al 14/11 | 65 (15 de PMS) | 3 (todas de MySQL en contenedor, el 13/11) |
+| Reinicios del servidor | 3/11 y 5/11 | 25/10 y 7/11 |
+| `/api/salud` desde la laptop (10 peticiones) | mediana 90 ms (86–280) | mediana 90 ms (88–105) |
+| Simulación de 2 000 × 120 h desde la laptop | 0.71 s | 0.76 s |
+| Firewall | ufw inactivo; el proveedor deja pasar el 8000 | ufw inactivo; el proveedor solo deja pasar algunos puertos (8000, 8443, 3000…) |
+
+**Riesgos.** En el 66, cualquier pico de memoria de los demás servicios vuelve a tumbar a PMS;
+además el usuario `pms` comparte el uid 999 con el Postgres del contenedor (cambiarlo exigiría
+detener ese contenedor). En el 74, el servidor es compartido con otros proyectos y con la app
+de otro equipo, la swap está llena y el 8443 depende de una regla del proveedor que no
+controlamos; no es un puerto con HTTPS aunque el número lo sugiera.
+
 ## Guía corta para el dueño del servidor
 
 Esta misma guía está en el servidor, en `/opt/pms/LEEME_SERVIDOR.txt`.
@@ -244,6 +320,20 @@ servicio:
 systemctl start pms
 curl -s http://127.0.0.1:8000/api/salud   # debe decir "estado":"ok"
 ```
+
+## Verificación (14/11/2026, v0.5.1)
+
+En los dos servidores, desde la laptop y por SSH (sin Playwright contra los servidores):
+
+1. **`/api/salud`** en el servidor y desde fuera: `"version_app":"0.5.1"`, `"datos_disponibles":true`;
+   `/`, `/validacion` y `/api/costa/tierra.bin` responden 200.
+2. **Simulación completa por la API** desde la laptop (frente a Cancún, 2 000 partículas, 120 h):
+   HTTP 200 en 0.71 s (66) y 0.76 s (74), guardada en `/opt/pms/data/simulations/` (1.3 MB,
+   dueño `pms`), visible en el historial y recuperable por `GET /api/simulaciones/<id>`; después
+   se borró.
+3. **`systemctl restart pms`**: el servicio volvió solo en 2 s en los dos (activo y habilitado).
+4. **App del otro equipo en el 74.208.218.146:8000**: antes y después de instalar PMS respondió
+   igual (`/` → 302 a `/web/`, misma página, mismo PID y 0 reinicios).
 
 ## Verificación (03/11/2026)
 

@@ -648,11 +648,13 @@ python scripts/generar_dirmarea.py --fecha 2026-10-01       # dirmarea.txt con o
   cómo limpiar los viejos: [más abajo](#almacenamiento-en-vercel). **La demo es
   pública**: cualquiera con la URL ve el oleaje. Si SEMAR no lo autoriza, hay que activar
   Deployment Protection o retirar el archivo.
-- **VPS de entrega para SEMAR** (<http://66.179.210.78:8000>): sigue en la **v0.4.0**. La
-  v0.5.0 no se instaló ahí; el servidor se está atendiendo aparte. La guía para instalar,
-  actualizar y revertir está en [`docs/despliegue_vps.md`](docs/despliegue_vps.md). Al
-  actualizarlo, las simulaciones guardadas con el modelo 0.3.0 dejan de aparecer en el
-  historial (usan otra costa); los archivos no se borran.
+- **Servidores propios**, los dos en la **v0.5.1** desde el 14/11/2026: el de entrega
+  (<http://66.179.210.78:8000>) y uno alternativo (<http://74.208.218.146:8443>). El de entrega
+  se cae cuando el servidor completo se queda sin memoria (809 MB sin swap, compartidos con
+  otros servicios); el alternativo tiene más margen. Comparación medida, memoria de PMS y causa
+  de la falla del 13/11: [`docs/despliegue_vps.md`](docs/despliegue_vps.md), que también tiene la
+  guía para instalar, actualizar y revertir. Las simulaciones guardadas con el modelo 0.3.0 no
+  aparecen en el historial (usan otra costa); los archivos no se borran.
 
 ### Almacenamiento en Vercel
 
